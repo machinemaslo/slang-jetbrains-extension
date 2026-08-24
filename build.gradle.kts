@@ -4,7 +4,7 @@ import java.nio.file.Paths
 import java.util.zip.*
 import kotlin.io.path.absolute
 
-fun getProjectVersion():String = "0.0.7"
+fun getProjectVersion():String = "0.0.8"
 project.version = getProjectVersion()
 group = "slang"
 
@@ -26,48 +26,21 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        intellijIdeaCommunity("2023.3.6")
+        intellijIdeaCommunity("2024.1.4")
         pluginVerifier()
         zipSigner()
         instrumentationTools()
 
         jetbrainsRuntime()
-        bundledPlugin("org.jetbrains.plugins.textmate")
         plugin("com.redhat.devtools.lsp4ij:0.13.0")
     }
     implementation("com.google.code.gson:gson:2.11.0")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
 }
 
 fun getResourcesFolder(): String
 {
     return project.projectDir.toString()+"/src/main/resources/";
-}
-
-fun createZipFileOfVSCodeExtension()
-{
-    val outputZipFile: File = Paths.get(getResourcesFolder()+"slang-vscode-extension.zip").toFile()
-    val inputDirectory: File = Paths.get(project.projectDir.toString()+"/slang-vscode-extension/").absolute().toFile()
-
-    val inputPath = inputDirectory.toPath()
-    val projectPath = project.projectDir.toPath()
-    
-    val hiddenRelativeDir = projectPath.relativize(inputPath).resolve(".").toString()
-    val docRelativeDir = projectPath.relativize(inputPath).resolve("doc").toString()
-    
-    ZipOutputStream(BufferedOutputStream(FileOutputStream(outputZipFile))).use { zipFile ->
-        inputDirectory.walkTopDown().forEach { file ->
-            val zipFileName = file.toRelativeString(project.projectDir)
-            if(!zipFileName.startsWith(hiddenRelativeDir) && !zipFileName.startsWith(docRelativeDir)) {
-                val entry = ZipEntry("$zipFileName${(if (file.isDirectory) "/" else "")}")
-                zipFile.putNextEntry(entry)
-                if (file.isFile) {
-                    file.inputStream().use { fis -> fis.copyTo(zipFile) }
-                }
-                zipFile.closeEntry()
-            }
-        }
-        zipFile.finish()
-    }
 }
 
 fun createFileWithVersion()
@@ -81,7 +54,6 @@ fun createFileWithVersion()
 
 fun mandatoryTasks()
 {
-    createZipFileOfVSCodeExtension()
     createFileWithVersion()
 }
 
@@ -98,6 +70,10 @@ tasks {
     }
 
     buildPlugin
+
+    test {
+        useJUnitPlatform()
+    }
 
     runIde
     /*
@@ -116,14 +92,14 @@ tasks {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "233.0"
+            sinceBuild = "241.0"
             untilBuild = provider { null }
         }
     }
     pluginVerification {
         ides {
-            ide(IntelliJPlatformType.IntellijIdeaCommunity, "2023.3.6")
-            ide(IntelliJPlatformType.CLion, "2023.3.6")
+            ide(IntelliJPlatformType.IntellijIdeaCommunity, "2024.1.4")
+            ide(IntelliJPlatformType.CLion, "2024.1.4")
         }
     }
 }
