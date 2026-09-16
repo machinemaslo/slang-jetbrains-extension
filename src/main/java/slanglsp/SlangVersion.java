@@ -1,7 +1,6 @@
 package slanglsp;
 
 import io.netty.util.AsciiString;
-import org.jcodings.specific.ASCIIEncoding;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;

@@ -12,7 +12,6 @@
         <list>
           <option value="patchPluginXml" />
           <option value="compileJava" />
-          <option value="compileKotlin" />
           <option value="prepareSandbox" />
           <option value="buildPlugin" />
           <option value="runIde" />

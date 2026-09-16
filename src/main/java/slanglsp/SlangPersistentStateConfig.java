@@ -63,37 +63,18 @@ class SlangPersistentStateConfig implements PersistentStateComponent<SlangPersis
                 ;
         }
 
-        Object createJSONFromObject()
+        JsonObject createJSONFromObject()
         {
-            Gson gson = new Gson();
-            Map<String, String> stringMap = new HashMap<>();
-
-            String additionalIncludePathsKey = "slang.additionalSearchPaths";
-            String additionalIncludePathsJson = gson.toJson(additionalIncludePaths);
-            stringMap.put(additionalIncludePathsKey, additionalIncludePathsJson);
-
-            String predefinedMacrosKey = "slang.predefinedMacros";
-            String predefinedMacrosJson = gson.toJson(predefinedMacros);
-            stringMap.put(predefinedMacrosKey, predefinedMacrosJson);
-
-            String enableCommitCharactersInAutoCompletionKey = "slang.enableCommitCharactersInAutoCompletion";
-            String enableCommitCharactersInAutoCompletionJson = gson.toJson(enableCommitCharactersInAutoCompletion);
-            stringMap.put(enableCommitCharactersInAutoCompletionKey, enableCommitCharactersInAutoCompletionJson);
-
-            String enableInlayHintsForDeducedTypesKey = "slang.inlayHints.deducedTypes";
-            String enableInlayHintsForDeducedTypesJson = gson.toJson(enableInlayHintsForDeducedTypes);
-            stringMap.put(enableInlayHintsForDeducedTypesKey, enableInlayHintsForDeducedTypesJson);
-
-            String enableInlayHintsForParameterNamesKey = "slang.inlayHints.parameterNames";
-            String enableInlayHintsForParameterNamesJson = gson.toJson(enableInlayHintsForParameterNames);
-            stringMap.put(enableInlayHintsForParameterNamesKey, enableInlayHintsForParameterNamesJson);
-
-            String enableSearchingSubDirectoriesOfWorkspaceKey = "slang.searchInAllWorkspaceDirectories";
-            String enableSearchingSubDirectoriesOfWorkspaceJson = gson.toJson(enableSearchingSubDirectoriesOfWorkspace);
-            stringMap.put(enableSearchingSubDirectoriesOfWorkspaceKey, enableSearchingSubDirectoriesOfWorkspaceJson);
-
-            return gson.toJson(stringMap);
+            Map<String, Object> settings = new HashMap<>();
+            settings.put("slang.additionalSearchPaths", additionalIncludePaths);
+            settings.put("slang.predefinedMacros", predefinedMacros);
+            settings.put("slang.enableCommitCharactersInAutoCompletion", enableCommitCharactersInAutoCompletion);
+            settings.put("slang.inlayHints.deducedTypes", enableInlayHintsForDeducedTypes);
+            settings.put("slang.inlayHints.parameterNames", enableInlayHintsForParameterNames);
+            settings.put("slang.searchInAllWorkspaceDirectories", enableSearchingSubDirectoriesOfWorkspace);
+            return new Gson().toJsonTree(settings).getAsJsonObject();
         }
+
     }
 
     @NotNull

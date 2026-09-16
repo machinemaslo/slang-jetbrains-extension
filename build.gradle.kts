@@ -2,17 +2,21 @@ import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import java.io.*
 import java.nio.file.Paths
 import java.util.zip.*
+import java.util.Properties
 import kotlin.io.path.absolute
 
-fun getProjectVersion():String = "0.0.8"
+fun getProjectVersion():String = "0.0.9-local"
 project.version = getProjectVersion()
 group = "slang"
 
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "1.9.25"
-    id("org.jetbrains.intellij.platform") version "2.0.1"
-    id("org.jetbrains.grammarkit") version "2022.3.2.2"
+    id("org.jetbrains.intellij.platform") version "2.19.0"
+}
+
+val localBuildProperties = Properties().apply {
+    val propertiesFile = rootProject.file("local.properties")
+    if (propertiesFile.isFile) propertiesFile.inputStream().use { load(it) }
 }
 
 repositories {
@@ -26,16 +30,21 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        intellijIdeaCommunity("2024.1.4")
+        val localIdePath = providers.gradleProperty("localIdePath").orNull
+            ?: localBuildProperties.getProperty("localIdePath")
+        if (localIdePath != null) {
+            local(localIdePath)
+        } else {
+            intellijIdeaCommunity("2024.1.4")
+        }
         pluginVerifier()
         zipSigner()
-        instrumentationTools()
 
-        jetbrainsRuntime()
         plugin("com.redhat.devtools.lsp4ij:0.13.0")
     }
     implementation("com.google.code.gson:gson:2.11.0")
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.0")
 }
 
 fun getResourcesFolder(): String
@@ -63,10 +72,11 @@ tasks {
     withType<JavaCompile> {
         sourceCompatibility = "17"
         targetCompatibility = "17"
-    }
-
-    withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        kotlinOptions.jvmTarget = "17"
+        options.release.set(17)
+        localBuildProperties.getProperty("compilerJavaHome")?.let {
+            options.isFork = true
+            options.forkOptions.javaHome = file(it)
+        }
     }
 
     buildPlugin
@@ -98,8 +108,8 @@ intellijPlatform {
     }
     pluginVerification {
         ides {
-            ide(IntelliJPlatformType.IntellijIdeaCommunity, "2024.1.4")
-            ide(IntelliJPlatformType.CLion, "2024.1.4")
+            create(IntelliJPlatformType.IntellijIdeaCommunity, "2024.1.4")
+            create(IntelliJPlatformType.CLion, "2024.1.4")
         }
     }
 }

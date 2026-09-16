@@ -45,9 +45,6 @@ bin/
 .run
 
 .gradle
-gradle
-gradlew
-gradlew.bat
 
 src/main/resources/version.txt
 
@@ -57,4 +54,4 @@ TODO.txt
 # Local files
 gradle.zip
 gradle-8.5/
-local.properties
+local.properties

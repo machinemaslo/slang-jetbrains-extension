@@ -13,10 +13,11 @@ https://plugins.jetbrains.com/plugin/26239-slang-unofficial-
 ---
 
 ### To Build
-1. install Intellij IDEA 2024.x.x
+1. install IntelliJ IDEA and JDK 21 or newer
 2. fetch code with `git clone --recursive https://github.com/16-Bit-Dog/slang-intellj-extenson.git`
-3. build using predefined project tasks using IDEA 2024.x.x
-4. as a note, the "build & run" task may fail (jetbrains bug?). Re-run the task if this happens.
+3. to use your installed IDEA, create `local.properties` with `localIdePath=/path/to/intellij-idea` and `compilerJavaHome=/path/to/intellij-idea/jbr` on separate lines. Otherwise, Gradle downloads IDEA 2024.1.4.
+4. open the project in IDEA, select the Gradle wrapper and JDK 21 as the Gradle JVM, then run the `test` and `buildPlugin` tasks
+5. install the plugin ZIP from `build/distributions/`
 
 ---
 
@@ -38,4 +39,3 @@ The project contains native Java tests to verify Lexer and Syntax Highlighter co
 ```bash
 ./gradlew test
 ```
-

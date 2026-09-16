@@ -12,8 +12,6 @@ import com.redhat.devtools.lsp4ij.client.LanguageClientImpl;
 import com.redhat.devtools.lsp4ij.server.ProcessStreamConnectionProvider;
 import com.redhat.devtools.lsp4ij.server.StreamConnectionProvider;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.plugins.textmate.configuration.TextMateUserBundlesSettings;
-import org.jetbrains.plugins.textmate.TextMateService;
 
 import java.io.*;
 import java.nio.file.Path;
