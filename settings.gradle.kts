@@ -8,4 +8,4 @@ pluginManagement {
     }
 }
 
-rootProject.name = "Unofficial-LSP-For-Slang"
+rootProject.name = "Unofficial-LSP-For-Slang [Refined]"

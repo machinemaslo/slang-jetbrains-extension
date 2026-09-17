@@ -7,6 +7,19 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class SlangSettingsTest {
     @Test
+    void localVcpkgSettingIsCopiedComparedAndNotSentToServer() {
+        var original = new SlangPersistentStateConfig.State();
+        var changed = new SlangPersistentStateConfig.State();
+        assertTrue(original.useLocalVcpkgSlangd);
+        changed.useLocalVcpkgSlangd = false;
+        assertFalse(original.equals(changed));
+        original.copyValues(changed);
+        assertTrue(original.equals(changed));
+        assertFalse(original.useLocalVcpkgSlangd);
+        assertEquals(6, original.createJSONFromObject().size());
+        assertFalse(original.createJSONFromObject().has("useLocalVcpkgSlangd"));
+    }
+    @Test
     void settingsPreserveJsonTypesAndValues() {
         var state = new SlangPersistentStateConfig.State();
         state.additionalIncludePaths = List.of("/shader includes", "C:\\shaders\\\"quoted\"");

@@ -1,4 +1,4 @@
-### This is an unofficial LSP for Slang to use with jetbrain IDEs.
+### This is a refined fork of unofficial LSP for Slang to use with JetBrains IDEs.
 
 ---
 
@@ -7,7 +7,7 @@
 
 ---
 
-### Jetbrains plugin distribution page
+### Original JetBrains plugin distribution page
 https://plugins.jetbrains.com/plugin/26239-slang-unofficial-
 
 ---
@@ -27,6 +27,12 @@ https://plugins.jetbrains.com/plugin/26239-slang-unofficial-
 
 ---
 
+### Local vcpkg slangd
+1. install the `shader-slang` package with vcpkg
+2. enable "Use local vcpkg slangd package if found" in Settings → Tools → Slang (enabled by default)
+
+---
+
 ### To Run Tests
 The project contains native Java tests to verify Lexer and Syntax Highlighter correctness. To run the tests, use the included Gradle wrapper (requires JDK 21):
 
@@ -34,6 +40,10 @@ The project contains native Java tests to verify Lexer and Syntax Highlighter co
 ```cmd
 ./gradlew test
 ```
+
+To also test import resolution through a real language server, set `SLANGD_TEST_EXECUTABLE`
+to the absolute path of `slangd` before running the tests. This checks workspace discovery,
+configured include paths, configuration replies, and cross-file go-to-definition over LSP.
 
 **On macOS/Linux:**
 ```bash

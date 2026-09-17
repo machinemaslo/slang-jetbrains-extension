@@ -33,6 +33,7 @@ class SlangPersistentStateConfig implements PersistentStateComponent<SlangPersis
         public List<String> predefinedMacros = List.of("__EXAMPLE_MACRO1", "__EXAMPLE_MACRO2=VALUE");
 
         public String explicitSlangdLocation = "";
+        public boolean useLocalVcpkgSlangd = true;
 //        public String traceServer = "off"; // handled by LSP4IJ's (runtime) debug tool
         public String enableCommitCharactersInAutoCompletion = "membersOnly";
 
@@ -45,6 +46,7 @@ class SlangPersistentStateConfig implements PersistentStateComponent<SlangPersis
             additionalIncludePaths = otherState.additionalIncludePaths;
             predefinedMacros = otherState.predefinedMacros;
             explicitSlangdLocation = otherState.explicitSlangdLocation;
+            useLocalVcpkgSlangd = otherState.useLocalVcpkgSlangd;
             enableCommitCharactersInAutoCompletion = otherState.enableCommitCharactersInAutoCompletion;
             enableInlayHintsForDeducedTypes = otherState.enableInlayHintsForDeducedTypes;
             enableInlayHintsForParameterNames = otherState.enableInlayHintsForParameterNames;
@@ -56,6 +58,7 @@ class SlangPersistentStateConfig implements PersistentStateComponent<SlangPersis
                 && additionalIncludePaths.equals(other.additionalIncludePaths)
                 && predefinedMacros.equals(other.predefinedMacros)
                 && explicitSlangdLocation.equals(other.explicitSlangdLocation)
+                && useLocalVcpkgSlangd == other.useLocalVcpkgSlangd
                 && enableCommitCharactersInAutoCompletion.equals(other.enableCommitCharactersInAutoCompletion)
                 && enableInlayHintsForDeducedTypes.equals(other.enableInlayHintsForDeducedTypes)
                 && enableInlayHintsForParameterNames.equals(other.enableInlayHintsForParameterNames)
@@ -65,6 +68,11 @@ class SlangPersistentStateConfig implements PersistentStateComponent<SlangPersis
 
         JsonObject createJSONFromObject()
         {
+            return new Gson().toJsonTree(createServerSettings()).getAsJsonObject();
+        }
+
+        Map<String, Object> createServerSettings()
+        {
             Map<String, Object> settings = new HashMap<>();
             settings.put("slang.additionalSearchPaths", additionalIncludePaths);
             settings.put("slang.predefinedMacros", predefinedMacros);
@@ -72,7 +80,7 @@ class SlangPersistentStateConfig implements PersistentStateComponent<SlangPersis
             settings.put("slang.inlayHints.deducedTypes", enableInlayHintsForDeducedTypes);
             settings.put("slang.inlayHints.parameterNames", enableInlayHintsForParameterNames);
             settings.put("slang.searchInAllWorkspaceDirectories", enableSearchingSubDirectoriesOfWorkspace);
-            return new Gson().toJsonTree(settings).getAsJsonObject();
+            return settings;
         }
 
     }

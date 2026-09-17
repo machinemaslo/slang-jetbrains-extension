@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <form xmlns="http://www.intellij.com/uidesigner/form/" version="1" bind-to-class="slanglsp.SlangConfigurableGUI">
-  <grid id="27dc6" binding="root" layout-manager="GridLayoutManager" row-count="25" column-count="1" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
+  <grid id="27dc6" binding="root" layout-manager="GridLayoutManager" row-count="26" column-count="1" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
     <margin top="0" left="0" bottom="0" right="0"/>
     <constraints>
       <xy x="20" y="20" width="518" height="871"/>
@@ -10,24 +10,33 @@
     </properties>
     <border type="none"/>
     <children>
+      <component id="vcpkg1" class="javax.swing.JCheckBox" binding="useLocalVcpkgSlangd">
+        <constraints>
+          <grid row="15" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
+        </constraints>
+        <properties>
+          <text value="Use local vcpkg slangd package if found"/>
+          <toolTipText value="Use installed shader-slang tools before PATH. An explicit slangd directory takes priority. Changing this setting restarts the running language server."/>
+        </properties>
+      </component>
       <hspacer id="76fcd">
         <constraints>
-          <grid row="24" column="0" row-span="1" col-span="1" vsize-policy="1" hsize-policy="6" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+          <grid row="25" column="0" row-span="1" col-span="1" vsize-policy="1" hsize-policy="6" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
         </constraints>
       </hspacer>
       <hspacer id="2daac">
         <constraints>
-          <grid row="22" column="0" row-span="1" col-span="1" vsize-policy="1" hsize-policy="6" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+          <grid row="23" column="0" row-span="1" col-span="1" vsize-policy="1" hsize-policy="6" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
         </constraints>
       </hspacer>
       <hspacer id="90126">
         <constraints>
-          <grid row="20" column="0" row-span="1" col-span="1" vsize-policy="1" hsize-policy="6" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+          <grid row="21" column="0" row-span="1" col-span="1" vsize-policy="1" hsize-policy="6" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
         </constraints>
       </hspacer>
       <component id="28df5" class="javax.swing.JCheckBox" binding="enableInlayHintsForDeducedTypes">
         <constraints>
-          <grid row="19" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
+          <grid row="20" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
         </constraints>
         <properties>
           <text value="Enable Inlay Hints For Deduced Types"/>
@@ -35,7 +44,7 @@
       </component>
       <component id="cc42d" class="javax.swing.JCheckBox" binding="enableInlayHintsForParameterNames">
         <constraints>
-          <grid row="21" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
+          <grid row="22" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
         </constraints>
         <properties>
           <text value="Enable Inlay Hints For Parameter Names"/>
@@ -43,7 +52,7 @@
       </component>
       <component id="6f862" class="javax.swing.JCheckBox" binding="enableSearchingSubDirectoriesOfWorkspace">
         <constraints>
-          <grid row="23" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
+          <grid row="24" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
         </constraints>
         <properties>
           <text value="Enable Searching Sub-Directories Of Workspace"/>
@@ -67,7 +76,7 @@
           </grid>
         </constraints>
         <properties>
-          <toolTipText value="If empty, the PATH will be searched for `slangd`/`slangd.exe`. It is recomended to add `$VK_SDK_PATH/bin` to your PATH."/>
+          <toolTipText value="Overrides automatic discovery. Otherwise, local vcpkg packages (when enabled) are checked before PATH."/>
         </properties>
       </component>
       <component id="38f4e" class="javax.swing.JLabel">
@@ -148,17 +157,17 @@
       </hspacer>
       <hspacer id="67f1f">
         <constraints>
-          <grid row="18" column="0" row-span="1" col-span="1" vsize-policy="1" hsize-policy="6" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+          <grid row="19" column="0" row-span="1" col-span="1" vsize-policy="1" hsize-policy="6" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
         </constraints>
       </hspacer>
       <hspacer id="5812f">
         <constraints>
-          <grid row="15" column="0" row-span="1" col-span="1" vsize-policy="1" hsize-policy="6" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+          <grid row="16" column="0" row-span="1" col-span="1" vsize-policy="1" hsize-policy="6" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
         </constraints>
       </hspacer>
       <component id="b4de9" class="javax.swing.JComboBox" binding="enableCommitCharactersInAutoCompletion">
         <constraints>
-          <grid row="17" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="2" anchor="8" fill="1" indent="0" use-parent-layout="false"/>
+          <grid row="18" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="2" anchor="8" fill="1" indent="0" use-parent-layout="false"/>
         </constraints>
         <properties>
           <model>
@@ -170,7 +179,7 @@
       </component>
       <component id="5f9c6" class="javax.swing.JLabel">
         <constraints>
-          <grid row="16" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="0" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
+          <grid row="17" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="0" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
         </constraints>
         <properties>
           <text value="Enable Commit Characters In Auto Completion"/>

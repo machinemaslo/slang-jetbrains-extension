@@ -18,12 +18,14 @@ public class SlangSyntaxHighlighter extends SyntaxHighlighterBase {
     @Override
     public TextAttributesKey[] getTokenHighlights(IElementType tokenType) {
         if (tokenType.equals(SlangLexer.KEYWORD)) return new TextAttributesKey[]{SlangSyntaxHighlighterColors.KEYWORD};
+        if (tokenType.equals(SlangLexer.MODULE_NAME)) return new TextAttributesKey[]{SlangSyntaxHighlighterColors.TYPE_NAME};
         if (tokenType.equals(SlangLexer.TYPE)) return new TextAttributesKey[]{SlangSyntaxHighlighterColors.TYPE_NAME};
         if (tokenType.equals(SlangLexer.FUNCTION)) return new TextAttributesKey[]{SlangSyntaxHighlighterColors.FUNCTION_CALL};
         if (tokenType.equals(SlangLexer.VARIABLE)) return new TextAttributesKey[]{SlangSyntaxHighlighterColors.VARIABLE};
         if (tokenType.equals(SlangLexer.STRING)) return new TextAttributesKey[]{SlangSyntaxHighlighterColors.STRING};
         if (tokenType.equals(SlangLexer.NUMBER)) return new TextAttributesKey[]{SlangSyntaxHighlighterColors.NUMBER};
         if (tokenType.equals(SlangLexer.COMMENT)) return new TextAttributesKey[]{SlangSyntaxHighlighterColors.LINE_COMMENT};
+        if (tokenType.equals(SlangLexer.BLOCK_COMMENT)) return new TextAttributesKey[]{SlangSyntaxHighlighterColors.BLOCK_COMMENT};
         return new TextAttributesKey[0];
     }
 }

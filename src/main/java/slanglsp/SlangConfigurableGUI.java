@@ -12,6 +12,8 @@ import java.util.Vector;
 
 public class SlangConfigurableGUI {
     private SlangPersistentStateConfig mConfig;
+    private Project mProject;
+    private JCheckBox useLocalVcpkgSlangd;
 
     private JCheckBox enableInlayHintsForDeducedTypes;
     private JCheckBox enableInlayHintsForParameterNames;
@@ -57,6 +59,7 @@ public class SlangConfigurableGUI {
     boolean addedDefaultListeners = false;
     public void createUI(Project project)
     {
+        mProject = project;
         mConfig = SlangPersistentStateConfig.getInstance(project);
         setGUIStateWithState(mConfig.getState());
         addDefaultListeners();
@@ -69,6 +72,7 @@ public class SlangConfigurableGUI {
         state.predefinedMacros = getStringListFromPanelOwnedTextFields(predefinedMacrosContainer);
 
         state.explicitSlangdLocation = explicitSlangdLocation.getText();
+        state.useLocalVcpkgSlangd = useLocalVcpkgSlangd.isSelected();
 
         state.enableCommitCharactersInAutoCompletion = (String)enableCommitCharactersInAutoCompletion.getSelectedItem();
 
@@ -85,6 +89,7 @@ public class SlangConfigurableGUI {
         setPanelContentToListOfObjects(predefinedMacrosContainer, convertStringListIntoTextFieldVector(state.predefinedMacros));
 
         explicitSlangdLocation.setText(state.explicitSlangdLocation);
+        useLocalVcpkgSlangd.setSelected(state.useLocalVcpkgSlangd);
 
         enableCommitCharactersInAutoCompletion.setSelectedItem(state.enableCommitCharactersInAutoCompletion);
 
@@ -133,22 +138,26 @@ public class SlangConfigurableGUI {
 
     public void apply()
     {
-        mConfig.setState(this.deriveStateFromGUI());
-
-        for(var i : SlangLanguageClient.maybeAliveClients)
-            i.triggerChangeConfiguration();
+        var next = deriveStateFromGUI();
+        var previous = mConfig.getState();
+        boolean executableChanged = next.useLocalVcpkgSlangd != previous.useLocalVcpkgSlangd
+                || !next.explicitSlangdLocation.equals(previous.explicitSlangdLocation);
+        mConfig.setState(next);
+        if (executableChanged) {
+            mProject.getService(VcpkgSlangdService.class).invalidate();
+            var manager = com.redhat.devtools.lsp4ij.LanguageServerManager.getInstance(mProject);
+            if (manager.getServerStatus("slanglsp.SlangLanguageServer") == com.redhat.devtools.lsp4ij.ServerStatus.started) {
+                manager.start("slanglsp.SlangLanguageServer",
+                        new com.redhat.devtools.lsp4ij.LanguageServerManager.StartOptions().setForceStart(true));
+            }
+        }
+        for (var client : SlangLanguageClient.maybeAliveClients)
+            if (client.project == mProject) client.triggerChangeConfiguration();
     }
 
-    SlangPersistentStateConfig.State resetState = null;
     public void reset()
     {
-        if(resetState != null)
-        {
-            setGUIStateWithState(resetState);
-            apply();
-        }
-        else
-            resetState = this.deriveStateFromGUI();
+        setGUIStateWithState(mConfig.getState());
     }
 
     public boolean isModified()

@@ -22,6 +22,12 @@
     <extensions defaultExtensionNs="com.intellij">
         <fileType name="Slang" implementationClass="slanglsp.SlangFileType" fieldName="INSTANCE" language="Slang" extensions="slang;slangh"/>
         
+        <lang.parserDefinition language="Slang" implementationClass="slanglsp.SlangParserDefinition"/>
+
+        <gotoDeclarationHandler id="SlangGotoDeclarationHandler" order="first, before LSPGotoDeclarationHandler" implementation="slanglsp.SlangGotoDeclarationHandler"/>
+
+        <lang.documentationProvider language="Slang" implementationClass="slanglsp.SlangDocumentationProvider"/>
+
         <lang.syntaxHighlighterFactory language="Slang" implementationClass="slanglsp.SlangSyntaxHighlighterFactory"/>
 
         <codeInsight.parameterInfo
@@ -55,7 +61,7 @@
             </description>
         </server>
 
-        <fileNamePatternMapping patterns="*.slang"
+        <fileNamePatternMapping patterns="*.slang;*.slangh"
                                 serverId="slanglsp.SlangLanguageServer"
                                 languageId="slang"/>
     </extensions>
