@@ -9,7 +9,7 @@
         <![CDATA[
         <p>I didn't find any working slang lsps here, so I just took one and added a lot of features that make it work.</p>
         <p>So this plugin gives you everything, code completion, syntax highlight, docs in popup, go-to-definition, find usages, rename, clang-format support, vcpkg-installed slang support etc</p>
-        <p>This is a refined fork of <a href="https://plugins.jetbrains.com/plugin/26239-slang-unofficial-">Slang [Unofficial]</a>, props to 16-Bit-Dog</p>
+        <p>This is a refined fork of https://plugins.jetbrains.com/plugin/26239-slang-unofficial-, props to 16-Bit-Dog</p>
         ]]>
     </description>
 
