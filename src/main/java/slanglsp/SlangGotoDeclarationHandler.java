@@ -31,7 +31,7 @@ public class SlangGotoDeclarationHandler implements GotoDeclarationHandler {
         }
         // This method also runs on Ctrl-hover: never launch a project search here.
         if (builtinType) return PsiElement.EMPTY_ARRAY;
-        return new PsiElement[]{new SlangUsageTarget(source)};
+        return new PsiElement[]{new SlangUsageTarget(source, editor)};
     }
 
     static boolean isSource(PsiElement target, PsiElement source, int offset) {

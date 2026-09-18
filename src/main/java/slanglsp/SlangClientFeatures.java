@@ -13,6 +13,7 @@ import java.util.ArrayList;
 final class SlangClientFeatures extends LSPClientFeatures {
     SlangClientFeatures() {
         setSemanticTokensFeature(new SlangSemanticTokensFeature());
+        setHoverFeature(new SlangHoverFeature());
         // Our Find Usages handler owns references and the indexed fallback. Avoid duplicate searches.
         setUsageFeature(new com.redhat.devtools.lsp4ij.client.features.LSPUsageFeature() {
             @Override public boolean isSupported(@NotNull com.intellij.psi.PsiFile file) { return false; }

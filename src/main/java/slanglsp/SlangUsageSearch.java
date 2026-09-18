@@ -130,7 +130,7 @@ final class SlangUsageSearch {
         return true;
     }
 
-    private static URI fileUri(VirtualFile file) {
+    static URI fileUri(VirtualFile file) {
         if (file instanceof SlangBuiltinFiles.BuiltinFile builtin) return builtin.uri();
         return com.redhat.devtools.lsp4ij.client.features.FileUriSupport.getFileUri(file, null).normalize();
     }
@@ -176,7 +176,7 @@ final class SlangUsageSearch {
         }
     }
 
-    private static List<LocationData> definitions(PsiFile file, Document document, int offset) {
+    static List<LocationData> definitions(PsiFile file, Document document, int offset) {
         var support = new LSPDefinitionSupport(file);
         CompletableFuture<List<LocationData>> future = ReadAction.compute(() -> support.getDefinitions(
                 new LSPDefinitionParams(new TextDocumentIdentifier(), LSPIJUtils.toPosition(offset, document), offset)));

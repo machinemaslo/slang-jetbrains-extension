@@ -25,6 +25,7 @@
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.SlangParserDefinition"/>
         <lang.findUsagesProvider language="Slang" implementationClass="slanglsp.SlangFindUsagesProvider"/>
         <findUsagesHandlerFactory implementation="slanglsp.SlangFindUsagesHandlerFactory" order="first"/>
+        <renameHandler implementation="slanglsp.SlangRenameHandler"/>
 
         <gotoDeclarationHandler id="SlangGotoDeclarationHandler" order="first, before LSPGotoDeclarationHandler" implementation="slanglsp.SlangGotoDeclarationHandler"/>
 

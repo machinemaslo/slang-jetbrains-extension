@@ -36,7 +36,8 @@ class SlangNavigationTest {
         try {
             String code = "public float sharedValue = 1;\n"
                     + "float shadow() { float sharedValue = 2; return sharedValue; }\n"
-                    + "float useGlobal() { return sharedValue + sin(1.0); }\n";
+                    + "float useGlobal() { return sharedValue + sin(1.0); }\n"
+                    + "StructuredBuffer<float> values;\n";
             PsiFile[] files = new PsiFile[2];
             EdtTestUtil.runInEdtAndWait(() -> {
                 com.intellij.openapi.roots.ModuleRootModificationUtil.addContentRoot(fixture.getModule(), fixture.getTempDirPath());
@@ -80,8 +81,26 @@ class SlangNavigationTest {
             var service = fixture.getProject().getService(SlangBuiltinFiles.class);
             assertSame(file, service.resolve(((SlangBuiltinFiles.BuiltinFile) file).uri().toString()));
             assertTrue(ReadAction.compute(() -> builtin[0].getText().contains("sin")));
+
+            // Exercise the same rendering hook used by both LSP hover and Ctrl-hover.
+            String bufferDocs = ReadAction.compute(() -> new SlangDocumentationProvider()
+                    .generateDoc(files[0].findElementAt(code.indexOf("StructuredBuffer")), null));
+            assertNotNull(bufferDocs);
+            assertTrue(bufferDocs.contains("read-only structured buffer"), bufferDocs);
+            assertTrue(bufferDocs.contains("The element type of the buffer"), bufferDocs);
+            String sineDocs = ReadAction.compute(() -> new SlangDocumentationProvider()
+                    .generateDoc(files[0].findElementAt(code.indexOf("sin(")), null));
+            assertNotNull(sineDocs);
+            assertTrue(sineDocs.contains("The angle in radians"), sineDocs);
+
+            var documented = new org.eclipse.lsp4j.MarkupContent(org.eclipse.lsp4j.MarkupKind.MARKDOWN,
+                    "```\nstruct StructuredBuffer<T>\n```\n\nServer-provided explanation.\n\nDefined in core(21016)\n");
+            String suppliedDocs = ReadAction.compute(() -> new SlangHoverFeature().getContent(documented, files[0]));
+            assertTrue(suppliedDocs.contains("Server-provided explanation."));
+            assertFalse(suppliedDocs.contains("read-only structured buffer"), "Do not duplicate newer server documentation");
         } finally {
-            com.redhat.devtools.lsp4ij.LanguageServerManager.getInstance(fixture.getProject()).stop("slanglsp.SlangLanguageServer");
+            com.redhat.devtools.lsp4ij.LanguageServerManager.getInstance(fixture.getProject()).stop("slanglsp.SlangLanguageServer",
+                    new com.redhat.devtools.lsp4ij.LanguageServerManager.StopOptions().setWillDisable(false));
             EdtTestUtil.runInEdtAndWait(() -> fixture.tearDown());
         }
     }
