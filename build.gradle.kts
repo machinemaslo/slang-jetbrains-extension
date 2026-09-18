@@ -1,7 +1,7 @@
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import java.util.Properties
 
-fun getProjectVersion():String = "0.0.17"
+fun getProjectVersion():String = "0.0.18"
 project.version = getProjectVersion()
 group = "slang"
 
