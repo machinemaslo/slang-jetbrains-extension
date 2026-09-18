@@ -1,11 +1,7 @@
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
-import java.io.*
-import java.nio.file.Paths
-import java.util.zip.*
 import java.util.Properties
-import kotlin.io.path.absolute
 
-fun getProjectVersion():String = "0.0.13-local"
+fun getProjectVersion():String = "0.0.16-local"
 project.version = getProjectVersion()
 group = "slang"
 
@@ -43,37 +39,14 @@ dependencies {
         plugin("com.redhat.devtools.lsp4ij:${providers.gradleProperty("lsp4ijVersion").getOrElse("0.13.0")}")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
-    // Use the IDE's Gson at runtime, as LSP4IJ does. Bundling a second copy
-    // gives JSON objects a different class identity across plugin classloaders.
+    // Use the IDE's Gson; do not bundle a separate copy across plugin classloaders.
     compileOnly("com.google.code.gson:gson:2.11.0")
-    testImplementation("com.google.code.gson:gson:2.11.0")
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
     testImplementation("junit:junit:4.13.2") // IntelliJ's test fixtures extend JUnit 3 classes.
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.0")
 }
 
-fun getResourcesFolder(): String
-{
-    return project.projectDir.toString()+"/src/main/resources/";
-}
-
-fun createFileWithVersion()
-{
-    val versionFile: File = File(getResourcesFolder()+"version.txt")
-    versionFile.createNewFile()
-    val bw: BufferedWriter = BufferedWriter(FileWriter(versionFile))
-    bw.write(getProjectVersion());
-    bw.close();
-}
-
-fun mandatoryTasks()
-{
-    createFileWithVersion()
-}
-
 tasks {
-    mandatoryTasks()
-
     withType<JavaCompile> {
         sourceCompatibility = "17"
         targetCompatibility = "17"

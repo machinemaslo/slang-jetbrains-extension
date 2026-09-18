@@ -28,6 +28,7 @@ class SlangLanguageClient extends LanguageClientImpl
         }
         if(serverStatus == com.redhat.devtools.lsp4ij.ServerStatus.stopped)
         {
+            project.getService(SlangBuiltinFiles.class).clear();
             maybeAliveClients.remove(this);
         }
     }

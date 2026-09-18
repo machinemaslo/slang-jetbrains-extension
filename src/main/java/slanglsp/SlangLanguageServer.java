@@ -7,8 +7,8 @@ import com.intellij.openapi.util.SystemInfo;
 import com.intellij.util.EnvironmentUtil;
 import com.redhat.devtools.lsp4ij.LanguageServerManager;
 import com.redhat.devtools.lsp4ij.server.ProcessStreamConnectionProvider;
-import java.io.InputStream;
 import java.util.List;
+import java.io.InputStream;
 
 class SlangLanguageServer extends ProcessStreamConnectionProvider
 {
@@ -16,8 +16,7 @@ class SlangLanguageServer extends ProcessStreamConnectionProvider
     private InputStream responses;
 
     @Override
-    public synchronized InputStream getInputStream()
-    {
+    public synchronized InputStream getInputStream() {
         InputStream source = super.getInputStream();
         if (source == null) return null;
         if (source != responseSource) {
@@ -28,6 +27,11 @@ class SlangLanguageServer extends ProcessStreamConnectionProvider
     }
 
     Project project;
+    @Override public void start() throws com.redhat.devtools.lsp4ij.server.CannotStartProcessException {
+        super.start();
+        project.getService(SlangBuiltinFiles.class).serverStarted(getCommands().get(0));
+    }
+
     SlangLanguageServer(Project project)
     {
         this.project = project;

@@ -13,11 +13,27 @@ import java.util.ArrayList;
 final class SlangClientFeatures extends LSPClientFeatures {
     SlangClientFeatures() {
         setSemanticTokensFeature(new SlangSemanticTokensFeature());
+        // Our Find Usages handler owns references and the indexed fallback. Avoid duplicate searches.
+        setUsageFeature(new com.redhat.devtools.lsp4ij.client.features.LSPUsageFeature() {
+            @Override public boolean isSupported(@NotNull com.intellij.psi.PsiFile file) { return false; }
+        });
     }
 
     @Override
     public boolean isEnabled(@NotNull com.intellij.openapi.vfs.VirtualFile file) {
-        return file.getFileType() == SlangFileType.INSTANCE && super.isEnabled(file);
+        return !(file instanceof SlangBuiltinFiles.BuiltinFile)
+                && file.getFileType() == SlangFileType.INSTANCE && super.isEnabled(file);
+    }
+
+    @Override public com.intellij.openapi.vfs.VirtualFile findFileByUri(@NotNull String uri) {
+        if (SlangBuiltinFiles.moduleName(uri) != null) {
+            return getProject().getService(SlangBuiltinFiles.class).resolve(uri);
+        }
+        return super.findFileByUri(uri);
+    }
+
+    @Override public URI getFileUri(@NotNull com.intellij.openapi.vfs.VirtualFile file) {
+        return file instanceof SlangBuiltinFiles.BuiltinFile builtin ? builtin.uri() : super.getFileUri(file);
     }
 
     @Override
@@ -33,15 +49,11 @@ final class SlangClientFeatures extends LSPClientFeatures {
         var folders = new ArrayList<WorkspaceFolder>();
         if (params.getWorkspaceFolders() != null) {
             for (var folder : params.getWorkspaceFolders()) {
-                // Keep other roots, but put the project root last: slangd versions that
-                // overwrite their implicit search paths per root must scan it last.
                 if (!isSameRoot(folder.getUri(), root)) folders.add(folder);
             }
         }
         folders.add(new WorkspaceFolder(uri, projectName));
         params.setWorkspaceFolders(folders);
-        params.setRootUri(uri);
-        params.setRootPath(root.toString());
     }
 
     private static boolean isSameRoot(String uri, Path root) {

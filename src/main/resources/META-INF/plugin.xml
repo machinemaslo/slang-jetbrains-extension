@@ -23,10 +23,14 @@
         <fileType name="Slang" implementationClass="slanglsp.SlangFileType" fieldName="INSTANCE" language="Slang" extensions="slang;slangh"/>
         
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.SlangParserDefinition"/>
+        <lang.findUsagesProvider language="Slang" implementationClass="slanglsp.SlangFindUsagesProvider"/>
+        <findUsagesHandlerFactory implementation="slanglsp.SlangFindUsagesHandlerFactory" order="first"/>
 
         <gotoDeclarationHandler id="SlangGotoDeclarationHandler" order="first, before LSPGotoDeclarationHandler" implementation="slanglsp.SlangGotoDeclarationHandler"/>
 
         <lang.documentationProvider language="Slang" implementationClass="slanglsp.SlangDocumentationProvider"/>
+
+        <colorSettingsPage implementation="slanglsp.highlighting.SlangColorSettingsPage"/>
 
         <lang.syntaxHighlighterFactory language="Slang" implementationClass="slanglsp.SlangSyntaxHighlighterFactory"/>
 

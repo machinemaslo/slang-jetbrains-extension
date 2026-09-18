@@ -1,22 +1,16 @@
 package slanglsp;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-import com.intellij.util.xmlb.Converter;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import com.google.gson.*;
 import com.intellij.openapi.components.PersistentStateComponent;
-import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
 import com.intellij.openapi.project.Project;
-import com.intellij.util.xmlb.XmlSerializerUtil;
-
-import javax.print.DocFlavor;
-import java.io.*;
-
 
 @State(
     name="SlangPersistentStateComponentConfig",
@@ -28,29 +22,40 @@ class SlangPersistentStateConfig implements PersistentStateComponent<SlangPersis
 {
     static class State
     {
-        // TODO: make a cached state which transforms this State into an efficent to compare state (assumes rare to change settings)
         public List<String> additionalIncludePaths = new ArrayList<>();
-        public List<String> predefinedMacros = List.of("__EXAMPLE_MACRO1", "__EXAMPLE_MACRO2=VALUE");
+        public List<String> predefinedMacros = new ArrayList<>();
 
         public String explicitSlangdLocation = "";
         public boolean useLocalVcpkgSlangd = true;
-//        public String traceServer = "off"; // handled by LSP4IJ's (runtime) debug tool
         public String enableCommitCharactersInAutoCompletion = "membersOnly";
 
         public Boolean enableInlayHintsForDeducedTypes = true;
         public Boolean enableInlayHintsForParameterNames = true;
         public Boolean enableSearchingSubDirectoriesOfWorkspace = true;
 
+        public boolean enableFormatOnType = true;
+        public String clangFormatLocation = "";
+        public String clangFormatStyle = "file";
+        public String clangFormatFallbackStyle = "{BasedOnStyle: Microsoft, BreakBeforeBraces: Allman, ColumnLimit: 0}";
+        public boolean allowLineBreakChangesInOnTypeFormatting = false;
+        public boolean allowLineBreakChangesInRangeFormatting = false;
+
         public void copyValues(State otherState)
         {
-            additionalIncludePaths = otherState.additionalIncludePaths;
-            predefinedMacros = otherState.predefinedMacros;
+            additionalIncludePaths = new ArrayList<>(otherState.additionalIncludePaths);
+            predefinedMacros = new ArrayList<>(otherState.predefinedMacros);
             explicitSlangdLocation = otherState.explicitSlangdLocation;
             useLocalVcpkgSlangd = otherState.useLocalVcpkgSlangd;
             enableCommitCharactersInAutoCompletion = otherState.enableCommitCharactersInAutoCompletion;
             enableInlayHintsForDeducedTypes = otherState.enableInlayHintsForDeducedTypes;
             enableInlayHintsForParameterNames = otherState.enableInlayHintsForParameterNames;
             enableSearchingSubDirectoriesOfWorkspace = otherState.enableSearchingSubDirectoriesOfWorkspace;
+            enableFormatOnType = otherState.enableFormatOnType;
+            clangFormatLocation = otherState.clangFormatLocation;
+            clangFormatStyle = otherState.clangFormatStyle;
+            clangFormatFallbackStyle = otherState.clangFormatFallbackStyle;
+            allowLineBreakChangesInOnTypeFormatting = otherState.allowLineBreakChangesInOnTypeFormatting;
+            allowLineBreakChangesInRangeFormatting = otherState.allowLineBreakChangesInRangeFormatting;
         }
         public boolean equals(State other)
         {
@@ -63,12 +68,13 @@ class SlangPersistentStateConfig implements PersistentStateComponent<SlangPersis
                 && enableInlayHintsForDeducedTypes.equals(other.enableInlayHintsForDeducedTypes)
                 && enableInlayHintsForParameterNames.equals(other.enableInlayHintsForParameterNames)
                 && enableSearchingSubDirectoriesOfWorkspace.equals(other.enableSearchingSubDirectoriesOfWorkspace)
+                && enableFormatOnType == other.enableFormatOnType
+                && clangFormatLocation.equals(other.clangFormatLocation)
+                && clangFormatStyle.equals(other.clangFormatStyle)
+                && clangFormatFallbackStyle.equals(other.clangFormatFallbackStyle)
+                && allowLineBreakChangesInOnTypeFormatting == other.allowLineBreakChangesInOnTypeFormatting
+                && allowLineBreakChangesInRangeFormatting == other.allowLineBreakChangesInRangeFormatting
                 ;
-        }
-
-        JsonObject createJSONFromObject()
-        {
-            return new Gson().toJsonTree(createServerSettings()).getAsJsonObject();
         }
 
         Map<String, Object> createServerSettings()
@@ -80,6 +86,12 @@ class SlangPersistentStateConfig implements PersistentStateComponent<SlangPersis
             settings.put("slang.inlayHints.deducedTypes", enableInlayHintsForDeducedTypes);
             settings.put("slang.inlayHints.parameterNames", enableInlayHintsForParameterNames);
             settings.put("slang.searchInAllWorkspaceDirectories", enableSearchingSubDirectoriesOfWorkspace);
+            settings.put("slang.format.enableFormatOnType", enableFormatOnType);
+            settings.put("slang.format.clangFormatLocation", clangFormatLocation);
+            settings.put("slang.format.clangFormatStyle", clangFormatStyle);
+            settings.put("slang.format.clangFormatFallbackStyle", clangFormatFallbackStyle);
+            settings.put("slang.format.allowLineBreakChangesInOnTypeFormatting", allowLineBreakChangesInOnTypeFormatting);
+            settings.put("slang.format.allowLineBreakChangesInRangeFormatting", allowLineBreakChangesInRangeFormatting);
             return settings;
         }
 
@@ -87,16 +99,6 @@ class SlangPersistentStateConfig implements PersistentStateComponent<SlangPersis
 
     @NotNull
     private State state = new State();
-
-    Object createJSONFromObject()
-    {
-        return state.createJSONFromObject();
-    }
-
-    String getExplicitSlangdLocation()
-    {
-        return state.explicitSlangdLocation;
-    }
 
     void setState(State otherState)
     {
@@ -117,7 +119,7 @@ class SlangPersistentStateConfig implements PersistentStateComponent<SlangPersis
     }
 
 
-    @Nullable
+    @NotNull
     public static SlangPersistentStateConfig getInstance(Project project)
     {
         return project.getService(SlangPersistentStateConfig.class);

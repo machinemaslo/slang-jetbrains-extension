@@ -9,7 +9,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
-/** Older slangd versions serialize NullResponse as {} instead of JSON null. */
+/**
+ * Normalize slangd's empty-object no-result response before LSP4J deserializes it.
+ * Array-valued responses such as definition cannot be deserialized from {}.
+ * Normal results, server requests, notifications and errors pass through unchanged.
+ */
 final class SlangResponseInputStream extends InputStream {
     private final InputStream source;
     private ByteArrayInputStream frame = new ByteArrayInputStream(new byte[0]);

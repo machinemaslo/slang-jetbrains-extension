@@ -1,231 +1,212 @@
 package slanglsp;
 
 import com.intellij.openapi.project.Project;
-import com.intellij.ui.JBColor;
+import com.intellij.ui.components.JBScrollPane;
 
-import java.awt.GridBagConstraints;
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.util.Vector;
+import java.util.ArrayList;
+import java.util.List;
 
 public class SlangConfigurableGUI {
-    private SlangPersistentStateConfig mConfig;
-    private Project mProject;
-    private JCheckBox useLocalVcpkgSlangd;
+    private SlangPersistentStateConfig config;
+    private Project project;
+    private final JPanel root = new JPanel(new BorderLayout());
+    private final JPanel includePaths = listPanel();
+    private final JPanel macros = listPanel();
+    private final JTextField slangdDirectory = new JTextField(30);
+    private final JCheckBox useVcpkg = new JCheckBox("Use local vcpkg slangd package if found");
+    private final JComboBox<String> commitCharacters = new JComboBox<>(new String[]{"off", "membersOnly", "on"});
+    private final JCheckBox deducedTypes = new JCheckBox("Show inlay hints for deduced types");
+    private final JCheckBox parameterNames = new JCheckBox("Show inlay hints for parameter names");
+    private final JCheckBox searchWorkspace = new JCheckBox("Search workspace subdirectories for imports and includes");
+    private final JCheckBox formatOnType = new JCheckBox("Enable formatting while typing");
+    private final JTextField clangFormat = new JTextField(30);
+    private final JTextField formatStyle = new JTextField(30);
+    private final JTextField fallbackStyle = new JTextField(30);
+    private final JCheckBox onTypeLineBreaks = new JCheckBox("Allow line-break changes while formatting on type");
+    private final JCheckBox rangeLineBreaks = new JCheckBox("Allow line-break changes while formatting a selection");
 
-    private JCheckBox enableInlayHintsForDeducedTypes;
-    private JCheckBox enableInlayHintsForParameterNames;
-    private JCheckBox enableSearchingSubDirectoriesOfWorkspace;
-    private JTextField explicitSlangdLocation;
-    private JPanel root;
-    private JButton additionalIncludePathsButton;
-    private JButton predefinedMacrosButton;
-    private JPanel additionalIncludePathsContainer;
-    private JPanel predefinedMacrosContainer;
-    private JComboBox enableCommitCharactersInAutoCompletion;
-    private JLabel seperatorLabel1;
-    private JLabel seperatorLabel0;
+    public SlangConfigurableGUI() {
+        JPanel general = formPanel();
+        addField(general, "Additional include/import paths", listEditor(includePaths, "Path to an include directory"));
+        addField(general, "Predefined macros", listEditor(macros, "Examples: MY_MACRO or MY_VALUE=1"));
+        slangdDirectory.setToolTipText("Optional directory containing slangd. Takes priority over vcpkg and PATH.");
+        addField(general, "slangd directory", slangdDirectory);
+        addField(general, null, useVcpkg);
+        addField(general, "Completion commit characters", commitCharacters);
+        addField(general, null, deducedTypes);
+        addField(general, null, parameterNames);
+        addField(general, null, searchWorkspace);
 
-    JPanel getRootPanel()
-    {
-        return root;
+        JPanel formatting = formPanel();
+        addField(formatting, null, formatOnType);
+        clangFormat.setToolTipText("Full path including the executable name. Leave empty to search PATH.");
+        addField(formatting, "clang-format executable", clangFormat);
+        formatStyle.setToolTipText("For example: file, LLVM, Microsoft, or file:/path/to/.clang-format");
+        addField(formatting, "Style", formatStyle);
+        fallbackStyle.setToolTipText("Style used when no .clang-format file is found.");
+        addField(formatting, "Fallback style", fallbackStyle);
+        addField(formatting, null, onTypeLineBreaks);
+        addField(formatting, null, rangeLineBreaks);
+        addField(formatting, null, new JLabel("Formatting requires clang-format to be installed."));
+
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.addTab("General", scrollable(general));
+        tabs.addTab("Formatting", scrollable(formatting));
+        root.add(tabs, BorderLayout.CENTER);
     }
 
-    Vector<JTextField> convertStringListIntoTextFieldVector(java.util.List<String> stringList)
-    {
-        Vector<JTextField> textFieldList = new Vector<>();
-        textFieldList.setSize(stringList.size());
-        for(int i = 0; i < stringList.size(); i++)
-        {
-            textFieldList.set(i, new JTextField(stringList.get(i)));
+    private static JPanel formPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        return panel;
+    }
+
+    private static JComponent scrollable(JPanel form) {
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.add(form, BorderLayout.NORTH);
+        JBScrollPane scroll = new JBScrollPane(wrapper);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        return scroll;
+    }
+
+    private static void addField(JPanel panel, String label, JComponent component) {
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.gridy = panel.getComponentCount();
+        constraints.gridx = 0;
+        constraints.anchor = GridBagConstraints.NORTHWEST;
+        constraints.insets = new Insets(4, 0, 4, 10);
+        if (label != null) {
+            JLabel fieldLabel = new JLabel(label);
+            fieldLabel.setLabelFor(component);
+            panel.add(fieldLabel, constraints);
+            constraints.gridx = 1;
+        } else {
+            constraints.gridwidth = 2;
         }
-        return textFieldList;
+        constraints.weightx = 1;
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(component, constraints);
     }
 
-    Vector<String> getStringListFromPanelOwnedTextFields(JPanel panel)
-    {
-        Vector<String> stringList = new Vector<>();
-        for(var obj : panel.getComponents())
-        {
-            if(!(obj instanceof JTextField))
-                continue;
-            stringList.add(((JTextField)obj).getText());
+    private static JPanel listPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        return panel;
+    }
+
+    private static JPanel listEditor(JPanel rows, String help) {
+        JPanel editor = new JPanel(new BorderLayout(0, 4));
+        JButton add = new JButton("Add");
+        add.setToolTipText(help);
+        add.addActionListener(event -> addRow(rows, "", help));
+        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        toolbar.add(add);
+        editor.add(rows, BorderLayout.CENTER);
+        editor.add(toolbar, BorderLayout.SOUTH);
+        rows.setToolTipText(help);
+        return editor;
+    }
+
+    private static void addRow(JPanel rows, String value, String help) {
+        JPanel row = new JPanel(new BorderLayout(4, 0));
+        JTextField field = new JTextField(value, 25);
+        field.setToolTipText(help);
+        JButton remove = new JButton("Remove");
+        remove.addActionListener(event -> {
+            rows.remove(row);
+            rows.revalidate();
+            rows.repaint();
+        });
+        row.add(field, BorderLayout.CENTER);
+        row.add(remove, BorderLayout.EAST);
+        rows.add(row);
+        rows.revalidate();
+        rows.repaint();
+    }
+
+    private static List<String> readRows(JPanel rows) {
+        List<String> values = new ArrayList<>();
+        for (Component component : rows.getComponents()) {
+            JPanel row = (JPanel) component;
+            JTextField field = (JTextField) ((BorderLayout) row.getLayout()).getLayoutComponent(BorderLayout.CENTER);
+            String value = field.getText().trim();
+            if (!value.isEmpty()) values.add(value);
         }
-        return stringList;
+        return values;
     }
 
-    boolean addedDefaultListeners = false;
-    public void createUI(Project project)
-    {
-        mProject = project;
-        mConfig = SlangPersistentStateConfig.getInstance(project);
-        setGUIStateWithState(mConfig.getState());
-        addDefaultListeners();
+    private static void setRows(JPanel rows, List<String> values) {
+        rows.removeAll();
+        for (String value : values) addRow(rows, value, rows.getToolTipText());
+        rows.revalidate();
+        rows.repaint();
     }
 
-    SlangPersistentStateConfig.State deriveStateFromGUI()
-    {
-        SlangPersistentStateConfig.State state = new SlangPersistentStateConfig.State();
-        state.additionalIncludePaths = getStringListFromPanelOwnedTextFields(additionalIncludePathsContainer);
-        state.predefinedMacros = getStringListFromPanelOwnedTextFields(predefinedMacrosContainer);
+    JPanel getRootPanel() { return root; }
 
-        state.explicitSlangdLocation = explicitSlangdLocation.getText();
-        state.useLocalVcpkgSlangd = useLocalVcpkgSlangd.isSelected();
+    public void createUI(Project project) {
+        this.project = project;
+        config = SlangPersistentStateConfig.getInstance(project);
+        reset();
+    }
 
-        state.enableCommitCharactersInAutoCompletion = (String)enableCommitCharactersInAutoCompletion.getSelectedItem();
-
-        state.enableInlayHintsForDeducedTypes = enableInlayHintsForDeducedTypes.isSelected();
-        state.enableInlayHintsForParameterNames = enableInlayHintsForParameterNames.isSelected();
-        state.enableSearchingSubDirectoriesOfWorkspace = enableSearchingSubDirectoriesOfWorkspace.isSelected();
-
+    SlangPersistentStateConfig.State deriveStateFromGUI() {
+        var state = new SlangPersistentStateConfig.State();
+        state.additionalIncludePaths = readRows(includePaths);
+        state.predefinedMacros = readRows(macros);
+        state.explicitSlangdLocation = slangdDirectory.getText().trim();
+        state.useLocalVcpkgSlangd = useVcpkg.isSelected();
+        state.enableCommitCharactersInAutoCompletion = (String) commitCharacters.getSelectedItem();
+        state.enableInlayHintsForDeducedTypes = deducedTypes.isSelected();
+        state.enableInlayHintsForParameterNames = parameterNames.isSelected();
+        state.enableSearchingSubDirectoriesOfWorkspace = searchWorkspace.isSelected();
+        state.enableFormatOnType = formatOnType.isSelected();
+        state.clangFormatLocation = clangFormat.getText().trim();
+        state.clangFormatStyle = formatStyle.getText().trim();
+        state.clangFormatFallbackStyle = fallbackStyle.getText().trim();
+        state.allowLineBreakChangesInOnTypeFormatting = onTypeLineBreaks.isSelected();
+        state.allowLineBreakChangesInRangeFormatting = rangeLineBreaks.isSelected();
         return state;
     }
 
-    void setGUIStateWithState(SlangPersistentStateConfig.State state)
-    {
-        setPanelContentToListOfObjects(additionalIncludePathsContainer, convertStringListIntoTextFieldVector(state.additionalIncludePaths));
-        setPanelContentToListOfObjects(predefinedMacrosContainer, convertStringListIntoTextFieldVector(state.predefinedMacros));
-
-        explicitSlangdLocation.setText(state.explicitSlangdLocation);
-        useLocalVcpkgSlangd.setSelected(state.useLocalVcpkgSlangd);
-
-        enableCommitCharactersInAutoCompletion.setSelectedItem(state.enableCommitCharactersInAutoCompletion);
-
-        enableInlayHintsForDeducedTypes.setSelected(state.enableInlayHintsForDeducedTypes);
-        enableInlayHintsForParameterNames.setSelected(state.enableInlayHintsForParameterNames);
-        enableSearchingSubDirectoriesOfWorkspace.setSelected(state.enableSearchingSubDirectoriesOfWorkspace);
-
-        root.revalidate();
-        root.repaint();
-        root.updateUI();
+    void setGUIStateWithState(SlangPersistentStateConfig.State state) {
+        setRows(includePaths, state.additionalIncludePaths);
+        setRows(macros, state.predefinedMacros);
+        slangdDirectory.setText(state.explicitSlangdLocation);
+        useVcpkg.setSelected(state.useLocalVcpkgSlangd);
+        commitCharacters.setSelectedItem(state.enableCommitCharactersInAutoCompletion);
+        deducedTypes.setSelected(state.enableInlayHintsForDeducedTypes);
+        parameterNames.setSelected(state.enableInlayHintsForParameterNames);
+        searchWorkspace.setSelected(state.enableSearchingSubDirectoriesOfWorkspace);
+        formatOnType.setSelected(state.enableFormatOnType);
+        clangFormat.setText(state.clangFormatLocation);
+        formatStyle.setText(state.clangFormatStyle);
+        fallbackStyle.setText(state.clangFormatFallbackStyle);
+        onTypeLineBreaks.setSelected(state.allowLineBreakChangesInOnTypeFormatting);
+        rangeLineBreaks.setSelected(state.allowLineBreakChangesInRangeFormatting);
     }
 
-    void addTextFieldToPanel(JPanel panel, JTextField field)
-    {
-        GridBagConstraints fieldConstraint = new GridBagConstraints();
-        fieldConstraint.gridy = panel.getComponentCount();
-        fieldConstraint.gridx = 0;
-        fieldConstraint.weightx = 0;
-        fieldConstraint.weighty = 1;
-        fieldConstraint.anchor = GridBagConstraints.NORTHWEST;
-        panel.add(field, fieldConstraint);
-
-        GridBagConstraints buttonConstraint = new GridBagConstraints();
-        buttonConstraint.gridy = fieldConstraint.gridy;
-        buttonConstraint.gridx = 1;
-        buttonConstraint.weightx = 1;
-        buttonConstraint.weighty = 1;
-        buttonConstraint.anchor = GridBagConstraints.NORTHEAST;
-        JButton deleteButton = new JButton("-");
-        deleteButton.setBackground(new JBColor(new Color(0, 120, 229), new Color(0, 120, 229)));
-        deleteButton.addActionListener(new ActionListenerDeleteObjWhenClicked(panel, deleteButton, field));
-        panel.add(deleteButton, buttonConstraint);
-
-        panel.revalidate();
-        panel.repaint();
-    }
-
-    void setPanelContentToListOfObjects(JPanel panel, Vector<JTextField> objects)
-    {
-        panel.removeAll();
-        for(var i : objects)
-        {
-            addTextFieldToPanel(panel, i);
-        }
-    }
-
-    public void apply()
-    {
+    public void apply() {
         var next = deriveStateFromGUI();
-        var previous = mConfig.getState();
+        var previous = config.getState();
         boolean executableChanged = next.useLocalVcpkgSlangd != previous.useLocalVcpkgSlangd
                 || !next.explicitSlangdLocation.equals(previous.explicitSlangdLocation);
-        mConfig.setState(next);
+        config.setState(next);
         if (executableChanged) {
-            mProject.getService(VcpkgSlangdService.class).invalidate();
-            var manager = com.redhat.devtools.lsp4ij.LanguageServerManager.getInstance(mProject);
+            project.getService(VcpkgSlangdService.class).invalidate();
+            var manager = com.redhat.devtools.lsp4ij.LanguageServerManager.getInstance(project);
             if (manager.getServerStatus("slanglsp.SlangLanguageServer") == com.redhat.devtools.lsp4ij.ServerStatus.started) {
                 manager.start("slanglsp.SlangLanguageServer",
                         new com.redhat.devtools.lsp4ij.LanguageServerManager.StartOptions().setForceStart(true));
             }
         }
         for (var client : SlangLanguageClient.maybeAliveClients)
-            if (client.project == mProject) client.triggerChangeConfiguration();
+            if (client.project == project) client.triggerChangeConfiguration();
     }
 
-    public void reset()
-    {
-        setGUIStateWithState(mConfig.getState());
-    }
+    public void reset() { setGUIStateWithState(config.getState()); }
 
-    public boolean isModified()
-    {
-        return !mConfig.getState().equals(deriveStateFromGUI());
-    }
-
-    class ActionListenerAddWhenClicked implements ActionListener
-    {
-        JPanel toModify;
-        ActionListenerAddWhenClicked(JPanel toModify)
-        {
-            this.toModify = toModify;
-        }
-
-        public void actionPerformed(ActionEvent e)
-        {
-            addTextFieldToPanel(toModify, new JTextField("..."));
-        }
-    }
-
-    class ActionListenerDeleteObjWhenClicked implements ActionListener
-    {
-        JPanel parentPanel;
-        JButton listeningObject;
-        JTextField pairedObject;
-        ActionListenerDeleteObjWhenClicked(JPanel parentPanel, JButton listeningObject, JTextField pairedObject)
-        {
-            this.parentPanel = parentPanel;
-            this.listeningObject = listeningObject;
-            this.pairedObject = pairedObject;
-        }
-
-        public void actionPerformed(ActionEvent e)
-        {
-            GridBagConstraints removedLayout = (GridBagConstraints)listeningObject.getLayout();
-            parentPanel.remove(listeningObject);
-            parentPanel.remove(pairedObject);
-            for(var i : parentPanel.getComponents())
-            {
-                if(!(i instanceof JComponent))
-                    continue;
-
-                JComponent jcomponent = (JComponent)i;
-
-                if(!(jcomponent.getLayout() instanceof GridBagConstraints))
-                    continue;
-
-                GridBagConstraints layoutToModify = (GridBagConstraints) jcomponent.getLayout();
-                if(layoutToModify.gridy > removedLayout.gridy)
-                {
-                    layoutToModify.gridy -= 1;
-                }
-            }
-
-            parentPanel.revalidate();
-            parentPanel.repaint();
-            parentPanel.updateUI();
-        }
-    }
-
-    private void addDefaultListeners()
-    {
-        if(addedDefaultListeners)
-            return;
-
-        addedDefaultListeners = true;
-        additionalIncludePathsButton.addActionListener(new ActionListenerAddWhenClicked(additionalIncludePathsContainer));
-        predefinedMacrosButton.addActionListener(new ActionListenerAddWhenClicked(predefinedMacrosContainer));
-    }
+    public boolean isModified() { return !config.getState().equals(deriveStateFromGUI()); }
 }

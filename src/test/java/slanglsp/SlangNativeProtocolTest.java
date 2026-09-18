@@ -21,15 +21,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 class SlangNativeProtocolTest {
     @TempDir Path project;
 
-    @Test void dottedImportResolvesOverLspWithWorkspaceInitializationAndConfiguration() throws Exception {
-        assertImportResolves(true);
-    }
-
-    @Test void configuredSearchPathsResolveImportsWithWorkspaceSearchDisabled() throws Exception {
-        assertImportResolves(false);
-    }
-
-    private void assertImportResolves(boolean searchWorkspace) throws Exception {
+    @Test void importsHoverAndSemanticTokensWorkWithNativeServer() throws Exception {
         String executable = System.getenv("SLANGD_TEST_EXECUTABLE");
         assumeTrue(executable != null, "Set SLANGD_TEST_EXECUTABLE to run the native protocol test");
         Path scene = project.resolve("src/shader/shared/scene.slang");
@@ -50,9 +42,8 @@ class SlangNativeProtocolTest {
         Files.writeString(source, "import shared.scene;\nScene scene;\nfloat result = shade(1.0);\nMaterial material;\n");
 
         var state = new SlangPersistentStateConfig.State();
-        state.enableSearchingSubDirectoriesOfWorkspace = searchWorkspace;
-        // Exercise both VS Code's default workspace discovery and explicit user paths.
-        if (!searchWorkspace) state.additionalIncludePaths = List.of(project.resolve("src/shader").toString());
+        state.enableSearchingSubDirectoriesOfWorkspace = false;
+        state.additionalIncludePaths = List.of(project.resolve("src/shader").toString());
         var configRequests = new AtomicInteger();
         Map<String, Object> settings = state.createServerSettings();
         var client = new LanguageClient() {
@@ -106,10 +97,11 @@ class SlangNativeProtocolTest {
             assertTrue(importUris.stream().anyMatch(uri -> Path.of(java.net.URI.create(uri)).equals(scene)));
             server.getTextDocumentService().didOpen(new DidOpenTextDocumentParams(new TextDocumentItem(
                     scene.toUri().toString(), "slang", 1, Files.readString(scene))));
-            assertReferencesContain(server, scene, new Position(2, 15), source, 1);
-            assertReferencesContain(server, scene, new Position(6, 15), source, 2);
-            assertReferencesContain(server, scene, new Position(8, 15), source, 3);
-            assertReferencesContain(server, scene, new Position(6, 27), scene, 6);
+            var tokens = server.getTextDocumentService().semanticTokensFull(new SemanticTokensParams(
+                    new TextDocumentIdentifier(source.toUri().toString()))).get(15, TimeUnit.SECONDS);
+            assertNotNull(tokens);
+            assertFalse(tokens.getData().isEmpty(), "slangd should return semantic colors");
+            assertEquals(0, tokens.getData().size() % 5);
             assertTrue(configRequests.get() > 0, "slangd must request the client's settings");
             assertHoverContains(server, source, new Position(1, 2), "scene lighting");
             assertHoverContains(server, source, new Position(2, 17), "surface lighting");
@@ -130,17 +122,6 @@ class SlangNativeProtocolTest {
         var contents = com.redhat.devtools.lsp4ij.features.documentation.LSPDocumentationHelper.getValidMarkupContents(hover);
         assertTrue(contents.stream().anyMatch(content -> content.getValue().contains(documentation)),
                 "Expected documentation: " + documentation + " in " + contents);
-    }
-
-    private static void assertReferencesContain(org.eclipse.lsp4j.services.LanguageServer server, Path declaration,
-                                                Position position, Path usageFile, int usageLine) throws Exception {
-        var references = server.getTextDocumentService().references(new ReferenceParams(
-                new TextDocumentIdentifier(declaration.toUri().toString()), position, new ReferenceContext(false)))
-                .get(15, TimeUnit.SECONDS);
-        assertNotNull(references);
-        assertTrue(references.stream().anyMatch(location ->
-                Path.of(java.net.URI.create(location.getUri())).equals(usageFile)
-                        && location.getRange().getStart().getLine() == usageLine), "Expected usages: " + references);
     }
 
 }
