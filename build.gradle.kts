@@ -61,7 +61,7 @@ tasks {
 
     test {
         useJUnitPlatform()
-        systemProperty("idea.load.plugins.id", "slanglsp")
+        systemProperty("idea.load.plugins.id", "slanglsp_r")
     }
 
     runIde

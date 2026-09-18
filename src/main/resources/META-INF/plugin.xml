@@ -1,19 +1,38 @@
 <idea-plugin>
-    <id>slanglsp</id>
+    <id>slanglsp_r</id>
 
-    <name>Slang [Unofficial]</name>
+    <name>Slang [Unofficial] Refined</name>
 
-    <vendor email="aglasroth@gmail.com">16-Bit-Dog</vendor>
+    <vendor email="machinemaslo@proton.me">machinemaslo, 16-Bit-Dog</vendor>
 
     <description>
         <![CDATA[
-        <p>Slang [Unofficial] is a plugin that provides Slang language support for Jetbrain's platforms. This plugin is not an official Slang plugin.</p>
-        <p>To use this plugin, please add `slangd` to the PATH. This can be done through adding `$VK_SDK_PATH/bin` to your `PATH` environment variable </p>
+        <p>I didn't find any working slang lsps here, so I just took one and added a lot of features that make it work.</p>
+        <p>So this plugin gives you everything, code completion, syntax highlight, docs in popup, go-to-definition, find usages, rename, clang-format support, vcpkg-installed slang support etc</p>
+        <p>This is a refined fork of <a href="https://plugins.jetbrains.com/plugin/26239-slang-unofficial-">Slang [Unofficial]</a>, props to 16-Bit-Dog</p>
         ]]>
     </description>
 
-    <change-notes><![CDATA[
-    ]]>
+    <change-notes>
+        <![CDATA[
+        <p><b>Slang Refined — supported features</b></p>
+        <ul>
+            <li>Language support for <code>.slang</code> and <code>.slangh</code> files through Slang's language server and LSP4IJ.</li>
+            <li>Syntax highlighting and semantic colors.</li>
+            <li>Code completion.</li>
+            <li>Language-server diagnostics, document symbols in the Structure view, and configurable inlay hints</li>
+            <li>Go to Declaration/Definition.</li>
+            <li>Hover and Quick Documentation</li>
+            <li>Find Usages</li>
+            <li>Native usage navigation from declarations</li>
+            <li>Rename</li>
+            <li>Document, selection, and on-type formatting through <code>clang-format</code></li>
+            <li>Automatic discovery of locally installed vcpkg <code>slangd</code> packages, plus an explicit server directory and PATH-based discovery.</li>
+            <li>Project settings for additional include/search paths, predefined macros, and searching workspace subdirectories.</li>
+        </ul>
+        <p>The rename fallback covers project Slang files under the current server configuration. It cannot check inactive code, external references, or new-name conflicts. Built-in/external declarations and ambiguous or unverified targets are rejected; changes to project files during search or preview require a new search.</p>
+        <p>Requires LSP4IJ and a working <code>slangd</code> installation. Formatting additionally requires <code>clang-format</code>. Server-provided features depend on the installed Slang version.</p>
+        ]]>
     </change-notes>
     <!-- Product and plugin compatibility requirements. -->
     <depends>com.intellij.modules.platform</depends>
