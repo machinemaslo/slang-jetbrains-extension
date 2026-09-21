@@ -1,6 +1,5 @@
 package slanglsp;
 
-import com.intellij.openapi.application.ReadAction;
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import com.intellij.testFramework.fixtures.IdeaProjectTestFixture;
 import org.junit.jupiter.api.AfterEach;
@@ -22,7 +21,7 @@ class SlangEditorTest {
     }
 
     @Test void slangClientAndNavigationNeverClaimCppFiles() {
-        ReadAction.run(() -> {
+        SlangReadAction.run(() -> {
             var cpp = new com.intellij.testFramework.LightVirtualFile("test.cpp", "int main() { return 0; }");
             var features = new SlangClientFeatures();
             assertFalse(features.isEnabled(cpp));

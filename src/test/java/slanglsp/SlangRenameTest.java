@@ -1,6 +1,5 @@
 package slanglsp;
 
-import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.command.undo.UndoManager;
 import com.intellij.openapi.editor.Document;
@@ -39,10 +38,12 @@ class SlangRenameTest {
                 new TempDirTestFixtureImpl());
         EdtTestUtil.runInEdtAndWait(fixture::setUp);
         try {
-            String main = "public float sharedValue = 1;\n"
-                    + "float shadow() { float sharedValue = 2; return sharedValue; }\n"
-                    + "float useGlobal() { return sharedValue + sin(1.0); }\n"
-                    + "// sharedValue must remain in comments\n";
+            String main = """
+                    public float sharedValue = 1;
+                    float shadow() { float sharedValue = 2; return sharedValue; }
+                    float useGlobal() { return sharedValue + sin(1.0); }
+                    // sharedValue must remain in comments
+                    """;
             String imported = "import main;\nfloat imported() { return sharedValue; }\n";
             PsiFile[] files = new PsiFile[3];
             Document[] docs = new Document[3];
@@ -118,7 +119,7 @@ class SlangRenameTest {
     }
 
     private static SlangRenamePlan collect(PsiFile file, int offset, String newName) {
-        PsiElement element = ReadAction.compute(() -> file.findElementAt(offset));
+        PsiElement element = SlangReadAction.compute(() -> file.findElementAt(offset));
         SlangRenamePlan[] result = new SlangRenamePlan[1];
         ProgressManager.getInstance().runProcess(() -> result[0] = SlangRenamePlan.collect(element, newName), new EmptyProgressIndicator());
         return result[0];

@@ -1,93 +1,36 @@
 package slanglsp;
 
-import com.intellij.openapi.components.PersistentStateComponent;
-import com.intellij.openapi.components.ServiceManager;
-import com.intellij.openapi.components.State;
-import com.intellij.openapi.components.Storage;
-import com.intellij.openapi.options.Configurable;
-import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.options.SearchableConfigurable;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.NlsContexts;
-import com.intellij.util.xmlb.XmlSerializerUtil;
-import org.jetbrains.annotations.Nls;
-import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import javax.swing.*;
-import java.util.List;
+import javax.swing.JComponent;
 
-public class SlangConfigurable implements SearchableConfigurable
-{
-    private SlangConfigurableGUI mGUI;
+public final class SlangConfigurable implements SearchableConfigurable {
+    private final Project project;
+    private SlangConfigurableGUI gui;
 
-    @SuppressWarnings("FieldCanBeLocal")
-    private final Project mProject;
-
-    public SlangConfigurable(@NotNull Project project)
-    {
-        mProject = project;
+    public SlangConfigurable(@NotNull Project project) {
+        this.project = project;
     }
 
-    @Nls
-    @Override
-    public String getDisplayName()
-    {
-        return "Slang";
+    @Override public @NotNull String getDisplayName() { return "Slang"; }
+
+    @Override public @NotNull String getId() { return "slanglsp.SlangConfigurable"; }
+
+    @Override public JComponent createComponent() {
+        if (gui == null) {
+            gui = new SlangConfigurableGUI();
+            gui.createUI(project);
+        }
+        return gui.getRootPanel();
     }
 
-    @Nullable
-    @Override
-    public String getHelpTopic()
-    {
-        return "preference.SlangConfigurable";
-    }
+    @Override public boolean isModified() { return gui != null && gui.isModified(); }
 
-    @NotNull
-    @Override
-    public String getId()
-    {
-        return "preference.SlangConfigurable";
-    }
+    @Override public void apply() { if (gui != null) gui.apply(); }
 
-    @Nullable
-    @Override
-    public Runnable enableSearch(String s)
-    {
-        return null;
-    }
+    @Override public void reset() { if (gui != null) gui.reset(); }
 
-    @Nullable
-    @Override
-    public JComponent createComponent()
-    {
-        mGUI = new SlangConfigurableGUI();
-        mGUI.createUI(mProject);
-        return mGUI.getRootPanel();
-    }
-
-    @Override
-    public boolean isModified()
-    {
-        return mGUI.isModified();
-    }
-
-    @Override
-    public void apply() throws ConfigurationException
-    {
-        mGUI.apply();
-    }
-
-    @Override
-    public void reset()
-    {
-        mGUI.reset();
-    }
-
-    @Override
-    public void disposeUIResources()
-    {
-        mGUI = null;
-    }
+    @Override public void disposeUIResources() { gui = null; }
 }

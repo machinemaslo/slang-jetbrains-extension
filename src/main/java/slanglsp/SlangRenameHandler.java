@@ -3,7 +3,6 @@ package slanglsp;
 import com.intellij.ide.TitledHandler;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.DataContext;
-import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
@@ -14,7 +13,7 @@ import com.intellij.openapi.ui.Messages;
 import com.intellij.psi.*;
 import com.intellij.refactoring.rename.RenameHandler;
 import com.intellij.usages.*;
-import com.redhat.devtools.lsp4ij.LanguageServiceAccessor;
+import com.redhat.devtools.lsp4ij.features.rename.LSPRenameHandler;
 import org.jetbrains.annotations.NotNull;
 
 /** Native Rename fallback only when no server advertises textDocument/rename. */
@@ -34,17 +33,15 @@ public final class SlangRenameHandler implements RenameHandler, TitledHandler {
         PsiFile file = CommonDataKeys.PSI_FILE.getData(context);
         if (target(file, CommonDataKeys.EDITOR.getData(context)) == null) return false;
         // Let LSP4IJ handle prepareRename, workspace edits and future native support.
-        return !LanguageServiceAccessor.getInstance(project).hasAny(file,
-                server -> server.getClientFeatures().getRenameFeature().isRenameSupported(file));
+        return !new LSPRenameHandler().isAvailableOnDataContext(context);
     }
 
     @Override public void invoke(@NotNull Project project, Editor editor, PsiFile file, DataContext context) {
         PsiDocumentManager.getInstance(project).commitAllDocuments();
         PsiElement element = target(file, editor);
         if (element == null) return;
-        if (LanguageServiceAccessor.getInstance(project).hasAny(file,
-                server -> server.getClientFeatures().getRenameFeature().isRenameSupported(file))) {
-            new com.redhat.devtools.lsp4ij.features.rename.LSPRenameHandler().invoke(project, editor, file, context);
+        if (new LSPRenameHandler().isAvailableOnDataContext(context)) {
+            new LSPRenameHandler().invoke(project, editor, file, context);
             return;
         }
         String name = element.getText();
@@ -62,7 +59,7 @@ public final class SlangRenameHandler implements RenameHandler, TitledHandler {
             private SlangRenamePlan plan;
 
             @Override public void run(@NotNull ProgressIndicator indicator) {
-                PsiElement source = ReadAction.compute(pointer::getElement);
+                PsiElement source = SlangReadAction.compute(pointer::getElement);
                 if (source == null) throw new IllegalStateException("The symbol changed. Run Rename again.");
                 plan = SlangRenamePlan.collect(source, replacement);
             }
@@ -87,7 +84,7 @@ public final class SlangRenameHandler implements RenameHandler, TitledHandler {
         var presentation = new UsageViewPresentation();
         presentation.setTabText("Rename " + plan.oldName);
         presentation.setTabName("Rename " + plan.oldName + " to " + plan.newName);
-        presentation.setUsagesString("Verified occurrences (including declaration)");
+        presentation.setCodeUsagesString("Verified occurrences (including declaration)");
         Usage[] usages = java.util.Arrays.stream(plan.usages()).map(UsageInfo2UsageAdapter::new).toArray(Usage[]::new);
         UsageView view = UsageViewManager.getInstance(project).showUsages(UsageTarget.EMPTY_ARRAY, usages, presentation);
         view.setAdditionalComponent(new javax.swing.JLabel(

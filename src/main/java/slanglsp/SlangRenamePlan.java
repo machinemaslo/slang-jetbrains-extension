@@ -1,6 +1,5 @@
 package slanglsp;
 
-import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Document;
@@ -73,9 +72,9 @@ final class SlangRenamePlan {
     static SlangRenamePlan collect(PsiElement element, String newName) {
         if (!validName(newName)) throw new IllegalArgumentException("Enter a Slang identifier, not a keyword or built-in type.");
         Project project = element.getProject();
-        String name = ReadAction.compute(element::getText);
+        String name = SlangReadAction.compute(element::getText);
         if (!validName(name) || name.equals(newName)) throw new IllegalArgumentException("Choose a different identifier.");
-        List<Source> sources = ReadAction.compute(() -> {
+        List<Source> sources = SlangReadAction.compute(() -> {
             List<Source> result = new ArrayList<>();
             for (VirtualFile file : projectFiles(project)) {
                 ProgressManager.checkCanceled();
@@ -86,16 +85,16 @@ final class SlangRenamePlan {
             }
             return result;
         });
-        Source origin = ReadAction.compute(() -> sources.stream()
+        Source origin = SlangReadAction.compute(() -> sources.stream()
                 .filter(source -> source.file == element.getContainingFile()).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Only symbols declared in this project's Slang files can be renamed.")));
-        int originOffset = ReadAction.compute(element::getTextOffset);
+        int originOffset = SlangReadAction.compute(element::getTextOffset);
         var definitions = definitions(origin, originOffset);
         if (definitions.size() > 1) throw new IllegalArgumentException("The symbol has multiple definitions and cannot be renamed safely.");
-        Symbol symbol = definitions.isEmpty() ? ReadAction.compute(() -> origin.symbol(originOffset)) : definitions.iterator().next();
+        Symbol symbol = definitions.isEmpty() ? SlangReadAction.compute(() -> origin.symbol(originOffset)) : definitions.iterator().next();
         Source declaration = sources.stream().filter(source -> source.uri.equals(symbol.uri))
                 .findFirst().orElseThrow(() -> new IllegalArgumentException("Built-in and external declarations cannot be renamed."));
-        int declarationOffset = ReadAction.compute(() -> {
+        int declarationOffset = SlangReadAction.compute(() -> {
             declaration.check();
             if (symbol.line < 0 || symbol.line >= declaration.document.getLineCount()) return -1;
             int offset = declaration.document.getLineStartOffset(symbol.line) + symbol.character;
@@ -121,21 +120,21 @@ final class SlangRenamePlan {
         }
         if (!confirmed) throw new IllegalArgumentException("slangd could not verify this declaration. Rename is unavailable for this symbol.");
         SlangRenamePlan plan = new SlangRenamePlan(project, name, newName, sources, edits);
-        ReadAction.run(plan::validate);
+        SlangReadAction.run(plan::validate);
         return plan;
     }
 
     private static Set<Symbol> definitions(Source source, int offset) {
-        ReadAction.run(source::check);
+        SlangReadAction.run(source::check);
         var locations = SlangUsageSearch.definitions(source.file, source.document, offset);
-        ReadAction.run(source::check);
+        SlangReadAction.run(source::check);
         Set<Symbol> result = new HashSet<>();
         locations.forEach(location -> result.add(Symbol.of(location.location())));
         return result;
     }
 
     UsageInfo[] usages() {
-        return ReadAction.compute(() -> {
+        return SlangReadAction.compute(() -> {
             validate();
             return edits.stream().map(edit -> new UsageInfo(edit.source.file, edit.offset, edit.offset + oldName.length()))
                     .toArray(UsageInfo[]::new);

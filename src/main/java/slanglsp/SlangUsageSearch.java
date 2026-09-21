@@ -1,6 +1,5 @@
 package slanglsp;
 
-import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.progress.ProcessCanceledException;
@@ -44,7 +43,7 @@ final class SlangUsageSearch {
     }
 
     static boolean process(PsiElement element, SearchScope scope, Processor<? super UsageInfo> consumer) {
-        Source source = ReadAction.compute(() -> {
+        Source source = SlangReadAction.compute(() -> {
             if (!element.isValid()) return null;
             PsiFile file = element.getContainingFile();
             Document document = LSPIJUtils.getDocument(file);
@@ -58,7 +57,7 @@ final class SlangUsageSearch {
         Set<Symbol> declarations = new HashSet<>();
         var virtualFile = source.file.getVirtualFile();
         if (virtualFile instanceof SlangBuiltinFiles.BuiltinFile builtin) {
-            Position position = ReadAction.compute(() -> LSPIJUtils.toPosition(source.offset, source.document));
+            Position position = SlangReadAction.compute(() -> LSPIJUtils.toPosition(source.offset, source.document));
             declarations.add(new Symbol(builtin.uri(), position.getLine(), position.getCharacter()));
         } else {
             List<LocationData> references = references(source);
@@ -71,7 +70,7 @@ final class SlangUsageSearch {
                     var target = LSPPsiElementFactory.toPsiElement(reference.location(),
                             reference.languageServer().getClientFeatures(), project);
                     if (target != null && seen.add(reference.location().toString())) {
-                        UsageInfo usage = ReadAction.compute(() -> PsiSearchScopeUtil.isInScope(scope, target)
+                        UsageInfo usage = SlangReadAction.compute(() -> PsiSearchScopeUtil.isInScope(scope, target)
                                 ? new UsageInfo(target) : null);
                         if (usage != null && !consumer.process(usage)) return false;
                     }
@@ -85,7 +84,7 @@ final class SlangUsageSearch {
         // slangd returns null for some declaration-site definition requests (including globals).
         // In that case use the source location; candidates still require semantic confirmation.
         if (declarations.isEmpty()) {
-            Position position = ReadAction.compute(() -> LSPIJUtils.toPosition(source.offset, source.document));
+            Position position = SlangReadAction.compute(() -> LSPIJUtils.toPosition(source.offset, source.document));
             declarations.add(new Symbol(fileUri(virtualFile), position.getLine(), position.getCharacter()));
         }
         source.checkUnchanged();
@@ -99,21 +98,21 @@ final class SlangUsageSearch {
                 indicator.setText2(file.getName());
                 indicator.setFraction((double) visited++ / Math.max(1, files.size()));
             }
-            Source candidate = ReadAction.compute(() -> {
+            Source candidate = SlangReadAction.compute(() -> {
                 PsiFile psi = PsiManager.getInstance(project).findFile(file);
                 Document doc = FileDocumentManager.getInstance().getDocument(file);
                 return psi == null || doc == null ? null : new Source(psi, doc, doc.getModificationStamp(), 0, source.name);
             });
             if (candidate == null) continue;
-            List<Integer> offsets = ReadAction.compute(() -> SlangUsageCandidates.find(candidate.document.getText(), source.name));
+            List<Integer> offsets = SlangReadAction.compute(() -> SlangUsageCandidates.find(candidate.document.getText(), source.name));
             for (int offset : offsets) {
                 source.checkUnchanged();
                 candidate.checkUnchanged();
-                Position position = ReadAction.compute(() -> LSPIJUtils.toPosition(offset, candidate.document));
+                Position position = SlangReadAction.compute(() -> LSPIJUtils.toPosition(offset, candidate.document));
                 // The declaration itself is not a usage.
                 if (declarations.contains(new Symbol(fileUri(file),
                         position.getLine(), position.getCharacter()))) continue;
-                boolean inScope = ReadAction.compute(() -> {
+                boolean inScope = SlangReadAction.compute(() -> {
                     var leaf = candidate.file.findElementAt(offset);
                     return leaf != null && PsiSearchScopeUtil.isInScope(scope, leaf);
                 });
@@ -122,7 +121,7 @@ final class SlangUsageSearch {
                 source.checkUnchanged();
                 candidate.checkUnchanged();
                 if (targets.stream().anyMatch(target -> declarations.contains(Symbol.from(target.location())))) {
-                    UsageInfo usage = ReadAction.compute(() -> new UsageInfo(candidate.file, offset, offset + source.name.length()));
+                    UsageInfo usage = SlangReadAction.compute(() -> new UsageInfo(candidate.file, offset, offset + source.name.length()));
                     if (!consumer.process(usage)) return false;
                 }
             }
@@ -132,11 +131,16 @@ final class SlangUsageSearch {
 
     static URI fileUri(VirtualFile file) {
         if (file instanceof SlangBuiltinFiles.BuiltinFile builtin) return builtin.uri();
-        return com.redhat.devtools.lsp4ij.client.features.FileUriSupport.getFileUri(file, null).normalize();
+        URI uri = com.redhat.devtools.lsp4ij.client.features.FileUriSupport.getFileUri(file, null);
+        if (uri == null) {
+            // Abort the whole search/rename instead of silently skipping an unresolvable file.
+            throw new IllegalStateException("Cannot resolve a language-server URI for " + file.getName());
+        }
+        return uri.normalize();
     }
 
     static Set<VirtualFile> candidateFiles(Project project, SearchScope scope, String name) {
-        return ReadAction.compute(() -> {
+        return SlangReadAction.compute(() -> {
             Set<VirtualFile> files = new LinkedHashSet<>();
             if (scope instanceof LocalSearchScope local) {
                 for (PsiElement element : local.getScope()) {
@@ -163,7 +167,7 @@ final class SlangUsageSearch {
 
     private static List<LocationData> references(Source source) {
         var support = new LSPReferenceSupport(source.file);
-        CompletableFuture<List<LocationData>> future = ReadAction.compute(() -> {
+        CompletableFuture<List<LocationData>> future = SlangReadAction.compute(() -> {
             var params = new LSPReferenceParams(new TextDocumentIdentifier(),
                     LSPIJUtils.toPosition(source.offset, source.document), source.offset);
             params.setContext(new ReferenceContext(false));
@@ -178,7 +182,7 @@ final class SlangUsageSearch {
 
     static List<LocationData> definitions(PsiFile file, Document document, int offset) {
         var support = new LSPDefinitionSupport(file);
-        CompletableFuture<List<LocationData>> future = ReadAction.compute(() -> support.getDefinitions(
+        CompletableFuture<List<LocationData>> future = SlangReadAction.compute(() -> support.getDefinitions(
                 new LSPDefinitionParams(new TextDocumentIdentifier(), LSPIJUtils.toPosition(offset, document), offset)));
         try {
             List<LocationData> result = ProgressIndicatorUtils.awaitWithCheckCanceled(future);

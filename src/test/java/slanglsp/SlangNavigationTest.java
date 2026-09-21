@@ -1,6 +1,5 @@
 package slanglsp;
 
-import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.progress.EmptyProgressIndicator;
@@ -32,12 +31,14 @@ class SlangNavigationTest {
         var factory = IdeaTestFixtureFactory.getFixtureFactory();
         CodeInsightTestFixture fixture = factory.createCodeInsightFixture(
                 factory.createLightFixtureBuilder("SlangNavigationTest").getFixture(), new TempDirTestFixtureImpl());
-        EdtTestUtil.runInEdtAndWait(() -> fixture.setUp());
+        EdtTestUtil.runInEdtAndWait(fixture::setUp);
         try {
-            String code = "public float sharedValue = 1;\n"
-                    + "float shadow() { float sharedValue = 2; return sharedValue; }\n"
-                    + "float useGlobal() { return sharedValue + sin(1.0); }\n"
-                    + "StructuredBuffer<float> values;\n";
+            String code = """
+                    public float sharedValue = 1;
+                    float shadow() { float sharedValue = 2; return sharedValue; }
+                    float useGlobal() { return sharedValue + sin(1.0); }
+                    StructuredBuffer<float> values;
+                    """;
             PsiFile[] files = new PsiFile[2];
             EdtTestUtil.runInEdtAndWait(() -> {
                 com.intellij.openapi.roots.ModuleRootModificationUtil.addContentRoot(fixture.getModule(), fixture.getTempDirPath());
@@ -50,17 +51,22 @@ class SlangNavigationTest {
                 settings.additionalIncludePaths = List.of(files[0].getVirtualFile().getParent().getPath());
                 FileDocumentManager.getInstance().saveAllDocuments();
                 var document = PsiDocumentManager.getInstance(fixture.getProject()).getDocument(files[1]);
+                assertNotNull(document);
                 WriteCommandAction.runWriteCommandAction(fixture.getProject(), () -> {
                     int zero = document.getText().indexOf("0;");
                     document.replaceString(zero, zero + 1, "sharedValue");
                     PsiDocumentManager.getInstance(fixture.getProject()).commitDocument(document);
                 });
             });
+            String firstHover = SlangReadAction.compute(() -> new SlangDocumentationProvider().generateDoc(
+                    files[0].findElementAt(code.indexOf("sharedValue")), null));
+            assertNotNull(firstHover, "Documentation must connect the file before any navigation request");
+            assertTrue(firstHover.contains("sharedValue"), firstHover);
             var scope = GlobalSearchScope.projectScope(fixture.getProject());
             var candidates = SlangUsageSearch.candidateFiles(fixture.getProject(), scope, "sharedValue");
             assertEquals(2, candidates.size(), "Comment-only files must not become search candidates");
             assertTrue(candidates.contains(files[1].getVirtualFile()), "Unsaved occurrence must be included");
-            PsiElement declaration = ReadAction.compute(() -> files[0].findElementAt(code.indexOf("sharedValue")));
+            PsiElement declaration = SlangReadAction.compute(() -> files[0].findElementAt(code.indexOf("sharedValue")));
             var usages = new ArrayList<UsageInfo>();
             ProgressManager.getInstance().runProcess(() -> assertTrue(SlangUsageSearch.process(declaration, scope, usage -> {
                 usages.add(usage);
@@ -71,8 +77,11 @@ class SlangNavigationTest {
             assertTrue(usages.stream().anyMatch(usage -> usage.getFile() == files[0]
                     && usage.getNavigationOffset() == code.lastIndexOf("sharedValue")));
 
-            PsiElement[] builtin = ReadAction.compute(() -> new SlangGotoDeclarationHandler().definitions(
-                    files[0].findElementAt(code.indexOf("sin(")), code.indexOf("sin(")));
+            PsiElement[] builtin = SlangReadAction.compute(() -> {
+                PsiElement source = files[0].findElementAt(code.indexOf("sin("));
+                assertNotNull(source);
+                return new SlangGotoDeclarationHandler().definitions(source, code.indexOf("sin("));
+            });
             assertTrue(builtin.length > 0, "sin must navigate into the standard library");
             var file = builtin[0].getContainingFile().getVirtualFile();
             assertInstanceOf(SlangBuiltinFiles.BuiltinFile.class, file);
@@ -80,28 +89,28 @@ class SlangNavigationTest {
             assertFalse(new SlangClientFeatures().isEnabled(file));
             var service = fixture.getProject().getService(SlangBuiltinFiles.class);
             assertSame(file, service.resolve(((SlangBuiltinFiles.BuiltinFile) file).uri().toString()));
-            assertTrue(ReadAction.compute(() -> builtin[0].getText().contains("sin")));
+            assertTrue(SlangReadAction.compute(() -> builtin[0].getText().contains("sin")));
 
             // Exercise the same rendering hook used by both LSP hover and Ctrl-hover.
-            String bufferDocs = ReadAction.compute(() -> new SlangDocumentationProvider()
+            String bufferDocs = SlangReadAction.compute(() -> new SlangDocumentationProvider()
                     .generateDoc(files[0].findElementAt(code.indexOf("StructuredBuffer")), null));
             assertNotNull(bufferDocs);
             assertTrue(bufferDocs.contains("read-only structured buffer"), bufferDocs);
             assertTrue(bufferDocs.contains("The element type of the buffer"), bufferDocs);
-            String sineDocs = ReadAction.compute(() -> new SlangDocumentationProvider()
+            String sineDocs = SlangReadAction.compute(() -> new SlangDocumentationProvider()
                     .generateDoc(files[0].findElementAt(code.indexOf("sin(")), null));
             assertNotNull(sineDocs);
             assertTrue(sineDocs.contains("The angle in radians"), sineDocs);
 
             var documented = new org.eclipse.lsp4j.MarkupContent(org.eclipse.lsp4j.MarkupKind.MARKDOWN,
                     "```\nstruct StructuredBuffer<T>\n```\n\nServer-provided explanation.\n\nDefined in core(21016)\n");
-            String suppliedDocs = ReadAction.compute(() -> new SlangHoverFeature().getContent(documented, files[0]));
+            String suppliedDocs = SlangReadAction.compute(() -> new SlangHoverFeature().getContent(documented, files[0]));
             assertTrue(suppliedDocs.contains("Server-provided explanation."));
             assertFalse(suppliedDocs.contains("read-only structured buffer"), "Do not duplicate newer server documentation");
         } finally {
             com.redhat.devtools.lsp4ij.LanguageServerManager.getInstance(fixture.getProject()).stop("slanglsp.SlangLanguageServer",
                     new com.redhat.devtools.lsp4ij.LanguageServerManager.StopOptions().setWillDisable(false));
-            EdtTestUtil.runInEdtAndWait(() -> fixture.tearDown());
+            EdtTestUtil.runInEdtAndWait(fixture::tearDown);
         }
     }
 }

@@ -7,15 +7,23 @@
 
     <description>
         <![CDATA[
-        <p>I didn't find any working slang lsps here, so I just took one and added a lot of features that make it work.</p>
-        <p>So this plugin gives you everything, code completion, syntax highlight, docs in popup, go-to-definition, find usages, rename, clang-format support, vcpkg-installed slang support etc</p>
-        <p>This is a refined fork of <a href="https://plugins.jetbrains.com/plugin/26239-slang-unofficial-">Slang [Unofficial]</a>, props to 16-Bit-Dog</p>
+        <p>Slang shader language support for JetBrains IDEs on Windows, macOS, and Linux.</p>
+        <p>Provides completion, diagnostics, syntax and semantic highlighting, documentation, navigation, find usages, rename, and formatting through Slang's language server and LSP4IJ.</p>
+        <p>Requires LSP4IJ and a local <code>slangd</code> installation. Formatting also requires <code>clang-format</code>. Configure the server in Settings → Tools → Slang, or use automatic vcpkg/PATH discovery.</p>
+        <p>A refined fork of <a href="https://plugins.jetbrains.com/plugin/26239-slang-unofficial-">Slang [Unofficial]</a> by 16-Bit-Dog.</p>
         ]]>
     </description>
 
     <change-notes>
         <![CDATA[
-        <p><b>Slang Refined — supported features</b></p>
+        <p><b>0.0.19 — platform compatibility</b></p>
+        <ul>
+            <li>Replaced internal API calls in navigation, documentation, rename, and color selection.</li>
+            <li>Replaced deprecated read-action and usage presentation APIs.</li>
+            <li>Use standard language color defaults across IDE products.</li>
+            <li>Build with LSP4IJ 0.21.0 and verify against the supported 2024.2–2026.2 platform range.</li>
+        </ul>
+        <p><b>Supported features</b></p>
         <ul>
             <li>Language support for <code>.slang</code> and <code>.slangh</code> files through Slang's language server and LSP4IJ.</li>
             <li>Syntax highlighting and semantic colors.</li>
@@ -36,6 +44,7 @@
     </change-notes>
     <!-- Product and plugin compatibility requirements. -->
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.lang</depends>
     <depends>com.redhat.devtools.lsp4ij</depends>
 
     <extensions defaultExtensionNs="com.intellij">

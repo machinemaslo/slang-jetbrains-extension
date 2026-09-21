@@ -4,7 +4,8 @@ import com.intellij.codeInsight.navigation.actions.GotoDeclarationHandler;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import com.redhat.devtools.lsp4ij.features.navigation.LSPGotoDeclarationHandler;
+import com.redhat.devtools.lsp4ij.LSPIJUtils;
+import com.redhat.devtools.lsp4ij.features.LSPPsiElementFactory;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -44,7 +45,14 @@ public class SlangGotoDeclarationHandler implements GotoDeclarationHandler {
     }
 
     protected PsiElement[] definitions(PsiElement source, int offset) {
-        return LSPGotoDeclarationHandler.getGotoDeclarationTargets(source, offset);
+        PsiFile file = source.getContainingFile();
+        var document = LSPIJUtils.getDocument(file);
+        if (document == null) return PsiElement.EMPTY_ARRAY;
+        return SlangUsageSearch.definitions(file, document, offset).stream()
+                .map(location -> LSPPsiElementFactory.toPsiElement(location.location(),
+                        location.languageServer().getClientFeatures(), file.getProject()))
+                .filter(Objects::nonNull)
+                .toArray(PsiElement[]::new);
     }
 
 }

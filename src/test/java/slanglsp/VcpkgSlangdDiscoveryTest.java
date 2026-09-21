@@ -2,6 +2,8 @@ package slanglsp;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.nio.file.*;
 import java.util.Optional;
@@ -31,6 +33,26 @@ class VcpkgSlangdDiscoveryTest {
         file("vcpkg.json", "{\"dependencies\":[\"some-parent-package\"]}");
         Path tool = executable("vcpkg_installed/x64-linux/tools/shader-slang/slangd");
         assertEquals(Optional.of(tool.toString()), discover());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "Windows 11, amd64, x64-windows, slangd.exe",
+            "Windows 11, aarch64, arm64-windows, slangd.exe",
+            "Mac OS X, x86_64, x64-osx, slangd",
+            "Mac OS X, aarch64, arm64-osx, slangd",
+            "Darwin, arm64, arm64-osx, slangd",
+            "Linux, amd64, x64-linux, slangd",
+            "Linux, aarch64, arm64-linux, slangd"
+    })
+    void selectsHostToolAcrossOperatingSystems(String os, String arch, String triplet, String name) throws Exception {
+        file("vcpkg.json", "{}");
+        for (String candidate : new String[]{"x64-windows", "arm64-windows", "x64-osx", "arm64-osx", "x64-linux", "arm64-linux"}) {
+            executable("vcpkg_installed/" + candidate + "/tools/shader-slang/"
+                    + (candidate.endsWith("windows") ? "slangd.exe" : "slangd"));
+        }
+        assertEquals(Optional.of(root.resolve("vcpkg_installed/" + triplet + "/tools/shader-slang/" + name).toString()),
+                new VcpkgSlangdDiscovery(name, os, arch).find(root));
     }
 
     @Test void readsCustomInstallDirectoryFromCmakeCache() throws Exception {

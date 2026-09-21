@@ -61,6 +61,12 @@ class SlangNativeProtocolTest {
             @Override public CompletableFuture<Void> registerCapability(RegistrationParams params) {
                 return CompletableFuture.completedFuture(null);
             }
+            @Override public CompletableFuture<Void> refreshInlayHints() {
+                return CompletableFuture.completedFuture(null);
+            }
+            @Override public CompletableFuture<Void> refreshSemanticTokens() {
+                return CompletableFuture.completedFuture(null);
+            }
         };
         Process process = new ProcessBuilder(executable).redirectError(ProcessBuilder.Redirect.DISCARD).start();
         var launcher = LSPLauncher.createClientLauncher(client, new SlangResponseInputStream(process.getInputStream()), process.getOutputStream());
