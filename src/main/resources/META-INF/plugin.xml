@@ -52,6 +52,10 @@
         <lang.documentationProvider language="Slang" implementationClass="slanglsp.SlangDocumentationProvider"/>
 
         <colorSettingsPage implementation="slanglsp.highlighting.SlangColorSettingsPage"/>
+        <additionalTextAttributes scheme="Darcula" file="colorSchemes/SlangRiderDark.xml"/>
+        <additionalTextAttributes scheme="Dark" file="colorSchemes/SlangRiderDark.xml"/>
+        <additionalTextAttributes scheme="Default" file="colorSchemes/SlangRiderLight.xml"/>
+        <additionalTextAttributes scheme="Light" file="colorSchemes/SlangRiderLight.xml"/>
 
         <lang.syntaxHighlighterFactory language="Slang" implementationClass="slanglsp.SlangSyntaxHighlighterFactory"/>
 

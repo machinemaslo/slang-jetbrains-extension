@@ -3,7 +3,7 @@ package slanglsp.highlighting;
 import com.intellij.openapi.editor.DefaultLanguageHighlighterColors;
 import com.intellij.openapi.editor.colors.TextAttributesKey;
 
-/** Semantic categories inherit the active scheme, never a hard-coded RGB palette. */
+/** Semantic categories inherit the active scheme; bundled schemes supply Slang defaults. */
 public final class SlangSyntaxHighlighterColors {
     private SlangSyntaxHighlighterColors() {}
 

@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Code foregrounds from Rider Light, Rider UI Themes 0.15.4-hotfix (JetBrains).
+     Source: colorSchemes/RiderLight.xml, referenced by RiderLight.theme.json.
+     Maps the existing Slang language-default categories to their exact source colors.
+     Only foregrounds are imported; UI colors, backgrounds and font styles are omitted. -->
+<list>
+  <!-- DEFAULT_CLASS_NAME -->
+  <option name="SLANG_TYPE_NAME">
+    <value>
+      <option name="FOREGROUND" value="6B2FBA"/>
+    </value>
+  </option>
+  <!-- DEFAULT_INTERFACE_NAME -->
+  <option name="SLANG_INTERFACE">
+    <value>
+      <option name="FOREGROUND" value="6B2FBA"/>
+    </value>
+  </option>
+  <!-- DEFAULT_CLASS_NAME -->
+  <option name="SLANG_ENUM">
+    <value>
+      <option name="FOREGROUND" value="6B2FBA"/>
+    </value>
+  </option>
+  <!-- DEFAULT_CLASS_NAME -->
+  <option name="SLANG_TYPE_PARAMETER">
+    <value>
+      <option name="FOREGROUND" value="6B2FBA"/>
+    </value>
+  </option>
+  <!-- DEFAULT_CLASS_NAME -->
+  <option name="SLANG_NAMESPACE">
+    <value>
+      <option name="FOREGROUND" value="6B2FBA"/>
+    </value>
+  </option>
+  <!-- DEFAULT_FUNCTION_DECLARATION -->
+  <option name="SLANG_FUNCTION_DECLARATION">
+    <value>
+      <option name="FOREGROUND" value="00855F"/>
+    </value>
+  </option>
+  <!-- DEFAULT_INSTANCE_METHOD -->
+  <option name="SLANG_METHOD">
+    <value>
+      <option name="FOREGROUND" value="00855F"/>
+    </value>
+  </option>
+  <!-- DEFAULT_LOCAL_VARIABLE -->
+  <option name="SLANG_VARIABLE">
+    <value>
+      <option name="FOREGROUND" value="383838"/>
+    </value>
+  </option>
+  <!-- DEFAULT_PARAMETER -->
+  <option name="SLANG_PARAMETER">
+    <value>
+      <option name="FOREGROUND" value="383838"/>
+    </value>
+  </option>
+  <!-- DEFAULT_INSTANCE_FIELD -->
+  <option name="SLANG_FIELD">
+    <value>
+      <option name="FOREGROUND" value="0093A1"/>
+    </value>
+  </option>
+  <!-- DEFAULT_CONSTANT -->
+  <option name="SLANG_CONSTANT">
+    <value>
+      <option name="FOREGROUND" value="0093A1"/>
+    </value>
+  </option>
+  <!-- DEFAULT_KEYWORD -->
+  <option name="SLANG_KEYWORD">
+    <value>
+      <option name="FOREGROUND" value="0F54D6"/>
+    </value>
+  </option>
+  <!-- DEFAULT_METADATA -->
+  <option name="SLANG_MACRO_KEYWORD">
+    <value>
+      <option name="FOREGROUND" value="6B2FBA"/>
+    </value>
+  </option>
+  <!-- DEFAULT_METADATA -->
+  <option name="SLANG_DIRECTIVE">
+    <value>
+      <option name="FOREGROUND" value="6B2FBA"/>
+    </value>
+  </option>
+  <!-- DEFAULT_STRING -->
+  <option name="SLANG_STRING">
+    <value>
+      <option name="FOREGROUND" value="8C6C41"/>
+    </value>
+  </option>
+  <!-- DEFAULT_NUMBER -->
+  <option name="SLANG_NUMBER">
+    <value>
+      <option name="FOREGROUND" value="AB2F6B"/>
+    </value>
+  </option>
+  <!-- DEFAULT_LINE_COMMENT -->
+  <option name="SLANG_LINE_COMMENT">
+    <value>
+      <option name="FOREGROUND" value="248700"/>
+    </value>
+  </option>
+  <!-- DEFAULT_BLOCK_COMMENT -->
+  <option name="SLANG_BLOCK_COMMENT">
+    <value>
+      <option name="FOREGROUND" value="248700"/>
+    </value>
+  </option>
+  <!-- DEFAULT_OPERATION_SIGN -->
+  <option name="SLANG_OPERATOR">
+    <value>
+      <option name="FOREGROUND" value="383838"/>
+    </value>
+  </option>
+  <!-- DEFAULT_BRACES -->
+  <option name="SLANG_BRACES">
+    <value>
+      <option name="FOREGROUND" value="383838"/>
+    </value>
+  </option>
+  <!-- DEFAULT_BRACKETS -->
+  <option name="SLANG_BRACKETS">
+    <value>
+      <option name="FOREGROUND" value="383838"/>
+    </value>
+  </option>
+  <!-- DEFAULT_PARENTHS -->
+  <option name="SLANG_PARENTHESES">
+    <value>
+      <option name="FOREGROUND" value="383838"/>
+    </value>
+  </option>
+  <!-- DEFAULT_COMMA -->
+  <option name="SLANG_COMMA">
+    <value>
+      <option name="FOREGROUND" value="383838"/>
+    </value>
+  </option>
+  <!-- DEFAULT_DOT -->
+  <option name="SLANG_DOT">
+    <value>
+      <option name="FOREGROUND" value="383838"/>
+    </value>
+  </option>
+  <!-- DEFAULT_SEMICOLON -->
+  <option name="SLANG_SEMICOLON">
+    <value>
+      <option name="FOREGROUND" value="383838"/>
+    </value>
+  </option>
+</list>
