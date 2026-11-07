@@ -23,25 +23,25 @@ final class SlangResponseInputStream extends InputStream {
     }
 
     @Override public int read() throws IOException {
-        if (frame.available() == 0 && !nextFrame()) return -1;
+        if (frame.available() == 0 && notNextFrame()) return -1;
         return frame.read();
     }
 
     @Override public int read(byte[] bytes, int offset, int length) throws IOException {
         java.util.Objects.checkFromIndexSize(offset, length, bytes.length);
         if (length == 0) return 0;
-        if (frame.available() == 0 && !nextFrame()) return -1;
+        if (frame.available() == 0 && notNextFrame()) return -1;
         return frame.read(bytes, offset, length);
     }
 
-    private boolean nextFrame() throws IOException {
+    private boolean notNextFrame() throws IOException {
         var header = new ByteArrayOutputStream();
         int matched = 0;
         byte[] separator = {'\r', '\n', '\r', '\n'};
         while (matched < separator.length) {
             int value = source.read();
             if (value == -1) {
-                if (header.size() == 0) return false;
+                if (header.size() == 0) return true;
                 throw new EOFException("Truncated Slang LSP header");
             }
             header.write(value);
@@ -75,7 +75,7 @@ final class SlangResponseInputStream extends InputStream {
         }
         output.write(normalized);
         frame = new ByteArrayInputStream(output.toByteArray());
-        return true;
+        return false;
     }
 
     private static byte[] normalize(byte[] body) {
@@ -85,7 +85,7 @@ final class SlangResponseInputStream extends InputStream {
                 var message = element.getAsJsonObject();
                 var result = message.get("result");
                 if (message.has("id") && !message.has("method") && !message.has("error")
-                        && result != null && result.isJsonObject() && result.getAsJsonObject().size() == 0) {
+                        && result != null && result.isJsonObject() && result.getAsJsonObject().isEmpty()) {
                     message.add("result", com.google.gson.JsonNull.INSTANCE);
                     return message.toString().getBytes(StandardCharsets.UTF_8);
                 }

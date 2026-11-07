@@ -19,9 +19,6 @@ public final class SlangFindUsagesHandlerFactory extends FindUsagesHandlerFactor
                     @NotNull Processor<? super UsageInfo> processor, @NotNull FindUsagesOptions options) {
                 return SlangUsageSearch.process(target, options.searchScope, processor);
             }
-            @Override protected boolean isSearchForTextOccurrencesAvailable(@NotNull PsiElement target, boolean singleFile) {
-                return false;
-            }
         };
     }
 }

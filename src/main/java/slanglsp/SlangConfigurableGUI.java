@@ -1,7 +1,10 @@
 package slanglsp;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.ComboBox;
 import com.intellij.ui.components.JBScrollPane;
+import com.intellij.ui.components.JBTabbedPane;
+import com.intellij.util.ui.JBUI;
 
 import javax.swing.*;
 import java.awt.*;
@@ -16,7 +19,7 @@ public class SlangConfigurableGUI {
     private final JPanel macros = listPanel();
     private final JTextField slangdDirectory = new JTextField(30);
     private final JCheckBox useVcpkg = new JCheckBox("Use local vcpkg slangd package if found");
-    private final JComboBox<String> commitCharacters = new JComboBox<>(new String[]{"off", "membersOnly", "on"});
+    private final ComboBox<String> commitCharacters = new ComboBox<>(new String[]{"off", "membersOnly", "on"});
     private final JCheckBox deducedTypes = new JCheckBox("Show inlay hints for deduced types");
     private final JCheckBox parameterNames = new JCheckBox("Show inlay hints for parameter names");
     private final JCheckBox searchWorkspace = new JCheckBox("Search workspace subdirectories for imports and includes");
@@ -51,7 +54,7 @@ public class SlangConfigurableGUI {
         addField(formatting, null, rangeLineBreaks);
         addField(formatting, null, new JLabel("Formatting requires clang-format to be installed."));
 
-        JTabbedPane tabs = new JTabbedPane();
+        JBTabbedPane tabs = new JBTabbedPane();
         tabs.addTab("General", scrollable(general));
         tabs.addTab("Formatting", scrollable(formatting));
         root.add(tabs, BorderLayout.CENTER);
@@ -59,7 +62,7 @@ public class SlangConfigurableGUI {
 
     private static JPanel formPanel() {
         JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        panel.setBorder(JBUI.Borders.empty(12));
         return panel;
     }
 
@@ -67,7 +70,7 @@ public class SlangConfigurableGUI {
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.add(form, BorderLayout.NORTH);
         JBScrollPane scroll = new JBScrollPane(wrapper);
-        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.setBorder(JBUI.Borders.empty());
         return scroll;
     }
 
@@ -76,7 +79,7 @@ public class SlangConfigurableGUI {
         constraints.gridy = panel.getComponentCount();
         constraints.gridx = 0;
         constraints.anchor = GridBagConstraints.NORTHWEST;
-        constraints.insets = new Insets(4, 0, 4, 10);
+        constraints.insets = JBUI.insets(4, 0, 4, 10);
         if (label != null) {
             JLabel fieldLabel = new JLabel(label);
             fieldLabel.setLabelFor(component);
@@ -97,7 +100,7 @@ public class SlangConfigurableGUI {
     }
 
     private static JPanel listEditor(JPanel rows, String help) {
-        JPanel editor = new JPanel(new BorderLayout(0, 4));
+        JPanel editor = new JPanel(new BorderLayout(0, JBUI.scale(4)));
         JButton add = new JButton("Add");
         add.setToolTipText(help);
         add.addActionListener(event -> addRow(rows, "", help));
@@ -110,7 +113,7 @@ public class SlangConfigurableGUI {
     }
 
     private static void addRow(JPanel rows, String value, String help) {
-        JPanel row = new JPanel(new BorderLayout(4, 0));
+        JPanel row = new JPanel(new BorderLayout(JBUI.scale(4), 0));
         JTextField field = new JTextField(value, 25);
         field.setToolTipText(help);
         JButton remove = new JButton("Remove");
@@ -202,7 +205,7 @@ public class SlangConfigurableGUI {
                         new com.redhat.devtools.lsp4ij.LanguageServerManager.StartOptions().setForceStart(true));
             }
         }
-        for (var client : SlangLanguageClient.maybeAliveClients)
+        for (var client : SlangLanguageClient.activeClients)
             if (client.project == project) client.triggerChangeConfiguration();
     }
 

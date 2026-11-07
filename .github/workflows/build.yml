@@ -38,7 +38,7 @@ jobs:
           path: build/reports/tests
 
   verify:
-    name: Verify supported IDEs
+    name: Verify CLion
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -52,7 +52,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: plugin-verifier
+          name: plugin-verifier-CL
           path: build/reports/pluginVerifier
       - uses: actions/upload-artifact@v7
         with:

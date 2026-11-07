@@ -8,6 +8,7 @@ import com.intellij.util.EnvironmentUtil;
 import com.redhat.devtools.lsp4ij.LanguageServerManager;
 import com.redhat.devtools.lsp4ij.server.ProcessStreamConnectionProvider;
 import java.util.List;
+import java.util.Objects;
 import java.io.InputStream;
 
 class SlangLanguageServer extends ProcessStreamConnectionProvider
@@ -29,7 +30,9 @@ class SlangLanguageServer extends ProcessStreamConnectionProvider
     Project project;
     @Override public void start() throws com.redhat.devtools.lsp4ij.server.CannotStartProcessException {
         super.start();
-        project.getService(SlangBuiltinFiles.class).serverStarted(getCommands().get(0));
+        // The superclass rejects null or empty commands before starting the process.
+        var commands = Objects.requireNonNull(getCommands(), "Commands must exist after successful startup");
+        project.getService(SlangBuiltinFiles.class).serverStarted(commands.getFirst());
     }
 
     SlangLanguageServer(Project project)
@@ -50,7 +53,7 @@ class SlangLanguageServer extends ProcessStreamConnectionProvider
         {
             NotificationGroupManager.getInstance().getNotificationGroup("Slang LSP").createNotification(
                 "Slang LSP",
-                "slangd was not found in the configured directory, local vcpkg packages (when enabled), or PATH. Install the shader-slang vcpkg package, or set the slangd directory in Settings | Tools | Slang.",
+                    "Slangd was not found in the configured directory, local vcpkg packages (when enabled), or PATH. install the shader-slang vcpkg package, or set the slangd directory in settings | tools | slang.",
                 NotificationType.ERROR
             ).notify(project);
             LanguageServerManager.getInstance(project).stop("slanglsp.SlangLanguageServer");

@@ -49,6 +49,7 @@ class SlangNavigationTest {
                 files[1] = fixture.addFileToProject("edited.slang", "import main;\nfloat edited() { return 0; }\n");
                 for (int i = 0; i < 25; i++) fixture.addFileToProject("unrelated" + i + ".slang", "// sharedValue\nfloat other = 0;\n");
                 settings.additionalIncludePaths = List.of(files[0].getVirtualFile().getParent().getPath());
+                SlangPersistentStateConfig.getInstance(fixture.getProject()).setState(settings);
                 FileDocumentManager.getInstance().saveAllDocuments();
                 var document = PsiDocumentManager.getInstance(fixture.getProject()).getDocument(files[1]);
                 assertNotNull(document);

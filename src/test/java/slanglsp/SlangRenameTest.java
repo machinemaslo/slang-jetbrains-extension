@@ -56,6 +56,7 @@ class SlangRenameTest {
                 files[1] = fixture.addFileToProject("usage.slang", "import main;\nfloat imported() { return 0; }\n");
                 files[2] = fixture.addFileToProject("other.slang", "float unrelated = 0;\n");
                 settings.additionalIncludePaths = List.of(files[0].getVirtualFile().getParent().getPath());
+                SlangPersistentStateConfig.getInstance(fixture.getProject()).setState(settings);
                 for (int i = 0; i < docs.length; i++) docs[i] = PsiDocumentManager.getInstance(fixture.getProject()).getDocument(files[i]);
                 FileDocumentManager.getInstance().saveAllDocuments();
                 WriteCommandAction.runWriteCommandAction(fixture.getProject(), () -> {

@@ -2,39 +2,48 @@ package slanglsp;
 
 import com.intellij.openapi.project.Project;
 import com.redhat.devtools.lsp4ij.client.LanguageClientImpl;
+import org.jetbrains.annotations.NotNull;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.LinkedBlockingDeque;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 class SlangLanguageClient extends LanguageClientImpl
 {
-    static LinkedBlockingDeque<SlangLanguageClient> maybeAliveClients = new LinkedBlockingDeque<>();
+    static final Set<SlangLanguageClient> activeClients = ConcurrentHashMap.newKeySet();
 
-    Project project;
+    final Project project;
     SlangLanguageClient(Project project)
     {
         super(project);
         this.project = project;
-        maybeAliveClients.add(this);
 
     }
 
     @Override
-    public void handleServerStatusChanged(com.redhat.devtools.lsp4ij.ServerStatus serverStatus)
+    public synchronized void handleServerStatusChanged(@NotNull com.redhat.devtools.lsp4ij.ServerStatus serverStatus)
     {
+        if (isDisposed() || project.isDisposed()) return;
         if (serverStatus == com.redhat.devtools.lsp4ij.ServerStatus.started)
         {
+            activeClients.add(this);
             triggerChangeConfiguration();
         }
         if(serverStatus == com.redhat.devtools.lsp4ij.ServerStatus.stopped)
         {
+            activeClients.remove(this);
             project.getService(SlangBuiltinFiles.class).clear();
-            maybeAliveClients.remove(this);
         }
     }
 
     @Override
-    public Map<String, Object> createSettings()
+    public synchronized void dispose() {
+        activeClients.remove(this);
+        if (!isDisposed()) super.dispose();
+    }
+
+    @Override
+    public @NotNull Map<String, Object> createSettings()
     {
         var state = SlangPersistentStateConfig.getInstance(project).getState();
         return state.createServerSettings();
@@ -54,9 +63,11 @@ class SlangLanguageClient extends LanguageClientImpl
         });
     }
 
-    public void triggerChangeConfiguration()
+    public synchronized void triggerChangeConfiguration()
     {
-        super.triggerChangeConfiguration();
+        if (!isDisposed() && !project.isDisposed() && activeClients.contains(this)) {
+            super.triggerChangeConfiguration();
+        }
     }
 
 

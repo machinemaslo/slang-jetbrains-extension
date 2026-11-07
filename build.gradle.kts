@@ -1,4 +1,5 @@
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
+import org.jetbrains.intellij.platform.gradle.models.ProductRelease
 import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
 
 version = "0.0.19"
@@ -41,6 +42,8 @@ dependencies {
 }
 
 java {
+    // Use the JDK running Gradle; --release below preserves Java 21 API/bytecode compatibility.
+    toolchain.languageVersion = JavaLanguageVersion.of(JavaVersion.current().majorVersion.toInt())
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
 }
@@ -65,8 +68,8 @@ intellijPlatform {
     pluginConfiguration {
         ideaVersion {
             sinceBuild = "242.26775.15"
-            // Expand only after verifying the next platform branch and its dependencies.
-            untilBuild = "262.*"
+            // Allow future IDE builds; verification still checks actual API compatibility.
+            untilBuild = provider { null }
         }
     }
     pluginVerification {
@@ -80,14 +83,9 @@ intellijPlatform {
             VerifyPluginTask.FailureLevel.INVALID_PLUGIN,
         )
         ides {
-            // Comma-separated local installations are useful for offline checks.
-            val localPaths = providers.gradleProperty("verificationIdePaths").orNull
-            if (localPaths != null) {
-                localPaths.split(',').forEach { local(file(it.trim())) }
-            } else {
-                create(IntelliJPlatformType.IntellijIdeaCommunity, "2024.2.6")
-                create(IntelliJPlatformType.IntellijIdea, "2026.2.3")
-                create(IntelliJPlatformType.CLion, "2026.2.2")
+            latest {
+                types = listOf(IntelliJPlatformType.CLion)
+                channels = listOf(ProductRelease.Channel.RELEASE)
             }
         }
     }

@@ -59,21 +59,20 @@ class SlangPersistentStateConfig implements PersistentStateComponent<SlangPersis
         }
         public boolean equals(State other)
         {
-            return true
-                && additionalIncludePaths.equals(other.additionalIncludePaths)
-                && predefinedMacros.equals(other.predefinedMacros)
-                && explicitSlangdLocation.equals(other.explicitSlangdLocation)
-                && useLocalVcpkgSlangd == other.useLocalVcpkgSlangd
-                && enableCommitCharactersInAutoCompletion.equals(other.enableCommitCharactersInAutoCompletion)
-                && enableInlayHintsForDeducedTypes.equals(other.enableInlayHintsForDeducedTypes)
-                && enableInlayHintsForParameterNames.equals(other.enableInlayHintsForParameterNames)
-                && enableSearchingSubDirectoriesOfWorkspace.equals(other.enableSearchingSubDirectoriesOfWorkspace)
-                && enableFormatOnType == other.enableFormatOnType
-                && clangFormatLocation.equals(other.clangFormatLocation)
-                && clangFormatStyle.equals(other.clangFormatStyle)
-                && clangFormatFallbackStyle.equals(other.clangFormatFallbackStyle)
-                && allowLineBreakChangesInOnTypeFormatting == other.allowLineBreakChangesInOnTypeFormatting
-                && allowLineBreakChangesInRangeFormatting == other.allowLineBreakChangesInRangeFormatting
+            return additionalIncludePaths.equals(other.additionalIncludePaths)
+                    && predefinedMacros.equals(other.predefinedMacros)
+                    && explicitSlangdLocation.equals(other.explicitSlangdLocation)
+                    && useLocalVcpkgSlangd == other.useLocalVcpkgSlangd
+                    && enableCommitCharactersInAutoCompletion.equals(other.enableCommitCharactersInAutoCompletion)
+                    && enableInlayHintsForDeducedTypes.equals(other.enableInlayHintsForDeducedTypes)
+                    && enableInlayHintsForParameterNames.equals(other.enableInlayHintsForParameterNames)
+                    && enableSearchingSubDirectoriesOfWorkspace.equals(other.enableSearchingSubDirectoriesOfWorkspace)
+                    && enableFormatOnType == other.enableFormatOnType
+                    && clangFormatLocation.equals(other.clangFormatLocation)
+                    && clangFormatStyle.equals(other.clangFormatStyle)
+                    && clangFormatFallbackStyle.equals(other.clangFormatFallbackStyle)
+                    && allowLineBreakChangesInOnTypeFormatting == other.allowLineBreakChangesInOnTypeFormatting
+                    && allowLineBreakChangesInRangeFormatting == other.allowLineBreakChangesInRangeFormatting
                 ;
         }
 
@@ -98,24 +97,29 @@ class SlangPersistentStateConfig implements PersistentStateComponent<SlangPersis
     }
 
     @NotNull
-    private State state = new State();
+    private volatile State state = new State();
 
     void setState(State otherState)
     {
-        state.copyValues(otherState);
+        var snapshot = new State();
+        snapshot.copyValues(otherState);
+        state = snapshot;
     }
 
     @NotNull
     @Override
     public State getState()
     {
-        return state;
+        // Published states are never mutated or exposed to callers.
+        var snapshot = new State();
+        snapshot.copyValues(state);
+        return snapshot;
     }
 
     @Override
     public void loadState(@NotNull State config)
     {
-        state = config;
+        setState(config);
     }
 
 
