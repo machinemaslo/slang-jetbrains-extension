@@ -87,10 +87,10 @@ final class SlangHoverFeature extends LSPHoverFeature {
 
     private static String renderComment(String comment) {
         return comment
-                .replaceAll("(?m)^\\h*@param\\s+(\\w+)\\h*", "\n**Parameter `$1`:** ")
-                .replaceAll("(?m)^\\h*@returns?\\h*", "\n**Returns:** ")
-                .replaceAll("(?m)^\\h*@remarks\\h*", "\n**Remarks**\n\n")
-                .replaceAll("(?m)^\\h*@see\\h*", "\n**See also:** ")
+                .replaceAll("(?m)^\\h*@param\\s+(\\w+)\\h*", "\n**" + java.util.regex.Matcher.quoteReplacement(SlangBundle.message("documentation.parameter")) + " `$1`:** ")
+                .replaceAll("(?m)^\\h*@returns?\\h*", java.util.regex.Matcher.quoteReplacement("\n**" + SlangBundle.message("documentation.returns") + ":** "))
+                .replaceAll("(?m)^\\h*@remarks\\h*", java.util.regex.Matcher.quoteReplacement("\n**" + SlangBundle.message("documentation.remarks") + "**\n\n"))
+                .replaceAll("(?m)^\\h*@see\\h*", java.util.regex.Matcher.quoteReplacement("\n**" + SlangBundle.message("documentation.see.also") + ":** "))
                 .replaceAll("(?m)^\\h*@category[^\\n]*", "")
                 .strip();
     }

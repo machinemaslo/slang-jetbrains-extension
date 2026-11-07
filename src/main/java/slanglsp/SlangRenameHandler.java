@@ -46,7 +46,7 @@ public final class SlangRenameHandler implements RenameHandler, TitledHandler {
         }
         String name = element.getText();
         String replacement = Messages.showInputDialog(project,
-                "Rename '" + name + "' to (project Slang files):", "Rename Slang Symbol", null, name,
+                SlangBundle.message("rename.prompt", name), SlangBundle.message("rename.rename.slang.symbol"), null, name,
                 new InputValidator() {
                     @Override public boolean checkInput(String input) {
                         return SlangRenamePlan.validName(input) && !name.equals(input);
@@ -55,12 +55,12 @@ public final class SlangRenameHandler implements RenameHandler, TitledHandler {
                 });
         if (replacement == null) return;
         var pointer = SmartPointerManager.createPointer(element);
-        new Task.Backgroundable(project, "Verifying Slang rename", true) {
+        new Task.Backgroundable(project, SlangBundle.message("rename.verifying.slang.rename"), true) {
             private SlangRenamePlan plan;
 
             @Override public void run(@NotNull ProgressIndicator indicator) {
                 PsiElement source = SlangReadAction.compute(pointer::getElement);
-                if (source == null) throw new IllegalStateException("The symbol changed. Run Rename again.");
+                if (source == null) throw new IllegalStateException(SlangBundle.message("rename.the.symbol.changed.run.rename.again"));
                 plan = SlangRenamePlan.collect(source, replacement);
             }
 
@@ -75,23 +75,23 @@ public final class SlangRenameHandler implements RenameHandler, TitledHandler {
 
             @Override public void onThrowable(@NotNull Throwable error) {
                 if (!project.isDisposed()) showError(project, error.getMessage() == null
-                        ? "slangd could not verify the rename." : error.getMessage());
+                        ? SlangBundle.message("rename.slangd.could.not.verify.the.rename") : error.getMessage());
             }
         }.queue();
     }
 
     static UsageView showPreview(Project project, SlangRenamePlan plan) {
         var presentation = new UsageViewPresentation();
-        presentation.setTabText("Rename " + plan.oldName);
-        presentation.setTabName("Rename " + plan.oldName + " to " + plan.newName);
-        presentation.setCodeUsagesString("Verified occurrences (including declaration)");
+        presentation.setTabText(SlangBundle.message("rename.tab", plan.oldName));
+        presentation.setTabName(SlangBundle.message("rename.command", plan.oldName, plan.newName));
+        presentation.setCodeUsagesString(SlangBundle.message("rename.verified.occurrences.including.declaration"));
         Usage[] usages = java.util.Arrays.stream(plan.usages()).map(UsageInfo2UsageAdapter::new).toArray(Usage[]::new);
         UsageView view = UsageViewManager.getInstance(project).showUsages(UsageTarget.EMPTY_ARRAY, usages, presentation);
         view.setAdditionalComponent(new javax.swing.JLabel(
-                "Project Slang files only. Inactive code and name conflicts cannot be checked by this fallback."));
+                SlangBundle.message("rename.project.slang.files.only.inactive.code.and.name.conflicts.cannot.be.checked.by.this.fallback")));
         view.addPerformOperationAction(() -> {
             if (!view.getExcludedUsages().isEmpty()) {
-                showError(project, "Include every verified occurrence before renaming the symbol.");
+                showError(project, SlangBundle.message("rename.include.every.verified.occurrence.before.renaming.the.symbol"));
                 return;
             }
             try {
@@ -100,12 +100,12 @@ public final class SlangRenameHandler implements RenameHandler, TitledHandler {
             } catch (IllegalStateException failure) {
                 showError(project, failure.getMessage());
             }
-        }, "Rename " + plan.oldName, "Files changed. Run Rename again.", "Rename", false);
+        }, SlangBundle.message("rename.tab", plan.oldName), SlangBundle.message("rename.files.changed.run.rename.again"), SlangBundle.message("rename.action"), false);
         return view;
     }
 
     private static void showError(Project project, String message) {
-        Messages.showErrorDialog(project, message, "Cannot Rename Slang Symbol");
+        Messages.showErrorDialog(project, message, SlangBundle.message("rename.cannot.rename.slang.symbol"));
     }
 
     @Override public void invoke(@NotNull Project project, PsiElement @NotNull [] elements, DataContext context) {
@@ -114,5 +114,5 @@ public final class SlangRenameHandler implements RenameHandler, TitledHandler {
         if (editor != null && file != null) invoke(project, editor, file, context);
     }
 
-    @Override public String getActionTitle() { return "Rename Slang Symbol"; }
+    @Override public String getActionTitle() { return SlangBundle.message("rename.rename.slang.symbol"); }
 }

@@ -18,45 +18,60 @@ public class SlangConfigurableGUI {
     private final JPanel includePaths = listPanel();
     private final JPanel macros = listPanel();
     private final JTextField slangdDirectory = new JTextField(30);
-    private final JCheckBox useVcpkg = new JCheckBox("Use local vcpkg slangd package if found");
+    private final JCheckBox useVcpkg = new JCheckBox(SlangBundle.message("settings.use.local.vcpkg.slangd.package.if.found"));
     private final ComboBox<String> commitCharacters = new ComboBox<>(new String[]{"off", "membersOnly", "on"});
-    private final JCheckBox deducedTypes = new JCheckBox("Show inlay hints for deduced types");
-    private final JCheckBox parameterNames = new JCheckBox("Show inlay hints for parameter names");
-    private final JCheckBox searchWorkspace = new JCheckBox("Search workspace subdirectories for imports and includes");
-    private final JCheckBox formatOnType = new JCheckBox("Enable formatting while typing");
+    private final JCheckBox deducedTypes = new JCheckBox(SlangBundle.message("settings.show.inlay.hints.for.deduced.types"));
+    private final JCheckBox parameterNames = new JCheckBox(SlangBundle.message("settings.show.inlay.hints.for.parameter.names"));
+    private final JCheckBox searchWorkspace = new JCheckBox(SlangBundle.message("settings.search.workspace.subdirectories.for.imports.and.includes"));
+    private final JCheckBox formatOnType = new JCheckBox(SlangBundle.message("settings.enable.formatting.while.typing"));
     private final JTextField clangFormat = new JTextField(30);
     private final JTextField formatStyle = new JTextField(30);
     private final JTextField fallbackStyle = new JTextField(30);
-    private final JCheckBox onTypeLineBreaks = new JCheckBox("Allow line-break changes while formatting on type");
-    private final JCheckBox rangeLineBreaks = new JCheckBox("Allow line-break changes while formatting a selection");
+    private final JCheckBox onTypeLineBreaks = new JCheckBox(SlangBundle.message("settings.allow.line.break.changes.while.formatting.on.type"));
+    private final JCheckBox rangeLineBreaks = new JCheckBox(SlangBundle.message("settings.allow.line.break.changes.while.formatting.a.selection"));
 
     public SlangConfigurableGUI() {
+        commitCharacters.setRenderer(new DefaultListCellRenderer() {
+            @Override public Component getListCellRendererComponent(JList<?> list, Object value,
+                    int index, boolean selected, boolean focus) {
+                super.getListCellRendererComponent(list, value, index, selected, focus);
+                if (value instanceof String mode) {
+                    setText(switch (mode) {
+                        case "off" -> SlangBundle.message("settings.commit.off");
+                        case "membersOnly" -> SlangBundle.message("settings.commit.members.only");
+                        case "on" -> SlangBundle.message("settings.commit.on");
+                        default -> mode;
+                    });
+                }
+                return this;
+            }
+        });
         JPanel general = formPanel();
-        addField(general, "Additional include/import paths", listEditor(includePaths, "Path to an include directory"));
-        addField(general, "Predefined macros", listEditor(macros, "Examples: MY_MACRO or MY_VALUE=1"));
-        slangdDirectory.setToolTipText("Optional directory containing slangd. Takes priority over vcpkg and PATH.");
-        addField(general, "slangd directory", slangdDirectory);
+        addField(general, SlangBundle.message("settings.additional.include.import.paths"), listEditor(includePaths, SlangBundle.message("settings.path.to.an.include.directory")));
+        addField(general, SlangBundle.message("settings.predefined.macros"), listEditor(macros, SlangBundle.message("settings.examples.my.macro.or.my.value.1")));
+        slangdDirectory.setToolTipText(SlangBundle.message("settings.optional.directory.containing.slangd.takes.priority.over.vcpkg.and.path"));
+        addField(general, SlangBundle.message("settings.slangd.directory"), slangdDirectory);
         addField(general, null, useVcpkg);
-        addField(general, "Completion commit characters", commitCharacters);
+        addField(general, SlangBundle.message("settings.completion.commit.characters"), commitCharacters);
         addField(general, null, deducedTypes);
         addField(general, null, parameterNames);
         addField(general, null, searchWorkspace);
 
         JPanel formatting = formPanel();
         addField(formatting, null, formatOnType);
-        clangFormat.setToolTipText("Full path including the executable name. Leave empty to search PATH.");
-        addField(formatting, "clang-format executable", clangFormat);
-        formatStyle.setToolTipText("For example: file, LLVM, Microsoft, or file:/path/to/.clang-format");
-        addField(formatting, "Style", formatStyle);
-        fallbackStyle.setToolTipText("Style used when no .clang-format file is found.");
-        addField(formatting, "Fallback style", fallbackStyle);
+        clangFormat.setToolTipText(SlangBundle.message("settings.full.path.including.the.executable.name.leave.empty.to.search.path"));
+        addField(formatting, SlangBundle.message("settings.clang.format.executable"), clangFormat);
+        formatStyle.setToolTipText(SlangBundle.message("settings.for.example.file.llvm.microsoft.or.file.path.to.clang.format"));
+        addField(formatting, SlangBundle.message("settings.style"), formatStyle);
+        fallbackStyle.setToolTipText(SlangBundle.message("settings.style.used.when.no.clang.format.file.is.found"));
+        addField(formatting, SlangBundle.message("settings.fallback.style"), fallbackStyle);
         addField(formatting, null, onTypeLineBreaks);
         addField(formatting, null, rangeLineBreaks);
-        addField(formatting, null, new JLabel("Formatting requires clang-format to be installed."));
+        addField(formatting, null, new JLabel(SlangBundle.message("settings.formatting.requires.clang.format.to.be.installed")));
 
         JBTabbedPane tabs = new JBTabbedPane();
-        tabs.addTab("General", scrollable(general));
-        tabs.addTab("Formatting", scrollable(formatting));
+        tabs.addTab(SlangBundle.message("settings.general"), scrollable(general));
+        tabs.addTab(SlangBundle.message("settings.formatting"), scrollable(formatting));
         root.add(tabs, BorderLayout.CENTER);
     }
 
@@ -101,7 +116,7 @@ public class SlangConfigurableGUI {
 
     private static JPanel listEditor(JPanel rows, String help) {
         JPanel editor = new JPanel(new BorderLayout(0, JBUI.scale(4)));
-        JButton add = new JButton("Add");
+        JButton add = new JButton(SlangBundle.message("settings.add"));
         add.setToolTipText(help);
         add.addActionListener(event -> addRow(rows, "", help));
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -116,7 +131,7 @@ public class SlangConfigurableGUI {
         JPanel row = new JPanel(new BorderLayout(JBUI.scale(4), 0));
         JTextField field = new JTextField(value, 25);
         field.setToolTipText(help);
-        JButton remove = new JButton("Remove");
+        JButton remove = new JButton(SlangBundle.message("settings.remove"));
         remove.addActionListener(event -> {
             rows.remove(row);
             rows.revalidate();

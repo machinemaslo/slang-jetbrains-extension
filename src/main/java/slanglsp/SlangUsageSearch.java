@@ -67,6 +67,8 @@ final class SlangUsageSearch {
                 Set<String> seen = new HashSet<>();
                 for (var reference : references) {
                     ProgressManager.checkCanceled();
+                    // LSP4IJ's documented PSI conversion requires its experimental client features.
+                    @SuppressWarnings("UnstableApiUsage")
                     var target = LSPPsiElementFactory.toPsiElement(reference.location(),
                             reference.languageServer().getClientFeatures(), project);
                     if (target != null && seen.add(reference.location().toString())) {
@@ -94,7 +96,7 @@ final class SlangUsageSearch {
             source.checkUnchanged();
             var indicator = ProgressManager.getInstance().getProgressIndicator();
             if (indicator != null) {
-                indicator.setText("Finding usages of " + source.name);
+                indicator.setText(SlangBundle.message("usages.progress", source.name));
                 indicator.setText2(file.getName());
                 indicator.setFraction((double) visited++ / Math.max(1, files.size()));
             }
@@ -134,7 +136,7 @@ final class SlangUsageSearch {
         URI uri = com.redhat.devtools.lsp4ij.client.features.FileUriSupport.getFileUri(file, null);
         if (uri == null) {
             // Abort the whole search/rename instead of silently skipping an unresolvable file.
-            throw new IllegalStateException("Cannot resolve a language-server URI for " + file.getName());
+            throw new IllegalStateException(SlangBundle.message("usages.uri.failed", file.getName()));
         }
         return uri.normalize();
     }

@@ -1,5 +1,7 @@
 package slanglsp.highlighting;
 
+import slanglsp.SlangBundle;
+
 import com.intellij.openapi.editor.colors.TextAttributesKey;
 import com.intellij.openapi.fileTypes.SyntaxHighlighter;
 import com.intellij.openapi.options.colors.AttributesDescriptor;
@@ -14,36 +16,36 @@ import java.util.Map;
 
 public final class SlangColorSettingsPage implements ColorSettingsPage {
     private static final AttributesDescriptor[] DESCRIPTORS = {
-            new AttributesDescriptor("Keyword", SlangSyntaxHighlighterColors.KEYWORD),
-            new AttributesDescriptor("Types//Class, struct and built-in type", SlangSyntaxHighlighterColors.TYPE_NAME),
-            new AttributesDescriptor("Types//Interface", SlangSyntaxHighlighterColors.INTERFACE),
-            new AttributesDescriptor("Types//Enum", SlangSyntaxHighlighterColors.ENUM),
-            new AttributesDescriptor("Types//Type parameter", SlangSyntaxHighlighterColors.TYPE_PARAMETER),
-            new AttributesDescriptor("Namespace or module", SlangSyntaxHighlighterColors.NAMESPACE),
-            new AttributesDescriptor("Function (declarations and calls)", SlangSyntaxHighlighterColors.FUNCTION),
-            new AttributesDescriptor("Method", SlangSyntaxHighlighterColors.METHOD),
-            new AttributesDescriptor("Local variable", SlangSyntaxHighlighterColors.VARIABLE),
-            new AttributesDescriptor("Parameter", SlangSyntaxHighlighterColors.PARAMETER),
-            new AttributesDescriptor("Field", SlangSyntaxHighlighterColors.FIELD),
-            new AttributesDescriptor("Constant", SlangSyntaxHighlighterColors.CONSTANT),
-            new AttributesDescriptor("Macro", SlangSyntaxHighlighterColors.MACRO_KEYWORD),
-            new AttributesDescriptor("Preprocessor directive", SlangSyntaxHighlighterColors.DIRECTIVE),
-            new AttributesDescriptor("Punctuation//Operator", SlangSyntaxHighlighterColors.OPERATOR),
-            new AttributesDescriptor("Punctuation//Braces", SlangSyntaxHighlighterColors.BRACES),
-            new AttributesDescriptor("Punctuation//Brackets", SlangSyntaxHighlighterColors.BRACKETS),
-            new AttributesDescriptor("Punctuation//Parentheses", SlangSyntaxHighlighterColors.PARENTHESES),
-            new AttributesDescriptor("Punctuation//Comma", SlangSyntaxHighlighterColors.COMMA),
-            new AttributesDescriptor("Punctuation//Dot", SlangSyntaxHighlighterColors.DOT),
-            new AttributesDescriptor("Punctuation//Semicolon", SlangSyntaxHighlighterColors.SEMICOLON),
-            new AttributesDescriptor("String", SlangSyntaxHighlighterColors.STRING),
-            new AttributesDescriptor("Number", SlangSyntaxHighlighterColors.NUMBER),
-            new AttributesDescriptor("Line comment", SlangSyntaxHighlighterColors.LINE_COMMENT),
-            new AttributesDescriptor("Block comment", SlangSyntaxHighlighterColors.BLOCK_COMMENT)
+            new AttributesDescriptor(SlangBundle.message("color.keyword"), SlangSyntaxHighlighterColors.KEYWORD),
+            new AttributesDescriptor(SlangBundle.message("color.types.class.struct.and.built.in.type"), SlangSyntaxHighlighterColors.TYPE_NAME),
+            new AttributesDescriptor(SlangBundle.message("color.types.interface"), SlangSyntaxHighlighterColors.INTERFACE),
+            new AttributesDescriptor(SlangBundle.message("color.types.enum"), SlangSyntaxHighlighterColors.ENUM),
+            new AttributesDescriptor(SlangBundle.message("color.types.type.parameter"), SlangSyntaxHighlighterColors.TYPE_PARAMETER),
+            new AttributesDescriptor(SlangBundle.message("color.namespace.or.module"), SlangSyntaxHighlighterColors.NAMESPACE),
+            new AttributesDescriptor(SlangBundle.message("color.function.declarations.and.calls"), SlangSyntaxHighlighterColors.FUNCTION),
+            new AttributesDescriptor(SlangBundle.message("color.method"), SlangSyntaxHighlighterColors.METHOD),
+            new AttributesDescriptor(SlangBundle.message("color.local.variable"), SlangSyntaxHighlighterColors.VARIABLE),
+            new AttributesDescriptor(SlangBundle.message("color.parameter"), SlangSyntaxHighlighterColors.PARAMETER),
+            new AttributesDescriptor(SlangBundle.message("color.field"), SlangSyntaxHighlighterColors.FIELD),
+            new AttributesDescriptor(SlangBundle.message("color.constant"), SlangSyntaxHighlighterColors.CONSTANT),
+            new AttributesDescriptor(SlangBundle.message("color.macro"), SlangSyntaxHighlighterColors.MACRO_KEYWORD),
+            new AttributesDescriptor(SlangBundle.message("color.preprocessor.directive"), SlangSyntaxHighlighterColors.DIRECTIVE),
+            new AttributesDescriptor(SlangBundle.message("color.punctuation.operator"), SlangSyntaxHighlighterColors.OPERATOR),
+            new AttributesDescriptor(SlangBundle.message("color.punctuation.braces"), SlangSyntaxHighlighterColors.BRACES),
+            new AttributesDescriptor(SlangBundle.message("color.punctuation.brackets"), SlangSyntaxHighlighterColors.BRACKETS),
+            new AttributesDescriptor(SlangBundle.message("color.punctuation.parentheses"), SlangSyntaxHighlighterColors.PARENTHESES),
+            new AttributesDescriptor(SlangBundle.message("color.punctuation.comma"), SlangSyntaxHighlighterColors.COMMA),
+            new AttributesDescriptor(SlangBundle.message("color.punctuation.dot"), SlangSyntaxHighlighterColors.DOT),
+            new AttributesDescriptor(SlangBundle.message("color.punctuation.semicolon"), SlangSyntaxHighlighterColors.SEMICOLON),
+            new AttributesDescriptor(SlangBundle.message("color.string"), SlangSyntaxHighlighterColors.STRING),
+            new AttributesDescriptor(SlangBundle.message("color.number"), SlangSyntaxHighlighterColors.NUMBER),
+            new AttributesDescriptor(SlangBundle.message("color.line.comment"), SlangSyntaxHighlighterColors.LINE_COMMENT),
+            new AttributesDescriptor(SlangBundle.message("color.block.comment"), SlangSyntaxHighlighterColors.BLOCK_COMMENT)
     };
 
     @Override public Icon getIcon() { return SlangFileType.INSTANCE.getIcon(); }
     @Override public @NotNull SyntaxHighlighter getHighlighter() { return new SlangSyntaxHighlighter(); }
-    @Override public @NotNull String getDisplayName() { return "Slang"; }
+    @Override public @NotNull String getDisplayName() { return SlangBundle.message("settings.slang.display.name"); }
     @Override public AttributesDescriptor @NotNull [] getAttributeDescriptors() { return DESCRIPTORS; }
     @Override public ColorDescriptor @NotNull [] getColorDescriptors() { return ColorDescriptor.EMPTY_ARRAY; }
     @Override public Map<String, TextAttributesKey> getAdditionalHighlightingTagToDescriptorMap() {

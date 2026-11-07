@@ -23,7 +23,7 @@ public class SlangFileType extends LanguageFileType {
     @NotNull
     @Override
     public String getDescription() {
-        return "Slang shading language file";
+        return SlangBundle.message("file.description");
     }
 
     @NotNull

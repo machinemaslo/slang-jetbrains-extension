@@ -92,18 +92,19 @@ public final class SlangBuiltinFiles implements Disposable {
                     var output = new CapturingProcessHandler(command).runProcessWithProgressIndicator(indicator, 15000);
                     indicator.checkCanceled();
                     if (output.isTimeout() || output.getExitCode() != 0 || output.getStdout().isEmpty()) {
-                        throw new IllegalStateException(output.isTimeout() ? "slangd timed out"
-                                : "slangd could not print " + module + ": " + output.getStderr());
+                        throw new IllegalStateException(output.isTimeout() ? SlangBundle.message("builtin.timeout")
+                                : SlangBundle.message("builtin.print.failed", module, output.getStderr()));
                     }
                     result.complete(new BuiltinFile(module, output.getStdout()));
                 } catch (ProcessCanceledException canceled) {
                     result.cancel(false);
+                    throw canceled;
                 } catch (Exception failure) {
                     // Cache a failed attempt until restart, avoiding repeated hover notifications.
                     result.complete(null);
                     if (!project.isDisposed() && !indicator.isCanceled()) {
                         NotificationGroupManager.getInstance().getNotificationGroup("Slang LSP")
-                                .createNotification("Cannot open Slang built-in source", failure.getMessage(), NotificationType.WARNING)
+                                .createNotification(SlangBundle.message("builtin.open.failed"), failure.getMessage(), NotificationType.WARNING)
                                 .notify(project);
                     }
                 }

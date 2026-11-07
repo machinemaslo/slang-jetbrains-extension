@@ -33,7 +33,7 @@ final class SlangRenamePlan {
         void check() {
             if (!file.isValid() || !file.getVirtualFile().isValid() || document.getModificationStamp() != stamp
                     || !uri.equals(SlangUsageSearch.fileUri(file.getVirtualFile()))) {
-                throw new IllegalStateException("Files changed during rename. Run Rename again.");
+                throw new IllegalStateException(SlangBundle.message("rename.files.changed.during.rename.run.rename.again"));
             }
         }
     }
@@ -70,37 +70,37 @@ final class SlangRenamePlan {
     }
 
     static SlangRenamePlan collect(PsiElement element, String newName) {
-        if (!validName(newName)) throw new IllegalArgumentException("Enter a Slang identifier, not a keyword or built-in type.");
+        if (!validName(newName)) throw new IllegalArgumentException(SlangBundle.message("rename.enter.a.slang.identifier.not.a.keyword.or.built.in.type"));
         Project project = element.getProject();
         String name = SlangReadAction.compute(element::getText);
-        if (!validName(name) || name.equals(newName)) throw new IllegalArgumentException("Choose a different identifier.");
+        if (!validName(name) || name.equals(newName)) throw new IllegalArgumentException(SlangBundle.message("rename.choose.a.different.identifier"));
         List<Source> sources = SlangReadAction.compute(() -> {
             List<Source> result = new ArrayList<>();
             for (VirtualFile file : projectFiles(project)) {
                 ProgressManager.checkCanceled();
                 var psi = PsiManager.getInstance(project).findFile(file);
                 var doc = FileDocumentManager.getInstance().getDocument(file);
-                if (psi == null || doc == null) throw new IllegalStateException("Cannot read " + file.getName());
+                if (psi == null || doc == null) throw new IllegalStateException(SlangBundle.message("rename.cannot.read", file.getName()));
                 result.add(new Source(psi, doc, doc.getModificationStamp(), doc.getText(), SlangUsageSearch.fileUri(file)));
             }
             return result;
         });
         Source origin = SlangReadAction.compute(() -> sources.stream()
                 .filter(source -> source.file == element.getContainingFile()).findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Only symbols declared in this project's Slang files can be renamed.")));
+                .orElseThrow(() -> new IllegalArgumentException(SlangBundle.message("rename.only.symbols.declared.in.this.project.s.slang.files.can.be.renamed"))));
         int originOffset = SlangReadAction.compute(element::getTextOffset);
         var definitions = definitions(origin, originOffset);
-        if (definitions.size() > 1) throw new IllegalArgumentException("The symbol has multiple definitions and cannot be renamed safely.");
+        if (definitions.size() > 1) throw new IllegalArgumentException(SlangBundle.message("rename.the.symbol.has.multiple.definitions.and.cannot.be.renamed.safely"));
         Symbol symbol = definitions.isEmpty() ? SlangReadAction.compute(() -> origin.symbol(originOffset)) : definitions.iterator().next();
         Source declaration = sources.stream().filter(source -> source.uri.equals(symbol.uri))
-                .findFirst().orElseThrow(() -> new IllegalArgumentException("Built-in and external declarations cannot be renamed."));
+                .findFirst().orElseThrow(() -> new IllegalArgumentException(SlangBundle.message("rename.built.in.and.external.declarations.cannot.be.renamed")));
         int declarationOffset = SlangReadAction.compute(() -> {
             declaration.check();
             if (symbol.line < 0 || symbol.line >= declaration.document.getLineCount()) return -1;
             int offset = declaration.document.getLineStartOffset(symbol.line) + symbol.character;
             return SlangUsageCandidates.find(declaration.text, name).contains(offset) ? offset : -1;
         });
-        if (declarationOffset < 0) throw new IllegalArgumentException("slangd did not identify a matching declaration.");
+        if (declarationOffset < 0) throw new IllegalArgumentException(SlangBundle.message("rename.slangd.did.not.identify.a.matching.declaration"));
         List<Edit> edits = new ArrayList<>();
         edits.add(new Edit(declaration, declarationOffset));
         boolean confirmed = !definitions.isEmpty();
@@ -112,13 +112,13 @@ final class SlangRenamePlan {
                 if (source == declaration && offset == declarationOffset) continue;
                 Set<Symbol> targets = definitions(source, offset);
                 if (targets.contains(symbol)) {
-                    if (targets.size() != 1) throw new IllegalArgumentException("An ambiguous usage prevents a safe rename.");
+                    if (targets.size() != 1) throw new IllegalArgumentException(SlangBundle.message("rename.an.ambiguous.usage.prevents.a.safe.rename"));
                     edits.add(new Edit(source, offset));
                     confirmed = true;
                 }
             }
         }
-        if (!confirmed) throw new IllegalArgumentException("slangd could not verify this declaration. Rename is unavailable for this symbol.");
+        if (!confirmed) throw new IllegalArgumentException(SlangBundle.message("rename.slangd.could.not.verify.this.declaration.rename.is.unavailable.for.this.symbol"));
         SlangRenamePlan plan = new SlangRenamePlan(project, name, newName, sources, edits);
         SlangReadAction.run(plan::validate);
         return plan;
@@ -147,19 +147,19 @@ final class SlangRenamePlan {
             source.check();
             original.add(source.file.getVirtualFile());
         }
-        if (!original.equals(projectFiles(project))) throw new IllegalStateException("Project files changed. Run Rename again.");
+        if (!original.equals(projectFiles(project))) throw new IllegalStateException(SlangBundle.message("rename.project.files.changed.run.rename.again"));
         for (Edit edit : edits) {
             if (!edit.source.file.isWritable() || !edit.source.document.isWritable()) {
-                throw new IllegalStateException("Cannot rename: " + edit.source.file.getName() + " is read-only.");
+                throw new IllegalStateException(SlangBundle.message("rename.read.only", edit.source.file.getName()));
             }
             if (!edit.source.document.getText().regionMatches(edit.offset, oldName, 0, oldName.length())) {
-                throw new IllegalStateException("A usage changed. Run Rename again.");
+                throw new IllegalStateException(SlangBundle.message("rename.a.usage.changed.run.rename.again"));
             }
         }
     }
 
     void apply() {
-        WriteCommandAction.runWriteCommandAction(project, "Rename " + oldName + " to " + newName, null, () -> {
+        WriteCommandAction.runWriteCommandAction(project, SlangBundle.message("rename.command", oldName, newName), null, () -> {
             // Validate every file before the first edit; never apply a partial stale plan.
             validate();
             CommandProcessor.getInstance().markCurrentCommandAsGlobal(project);
