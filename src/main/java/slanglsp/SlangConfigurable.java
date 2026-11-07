@@ -14,7 +14,7 @@ public final class SlangConfigurable implements SearchableConfigurable {
         this.project = project;
     }
 
-    @Override public @NotNull String getDisplayName() { return "Slang"; }
+    @Override public @NotNull String getDisplayName() { return SlangBundle.message("settings.slang.display.name"); }
 
     @Override public @NotNull String getId() { return "slanglsp.SlangConfigurable"; }
 

@@ -2,6 +2,7 @@
     <id>slanglsp_r</id>
 
     <name>Slang [Unofficial] Refined</name>
+    <resource-bundle>messages.SlangBundle</resource-bundle>
 
     <vendor email="machinemaslo@proton.me">machinemaslo, 16-Bit-Dog</vendor>
 
@@ -10,11 +11,21 @@
         <p>I didn't find any working slang lsps here, so I just took one and added a lot of features that make it work.</p>
         <p>So this plugin gives you everything, code completion, syntax highlight, docs in popup, go-to-definition, find usages, rename, clang-format support, vcpkg-installed slang support etc</p>
         <p>This is a refined fork of <a href="https://plugins.jetbrains.com/plugin/26239-slang-unofficial-">Slang [Unofficial]</a>, props to 16-Bit-Dog</p>
+        <br>
+        <p>插件设置支持中文，同志们</p>
+        <p>По приколу сделал перевод настроек на русский</p>
         ]]>
     </description>
 
     <change-notes>
         <![CDATA[
+        <p><b>0.0.20</b></p>
+        <ul>
+            <li>Removed the upper IDE version limit</li>
+            <li>Improved settings UI scaling on high-DPI displays</li>
+            <li>Fixed language-client tracking across restarts and disposal</li>
+            <li>Made settings updates consistent for background language-server requests</li>
+        </ul>
         <p><b>Slang Refined — supported features</b></p>
         <ul>
             <li>Language support for <code>.slang</code> and <code>.slangh</code> files through Slang's language server and LSP4IJ</li>
@@ -67,13 +78,15 @@
                                       implementationClass="com.redhat.devtools.lsp4ij.features.documentSymbol.LSPDocumentSymbolStructureViewFactory"/>
 
         <notificationGroup id="Slang LSP"
+                           key="notification.group.slang"
                            displayType="BALLOON"/>
 
         <projectConfigurable
                 parentId="tools"
                 instance="slanglsp.SlangConfigurable"
                 id="slanglsp.SlangConfigurable"
-                displayName="Slang"
+                bundle="messages.SlangBundle"
+                key="settings.slang.display.name"
                 nonDefaultProject="true"/>
 
         <projectService 
@@ -81,14 +94,13 @@
     </extensions>
 
     <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
+        <!-- LSP4IJ annotates bundle keys as display text; translations supply capitalization. -->
+        <!--suppress PluginXmlCapitalization -->
         <server id="slanglsp.SlangLanguageServer"
-                name="Slang Language Server"
-                factoryClass="slanglsp.SlangLanguageServerFactory">
-            <description><![CDATA[
-        Slang Language Server.
-        ]]>
-            </description>
-        </server>
+                bundle="messages.SlangBundle"
+                nameKey="server.name"
+                descriptionKey="server.description"
+                factoryClass="slanglsp.SlangLanguageServerFactory"/>
 
         <fileNamePatternMapping patterns="*.slang;*.slangh"
                                 serverId="slanglsp.SlangLanguageServer"

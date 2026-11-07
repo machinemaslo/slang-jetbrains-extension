@@ -26,7 +26,7 @@ public final class SlangFindUsagesProvider implements FindUsagesProvider {
 
     @Override public boolean canFindUsagesFor(@NotNull PsiElement element) { return isIdentifier(element); }
     @Override public String getHelpId(@NotNull PsiElement element) { return null; }
-    @Override public @NotNull String getType(@NotNull PsiElement element) { return "Slang symbol"; }
+    @Override public @NotNull String getType(@NotNull PsiElement element) { return SlangBundle.message("symbol.description"); }
     @Override public @NotNull String getDescriptiveName(@NotNull PsiElement element) { return element.getText(); }
     @Override public @NotNull String getNodeText(@NotNull PsiElement element, boolean fullName) { return element.getText(); }
 }

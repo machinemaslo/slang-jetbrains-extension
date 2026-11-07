@@ -52,8 +52,8 @@ class SlangLanguageServer extends ProcessStreamConnectionProvider
         else
         {
             NotificationGroupManager.getInstance().getNotificationGroup("Slang LSP").createNotification(
-                "Slang LSP",
-                    "Slangd was not found in the configured directory, local vcpkg packages (when enabled), or PATH. install the shader-slang vcpkg package, or set the slangd directory in settings | tools | slang.",
+                SlangBundle.message("notification.group.slang"),
+                    SlangBundle.message("server.not.found"),
                 NotificationType.ERROR
             ).notify(project);
             LanguageServerManager.getInstance(project).stop("slanglsp.SlangLanguageServer");
