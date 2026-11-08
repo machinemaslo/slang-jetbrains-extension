@@ -28,8 +28,11 @@ public final class SlangParserDefinition implements ParserDefinition {
     public @NotNull PsiParser createParser(Project project) {
         return (root, builder) -> {
             var file = builder.mark();
-            while (!builder.eof()) builder.advanceLexer();
+
+            while (!builder.eof())
+                builder.advanceLexer();
             file.done(root);
+
             return builder.getTreeBuilt();
         };
     }

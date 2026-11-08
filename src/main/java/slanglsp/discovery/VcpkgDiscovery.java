@@ -19,8 +19,9 @@ final class VcpkgDiscovery {
             default -> arch.toLowerCase(Locale.ROOT);
         };
         String system = os.toLowerCase(Locale.ROOT);
-        hostTriplet = cpu + (system.contains("win") && !system.contains("darwin") ? "-windows"
-                : system.contains("mac") || system.contains("darwin") ? "-osx" : "-linux");
+        hostTriplet = cpu + (system.contains("win") && !system.contains("darwin")         ? "-windows"
+                                    : system.contains("mac") || system.contains("darwin") ? "-osx"
+                                                                                          : "-linux");
     }
 
     Optional<String> find(Path projectRoot) {
@@ -31,12 +32,14 @@ final class VcpkgDiscovery {
         DiscoveryContext context = new DiscoveryContext(projectRoot, environment);
         // Prefer the project's conventional installations before reading build metadata.
         for (String directory : List.of("vcpkg_installed", "vcpkg/installed", "extern/vcpkg/installed")) {
-            Optional<String> found = findInstalledTool(context.root.resolve(directory),
-                    environment.get("VCPKG_HOST_TRIPLET"));
+            Optional<String> found =
+                    findInstalledTool(context.root.resolve(directory), environment.get("VCPKG_HOST_TRIPLET"));
+
             if (found.isPresent()) {
                 return found;
             }
         }
+
         List<DiscoveryAdapter> adapters = List.of(new CmakeDiscoveryAdapter(), new MsbuildDiscoveryAdapter(),
                 new XmakeDiscoveryAdapter(), new MesonDiscoveryAdapter());
 
@@ -45,12 +48,15 @@ final class VcpkgDiscovery {
         }
 
         findFallbackInstallations(context);
+
         for (var installation : context.installations.entrySet()) {
             Optional<String> found = findInstalledTool(installation.getKey(), installation.getValue());
+
             if (found.isPresent()) {
                 return found;
             }
         }
+
         return Optional.empty();
     }
 
@@ -63,23 +69,34 @@ final class VcpkgDiscovery {
 
     private void findSubmodules(DiscoveryContext c) {
         // Explicit submodules and environment are fallbacks after build-system metadata.
-        var paths = java.util.regex.Pattern.compile("(?m)^\\s*path\\s*=\\s*(.+?)\\s*$").matcher(c.read(c.root.resolve(".gitmodules")));
+        var paths = java.util.regex.Pattern.compile("(?m)^\\s*path\\s*=\\s*(.+?)\\s*$")
+                            .matcher(c.read(c.root.resolve(".gitmodules")));
+
         while (paths.find()) {
             Path path = c.resolve(c.root, paths.group(1));
-            if (path != null && Files.isRegularFile(path.resolve(".vcpkg-root"))) c.vcpkgRoot(c.root, path.toString());
+            if (path != null && Files.isRegularFile(path.resolve(".vcpkg-root")))
+                c.vcpkgRoot(c.root, path.toString());
         }
     }
 
     private void findOnPath(DiscoveryContext c) {
         String path = c.environment.get("PATH");
+
         if (path != null) {
             int count = 0;
+
             for (String directory : path.split(java.util.regex.Pattern.quote(File.pathSeparator))) {
-                if (++count > 128) break;
+                if (++count > 128)
+                    break;
                 Path executable = c.resolve(c.root, directory);
-                if (executable == null) continue;
+
+                if (executable == null)
+                    continue;
                 executable = executable.resolve(executableName.endsWith(".exe") ? "vcpkg.exe" : "vcpkg");
-                if (!ExecutableLocator.isExecutable(executable)) continue;
+
+                if (!ExecutableLocator.isExecutable(executable))
+                    continue;
+
                 try {
                     c.vcpkgRoot(c.root, executable.toRealPath().getParent().toString());
                 } catch (IOException | SecurityException ignored) {
@@ -91,27 +108,36 @@ final class VcpkgDiscovery {
 
     private void findUserIntegration(DiscoveryContext c) {
         Path local = c.resolve(c.root, c.environment.get("LOCALAPPDATA"));
-        if (local != null) c.vcpkgRoot(c.root, c.read(local.resolve("vcpkg/vcpkg.path.txt")).trim());
+
+        if (local != null)
+            c.vcpkgRoot(c.root, c.read(local.resolve("vcpkg/vcpkg.path.txt")).trim());
     }
 
     private Optional<String> findInstalledTool(Path installed, String configuredHost) {
         // Host tools must not come from the target triplet when cross-compiling.
         List<String> triplets = new ArrayList<>();
-        if (configuredHost != null && configuredHost.matches("[A-Za-z0-9_-]+")) triplets.add(configuredHost);
+        if (configuredHost != null && configuredHost.matches("[A-Za-z0-9_-]+"))
+            triplets.add(configuredHost);
         triplets.add(hostTriplet);
         try (var children = Files.list(installed)) {
-            children.limit(256).map(p -> p.getFileName().toString())
+            children.limit(256)
+                    .map(p -> p.getFileName().toString())
                     .filter(name -> name.startsWith(hostTriplet + "-"))
-                    .sorted().forEach(triplets::add);
-        } catch (IOException | SecurityException ignored) { }
+                    .sorted()
+                    .forEach(triplets::add);
+        } catch (IOException | SecurityException ignored) {
+        }
+
         for (String triplet : new LinkedHashSet<>(triplets)) {
             // shader-slang is the official port. slang supports existing overlay ports.
             for (String port : List.of("shader-slang", "slang")) {
                 Path tool = installed.resolve(triplet).resolve("tools").resolve(port).resolve(executableName);
-                if (ExecutableLocator.isExecutable(tool)) return Optional.of(tool.toAbsolutePath().toString());
+
+                if (ExecutableLocator.isExecutable(tool))
+                    return Optional.of(tool.toAbsolutePath().toString());
             }
         }
+
         return Optional.empty();
     }
-
 }

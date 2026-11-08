@@ -24,21 +24,25 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class RenameTest {
-    @Test void rejectsKeywordsTypesAndNonIdentifiers() {
+    @Test
+    void rejectsKeywordsTypesAndNonIdentifiers() {
         for (String name : List.of("", "struct", "float4", "true", "1value", "a.b", "a b", "a\nb")) {
             assertFalse(RenamePlan.validName(name), name);
         }
-        for (String name : List.of("renamedValue", "_value2", "MyBuffer")) assertTrue(RenamePlan.validName(name));
+        for (String name : List.of("renamedValue", "_value2", "MyBuffer"))
+            assertTrue(RenamePlan.validName(name));
     }
 
-    @Test @Timeout(90)
+    @Test
+    @Timeout(90)
     void verifiedRenameIncludesUnsavedImportsPreservesShadowingAndSupportsUndo() throws Exception {
         String executable = System.getenv("SLANGD_TEST_EXECUTABLE");
         assumeTrue(executable != null, "Set SLANGD_TEST_EXECUTABLE for native rename verification");
         var factory = IdeaTestFixtureFactory.getFixtureFactory();
-        var fixture = factory.createCodeInsightFixture(factory.createLightFixtureBuilder("SlangRenameTest").getFixture(),
-                new TempDirTestFixtureImpl());
+        var fixture = factory.createCodeInsightFixture(
+                factory.createLightFixtureBuilder("SlangRenameTest").getFixture(), new TempDirTestFixtureImpl());
         EdtTestUtil.runInEdtAndWait(fixture::setUp);
+
         try {
             String main = """
                     public float sharedValue = 1;
@@ -50,7 +54,8 @@ class RenameTest {
             PsiFile[] files = new PsiFile[3];
             Document[] docs = new Document[3];
             EdtTestUtil.runInEdtAndWait(() -> {
-                com.intellij.openapi.roots.ModuleRootModificationUtil.addContentRoot(fixture.getModule(), fixture.getTempDirPath());
+                com.intellij.openapi.roots.ModuleRootModificationUtil.addContentRoot(
+                        fixture.getModule(), fixture.getTempDirPath());
                 var settings = ProjectSettings.getInstance(fixture.getProject()).getState();
                 settings.explicitSlangdLocation = Path.of(executable).getParent().toString();
                 settings.useLocalVcpkgSlangd = false;
@@ -59,7 +64,9 @@ class RenameTest {
                 files[2] = fixture.addFileToProject("other.slang", "float unrelated = 0;\n");
                 settings.additionalIncludePaths = List.of(files[0].getVirtualFile().getParent().getPath());
                 ProjectSettings.getInstance(fixture.getProject()).loadState(settings);
-                for (int i = 0; i < docs.length; i++) docs[i] = PsiDocumentManager.getInstance(fixture.getProject()).getDocument(files[i]);
+
+                for (int i = 0; i < docs.length; i++)
+                    docs[i] = PsiDocumentManager.getInstance(fixture.getProject()).getDocument(files[i]);
                 FileDocumentManager.getInstance().saveAllDocuments();
                 WriteCommandAction.runWriteCommandAction(fixture.getProject(), () -> {
                     docs[1].setText(imported);
@@ -74,19 +81,24 @@ class RenameTest {
             EdtTestUtil.runInEdtAndWait(() -> {
                 fixture.configureFromExistingVirtualFile(files[1].getVirtualFile());
                 fixture.getEditor().getCaretModel().moveToOffset(imported.indexOf("sharedValue"));
-                var context = com.intellij.openapi.actionSystem.impl.SimpleDataContext.builder()
-                        .add(com.intellij.openapi.actionSystem.CommonDataKeys.PROJECT, fixture.getProject())
-                        .add(com.intellij.openapi.actionSystem.CommonDataKeys.EDITOR, fixture.getEditor())
-                        .add(com.intellij.openapi.actionSystem.CommonDataKeys.PSI_FILE, files[1]).build();
-                assertTrue(com.intellij.refactoring.rename.RenameHandlerRegistry.getInstance().getRenameHandlers(context)
-                        .stream().anyMatch(SlangRenameHandler.class::isInstance));
+                var context =
+                        com.intellij.openapi.actionSystem.impl.SimpleDataContext.builder()
+                                .add(com.intellij.openapi.actionSystem.CommonDataKeys.PROJECT, fixture.getProject())
+                                .add(com.intellij.openapi.actionSystem.CommonDataKeys.EDITOR, fixture.getEditor())
+                                .add(com.intellij.openapi.actionSystem.CommonDataKeys.PSI_FILE, files[1])
+                                .build();
+                assertTrue(com.intellij.refactoring.rename.RenameHandlerRegistry.getInstance()
+                                .getRenameHandlers(context)
+                                .stream()
+                                .anyMatch(SlangRenameHandler.class ::isInstance));
                 var preview = SlangRenameHandler.showPreview(fixture.getProject(), plan);
                 assertEquals(3, preview.getUsagesCount());
                 preview.close();
             });
             EdtTestUtil.runInEdtAndWait(plan::apply);
             assertEquals(main.replace("public float sharedValue", "public float renamedValue")
-                    .replace("return sharedValue +", "return renamedValue +"), docs[0].getText());
+                                 .replace("return sharedValue +", "return renamedValue +"),
+                    docs[0].getText());
             assertEquals(imported.replace("sharedValue", "renamedValue"), docs[1].getText());
             EdtTestUtil.runInEdtAndWait(() -> {
                 var undo = UndoManager.getInstance(fixture.getProject());
@@ -99,7 +111,8 @@ class RenameTest {
 
             var stale = collect(files[1], imported.indexOf("sharedValue"), "renamedValue");
             EdtTestUtil.runInEdtAndWait(() -> {
-                WriteCommandAction.runWriteCommandAction(fixture.getProject(), () -> docs[2].insertString(0, "// edited\n"));
+                WriteCommandAction.runWriteCommandAction(
+                        fixture.getProject(), () -> docs[2].insertString(0, "// edited\n"));
                 assertThrows(IllegalStateException.class, stale::apply);
             });
             assertEquals(main, docs[0].getText(), "A stale plan must not partially rename files");
@@ -108,15 +121,21 @@ class RenameTest {
             var readOnly = collect(files[1], imported.indexOf("sharedValue"), "renamedValue");
             EdtTestUtil.runInEdtAndWait(() -> {
                 docs[1].setReadOnly(true);
-                try { assertThrows(IllegalStateException.class, readOnly::apply); }
-                finally { docs[1].setReadOnly(false); }
+
+                try {
+                    assertThrows(IllegalStateException.class, readOnly::apply);
+                } finally {
+                    docs[1].setReadOnly(false);
+                }
             });
             assertEquals(main, docs[0].getText());
             assertThrows(IllegalArgumentException.class, () -> collect(files[0], main.indexOf("sin("), "mySin"));
-            assertThrows(IllegalArgumentException.class, () -> collect(files[2], docs[2].getText().indexOf("unrelated"), "renamed"));
+            assertThrows(IllegalArgumentException.class,
+                    () -> collect(files[2], docs[2].getText().indexOf("unrelated"), "renamed"));
         } finally {
-            com.redhat.devtools.lsp4ij.LanguageServerManager.getInstance(fixture.getProject()).stop("slanglsp.SlangLanguageServer",
-                    new com.redhat.devtools.lsp4ij.LanguageServerManager.StopOptions().setWillDisable(false));
+            com.redhat.devtools.lsp4ij.LanguageServerManager.getInstance(fixture.getProject())
+                    .stop("slanglsp.SlangLanguageServer",
+                            new com.redhat.devtools.lsp4ij.LanguageServerManager.StopOptions().setWillDisable(false));
             EdtTestUtil.runInEdtAndWait(fixture::tearDown);
         }
     }
@@ -124,7 +143,9 @@ class RenameTest {
     private static RenamePlan collect(PsiFile file, int offset, String newName) {
         PsiElement element = ReadActions.compute(() -> file.findElementAt(offset));
         RenamePlan[] result = new RenamePlan[1];
-        ProgressManager.getInstance().runProcess(() -> result[0] = RenamePlan.collect(element, newName), new EmptyProgressIndicator());
+        ProgressManager.getInstance().runProcess(
+                () -> result[0] = RenamePlan.collect(element, newName), new EmptyProgressIndicator());
+
         return result[0];
     }
 }

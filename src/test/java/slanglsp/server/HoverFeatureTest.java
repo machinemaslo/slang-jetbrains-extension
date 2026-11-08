@@ -5,7 +5,8 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class HoverFeatureTest {
-    @Test void extractsBlockDocumentationAcrossGenericAndIntrinsicModifiers() {
+    @Test
+    void extractsBlockDocumentationAcrossGenericAndIntrinsicModifiers() {
         String source = """
                 /**
                  * A read-only buffer of `T` elements.
@@ -31,7 +32,8 @@ class HoverFeatureTest {
         assertFalse(docs.contains("__generic"));
     }
 
-    @Test void extractsLineDocumentationWithoutBorrowingFromAdjacentDeclarations() {
+    @Test
+    void extractsLineDocumentationWithoutBorrowingFromAdjacentDeclarations() {
         String source = """
                 /// Sine.
                 /// @param x Angle in radians.

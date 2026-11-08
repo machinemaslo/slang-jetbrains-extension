@@ -21,12 +21,16 @@ final class SemanticTokensFeature extends LSPSemanticTokensFeature {
     public boolean shouldVisitPsiElement(@NotNull PsiFile file) {
         // slangd supplies precise ranges. Apply them directly; our token-only PSI must not
         // suppress types/keywords or require a matching lexer classification first.
+
         return false;
     }
 
     @Override
-    public TextAttributesKey getTextAttributesKey(@NotNull String type, @NotNull List<String> modifiers, @NotNull PsiFile file) {
-        if (file.getLanguage() != SlangLanguage.INSTANCE) return null;
+    public TextAttributesKey getTextAttributesKey(
+            @NotNull String type, @NotNull List<String> modifiers, @NotNull PsiFile file) {
+        if (file.getLanguage() != SlangLanguage.INSTANCE)
+            return null;
+
         return switch (type) {
             case "type", "class", "struct" -> SyntaxColors.TYPE_NAME;
             case "interface" -> SyntaxColors.INTERFACE;
@@ -34,8 +38,7 @@ final class SemanticTokensFeature extends LSPSemanticTokensFeature {
             case "typeParameter" -> SyntaxColors.TYPE_PARAMETER;
             case "namespace" -> SyntaxColors.NAMESPACE;
             case "parameter" -> SyntaxColors.PARAMETER;
-            case "variable" -> modifiers.contains("readonly") ? SyntaxColors.CONSTANT
-                    : SyntaxColors.VARIABLE;
+            case "variable" -> modifiers.contains("readonly") ? SyntaxColors.CONSTANT : SyntaxColors.VARIABLE;
             case "property" -> SyntaxColors.FIELD;
             case "enumMember" -> SyntaxColors.CONSTANT;
             // slangd emits function for both declarations and calls with an empty modifier

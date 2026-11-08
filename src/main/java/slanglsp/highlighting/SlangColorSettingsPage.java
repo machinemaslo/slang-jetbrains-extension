@@ -16,12 +16,14 @@ import java.util.Map;
 public final class SlangColorSettingsPage implements ColorSettingsPage {
     private static final AttributesDescriptor[] DESCRIPTORS = {
             new AttributesDescriptor(SlangBundle.message("color.keyword"), SyntaxColors.KEYWORD),
-            new AttributesDescriptor(SlangBundle.message("color.types.class.struct.and.built.in.type"), SyntaxColors.TYPE_NAME),
+            new AttributesDescriptor(
+                    SlangBundle.message("color.types.class.struct.and.built.in.type"), SyntaxColors.TYPE_NAME),
             new AttributesDescriptor(SlangBundle.message("color.types.interface"), SyntaxColors.INTERFACE),
             new AttributesDescriptor(SlangBundle.message("color.types.enum"), SyntaxColors.ENUM),
             new AttributesDescriptor(SlangBundle.message("color.types.type.parameter"), SyntaxColors.TYPE_PARAMETER),
             new AttributesDescriptor(SlangBundle.message("color.namespace.or.module"), SyntaxColors.NAMESPACE),
-            new AttributesDescriptor(SlangBundle.message("color.function.declarations.and.calls"), SyntaxColors.FUNCTION),
+            new AttributesDescriptor(
+                    SlangBundle.message("color.function.declarations.and.calls"), SyntaxColors.FUNCTION),
             new AttributesDescriptor(SlangBundle.message("color.method"), SyntaxColors.METHOD),
             new AttributesDescriptor(SlangBundle.message("color.local.variable"), SyntaxColors.VARIABLE),
             new AttributesDescriptor(SlangBundle.message("color.parameter"), SyntaxColors.PARAMETER),
@@ -39,30 +41,45 @@ public final class SlangColorSettingsPage implements ColorSettingsPage {
             new AttributesDescriptor(SlangBundle.message("color.string"), SyntaxColors.STRING),
             new AttributesDescriptor(SlangBundle.message("color.number"), SyntaxColors.NUMBER),
             new AttributesDescriptor(SlangBundle.message("color.line.comment"), SyntaxColors.LINE_COMMENT),
-            new AttributesDescriptor(SlangBundle.message("color.block.comment"), SyntaxColors.BLOCK_COMMENT)
-    };
+            new AttributesDescriptor(SlangBundle.message("color.block.comment"), SyntaxColors.BLOCK_COMMENT)};
 
-    @Override public Icon getIcon() { return SlangFileType.INSTANCE.getIcon(); }
-    @Override public @NotNull SyntaxHighlighter getHighlighter() { return new SlangSyntaxHighlighter(); }
-    @Override public @NotNull String getDisplayName() { return SlangBundle.message("settings.slang.display.name"); }
-    @Override public AttributesDescriptor @NotNull [] getAttributeDescriptors() { return DESCRIPTORS; }
-    @Override public ColorDescriptor @NotNull [] getColorDescriptors() { return ColorDescriptor.EMPTY_ARRAY; }
-    @Override public Map<String, TextAttributesKey> getAdditionalHighlightingTagToDescriptorMap() {
-        return Map.ofEntries(
-                Map.entry("type", SyntaxColors.TYPE_NAME),
-                Map.entry("interface", SyntaxColors.INTERFACE),
-                Map.entry("enum", SyntaxColors.ENUM),
-                Map.entry("typeparam", SyntaxColors.TYPE_PARAMETER),
-                Map.entry("namespace", SyntaxColors.NAMESPACE),
-                Map.entry("decl", SyntaxColors.FUNCTION_DECLARATION),
-                Map.entry("call", SyntaxColors.FUNCTION_CALL),
-                Map.entry("param", SyntaxColors.PARAMETER),
-                Map.entry("field", SyntaxColors.FIELD),
-                Map.entry("constant", SyntaxColors.CONSTANT),
-                Map.entry("method", SyntaxColors.METHOD),
-                Map.entry("macro", SyntaxColors.MACRO_KEYWORD));
+    @Override
+    public Icon getIcon() {
+        return SlangFileType.INSTANCE.getIcon();
     }
-    @Override public @NotNull String getDemoText() {
+
+    @Override
+    public @NotNull SyntaxHighlighter getHighlighter() {
+        return new SlangSyntaxHighlighter();
+    }
+
+    @Override
+    public @NotNull String getDisplayName() {
+        return SlangBundle.message("settings.slang.display.name");
+    }
+
+    @Override
+    public AttributesDescriptor @NotNull[] getAttributeDescriptors() {
+        return DESCRIPTORS;
+    }
+
+    @Override
+    public ColorDescriptor @NotNull[] getColorDescriptors() {
+        return ColorDescriptor.EMPTY_ARRAY;
+    }
+
+    @Override
+    public Map<String, TextAttributesKey> getAdditionalHighlightingTagToDescriptorMap() {
+        return Map.ofEntries(Map.entry("type", SyntaxColors.TYPE_NAME), Map.entry("interface", SyntaxColors.INTERFACE),
+                Map.entry("enum", SyntaxColors.ENUM), Map.entry("typeparam", SyntaxColors.TYPE_PARAMETER),
+                Map.entry("namespace", SyntaxColors.NAMESPACE), Map.entry("decl", SyntaxColors.FUNCTION_DECLARATION),
+                Map.entry("call", SyntaxColors.FUNCTION_CALL), Map.entry("param", SyntaxColors.PARAMETER),
+                Map.entry("field", SyntaxColors.FIELD), Map.entry("constant", SyntaxColors.CONSTANT),
+                Map.entry("method", SyntaxColors.METHOD), Map.entry("macro", SyntaxColors.MACRO_KEYWORD));
+    }
+
+    @Override
+    public @NotNull String getDemoText() {
         return """
                 module <namespace>lighting</namespace>;
                 interface <interface>IShading</interface> {}

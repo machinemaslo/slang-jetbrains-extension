@@ -20,14 +20,10 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /** Whole-project fixtures, with an optional real vcpkg installation. */
 class VcpkgProjectBundleTest {
-    private static final List<String> LOCAL_INSTALLATIONS = List.of(
-            "vcpkg_installed",
-            "vcpkg/installed",
-            "extern/vcpkg/installed"
-    );
+    private static final List<String> LOCAL_INSTALLATIONS =
+            List.of("vcpkg_installed", "vcpkg/installed", "extern/vcpkg/installed");
 
-    @TempDir
-    Path temporary;
+    @TempDir Path temporary;
 
     @ParameterizedTest
     @EnumSource(VcpkgProjectFixture.BuildSystem.class)
@@ -56,9 +52,7 @@ class VcpkgProjectBundleTest {
         Files.delete(expected);
 
         assertTrue(
-                discover(root, "slangd", "Linux", "amd64").isEmpty(),
-                "Target-only installation must not be selected"
-        );
+                discover(root, "slangd", "Linux", "amd64").isEmpty(), "Target-only installation must not be selected");
     }
 
     @ParameterizedTest
@@ -69,10 +63,7 @@ class VcpkgProjectBundleTest {
         Path expected = fixture.createTool(installed, "x64-windows", "slangd.exe");
         Path root = fixture.createProject(system, installed, "x64-windows");
 
-        assertEquals(
-                Optional.of(expected.toString()),
-                discover(root, "slangd.exe", "Windows 11", "amd64")
-        );
+        assertEquals(Optional.of(expected.toString()), discover(root, "slangd.exe", "Windows 11", "amd64"));
     }
 
     @Test
@@ -92,35 +83,24 @@ class VcpkgProjectBundleTest {
     private Path configuredVcpkg() {
         String root = System.getenv("VCPKG_TEST_ROOT");
 
-        assumeTrue(
-                root != null && !root.isBlank(),
-                "Set VCPKG_TEST_ROOT to opt into a real shader-slang installation"
-        );
+        assumeTrue(root != null && !root.isBlank(), "Set VCPKG_TEST_ROOT to opt into a real shader-slang installation");
 
         return Path.of(root).toAbsolutePath();
     }
 
-    private void installSlang(VcpkgProjectFixture fixture, Path vcpkg, Path project,
-                              Path installed, Host host) throws Exception {
+    private void installSlang(VcpkgProjectFixture fixture, Path vcpkg, Path project, Path installed, Host host)
+            throws Exception {
         String command = host.windows() ? "vcpkg.exe" : "vcpkg";
 
-        fixture.run(
-                project,
-                vcpkg.resolve(command).toString(),
-                "install",
-                "--triplet=" + host.triplet(),
-                "--host-triplet=" + host.triplet(),
-                "--x-install-root=" + installed
-        );
+        fixture.run(project, vcpkg.resolve(command).toString(), "install", "--triplet=" + host.triplet(),
+                "--host-triplet=" + host.triplet(), "--x-install-root=" + installed);
 
-        assertTrue(
-                Files.isRegularFile(host.tool(installed)),
-                "vcpkg must actually install shader-slang's language server"
-        );
+        assertTrue(Files.isRegularFile(host.tool(installed)),
+                "vcpkg must actually install shader-slang's language server");
     }
 
-    private void configureCmake(VcpkgProjectFixture fixture, Path vcpkg,
-                                Path project, Path installed) throws Exception {
+    private void configureCmake(VcpkgProjectFixture fixture, Path vcpkg, Path project, Path installed)
+            throws Exception {
         Path toolchain = vcpkg.resolve("scripts/buildsystems/vcpkg.cmake");
         fixture.run(project, "cmake", "--preset", "bundle", "-DCMAKE_TOOLCHAIN_FILE=" + toolchain);
 
@@ -128,18 +108,15 @@ class VcpkgProjectBundleTest {
         assertTrue(cache.contains(installed.toString().replace('\\', '/')));
     }
 
-    private void assertAllAdapters(VcpkgProjectFixture fixture, Path cmake,
-                                   Path installed, Host host) throws Exception {
+    private void assertAllAdapters(VcpkgProjectFixture fixture, Path cmake, Path installed, Host host)
+            throws Exception {
         for (var system : VcpkgProjectFixture.BuildSystem.values()) {
             Path project = system == VcpkgProjectFixture.BuildSystem.CMAKE
-                    ? cmake
-                    : fixture.createProject(system, installed, host.triplet());
+                                   ? cmake
+                                   : fixture.createProject(system, installed, host.triplet());
 
-            assertEquals(
-                    Optional.of(host.tool(installed).toString()),
-                    discover(project, host.executable(), host.os(), host.arch()),
-                    system.name()
-            );
+            assertEquals(Optional.of(host.tool(installed).toString()),
+                    discover(project, host.executable(), host.os(), host.arch()), system.name());
         }
     }
 
@@ -149,9 +126,7 @@ class VcpkgProjectBundleTest {
 
     private Optional<String> discover(Path project, String executable, String os, String arch) {
         // Isolate discovery from the developer's PATH and global Xmake configuration.
-        Map<String, String> environment = Map.of(
-                "XMAKE_GLOBALDIR", temporary.resolve("empty home").toString()
-        );
+        Map<String, String> environment = Map.of("XMAKE_GLOBALDIR", temporary.resolve("empty home").toString());
 
         return new VcpkgDiscovery(executable, os, arch).find(project, environment);
     }

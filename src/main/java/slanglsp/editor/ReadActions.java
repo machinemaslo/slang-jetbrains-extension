@@ -5,7 +5,8 @@ import com.intellij.openapi.util.Computable;
 
 /** Short blocking PSI reads using the public API shared by all supported platform versions. */
 final class ReadActions {
-    private ReadActions() { }
+    private ReadActions() {
+    }
 
     static <T> T compute(Computable<T> action) {
         return ApplicationManager.getApplication().runReadAction(action);

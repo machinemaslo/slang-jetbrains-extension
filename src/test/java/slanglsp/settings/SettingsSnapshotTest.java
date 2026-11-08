@@ -7,7 +7,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SettingsSnapshotTest {
-    @Test void settingsAreDetachedFromInputsAndReturnedSnapshots() {
+    @Test
+    void settingsAreDetachedFromInputsAndReturnedSnapshots() {
         var config = new ProjectSettings();
         var input = new ProjectSettings.State();
         input.additionalIncludePaths.add("original");
@@ -25,5 +26,4 @@ class SettingsSnapshotTest {
         assertTrue(config.getState().predefinedMacros.isEmpty());
         assertEquals("changed", config.getState().clangFormatStyle);
     }
-
 }

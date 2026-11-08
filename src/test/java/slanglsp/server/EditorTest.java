@@ -13,16 +13,20 @@ import static org.junit.jupiter.api.Assertions.*;
 class EditorTest {
     private IdeaProjectTestFixture fixture;
 
-    @BeforeEach void setUp() throws Exception {
+    @BeforeEach
+    void setUp() throws Exception {
         fixture = IdeaTestFixtureFactory.getFixtureFactory().createLightFixtureBuilder("SlangEditorTest").getFixture();
         com.intellij.testFramework.EdtTestUtil.runInEdtAndWait(() -> fixture.setUp());
     }
 
-    @AfterEach void tearDown() throws Exception {
-        if (fixture != null) com.intellij.testFramework.EdtTestUtil.runInEdtAndWait(() -> fixture.tearDown());
+    @AfterEach
+    void tearDown() throws Exception {
+        if (fixture != null)
+            com.intellij.testFramework.EdtTestUtil.runInEdtAndWait(() -> fixture.tearDown());
     }
 
-    @Test void slangClientAndNavigationNeverClaimCppFiles() {
+    @Test
+    void slangClientAndNavigationNeverClaimCppFiles() {
         com.intellij.openapi.application.ReadAction.run(() -> {
             var cpp = new com.intellij.testFramework.LightVirtualFile("test.cpp", "int main() { return 0; }");
             var features = new ClientFeatures();
@@ -34,11 +38,15 @@ class EditorTest {
         });
     }
 
-    @Test void clientRegistrationSurvivesRestartAndEndsOnDisposal() {
+    @Test
+    void clientRegistrationSurvivesRestartAndEndsOnDisposal() {
         var client = new ServerClient(fixture.getProject()) {
             // This lifecycle test has no remote language server.
-            @Override public void triggerChangeConfiguration() { }
+            @Override
+            public void triggerChangeConfiguration() {
+            }
         };
+
         try {
             assertFalse(ServerClient.activeClients.contains(client));
             client.handleServerStatusChanged(com.redhat.devtools.lsp4ij.ServerStatus.started);
@@ -57,5 +65,4 @@ class EditorTest {
             client.dispose();
         }
     }
-
 }

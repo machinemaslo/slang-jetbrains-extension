@@ -9,10 +9,10 @@ public final class SlangBundle {
     private static final String BUNDLE = "messages.SlangBundle";
     private static final DynamicBundle INSTANCE = new DynamicBundle(SlangBundle.class, BUNDLE);
 
-    private SlangBundle() { }
+    private SlangBundle() {
+    }
 
-    public static @NotNull @Nls String message(
-            @PropertyKey(resourceBundle = BUNDLE) String key, Object... params) {
+    public static @NotNull @Nls String message(@PropertyKey(resourceBundle = BUNDLE) String key, Object... params) {
         return INSTANCE.getMessage(key, params);
     }
 }
