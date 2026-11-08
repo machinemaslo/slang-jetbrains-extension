@@ -8,17 +8,22 @@
 
     <description>
         <![CDATA[
-        <p>I didn't find any working slang lsps here, so I just took one and added a lot of features that make it work.</p>
+        <p><b>I didn't find any working slang lsps here</b>, so I just took one and added a lot of features that make it work</p>
         <p>So this plugin gives you everything, code completion, syntax highlight, docs in popup, go-to-definition, find usages, rename, clang-format support, vcpkg-installed slang support etc</p>
         <p>This is a refined fork of <a href="https://plugins.jetbrains.com/plugin/26239-slang-unofficial-">Slang [Unofficial]</a>, props to 16-Bit-Dog</p>
         <br>
-        <p>插件设置支持中文，同志们</p>
-        <p>По приколу сделал перевод настроек на русский</p>
+        <p><b>Vcpkg's Slang package auto-discovery</b> is supported for CMake, MSBuild, XMake, Meson and default paths</p>
         ]]>
     </description>
 
     <change-notes>
         <![CDATA[
+        <p><b>0.0.21</b></p>
+        <ul>
+            <li>Improved rename and usage-search performance</li>
+            <li>Bug fixes</li>
+            <li>Expanded vcpkg slang auto discovery for CMake, MSBuild, XMake, Meson</li>
+        </ul>
         <p><b>0.0.20</b></p>
         <ul>
             <li>Removed the upper IDE version limit</li>
@@ -51,16 +56,16 @@
     <depends>com.redhat.devtools.lsp4ij</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <fileType name="Slang" implementationClass="slanglsp.SlangFileType" fieldName="INSTANCE" language="Slang" extensions="slang;slangh"/>
+        <fileType name="Slang" implementationClass="slanglsp.language.SlangFileType" fieldName="INSTANCE" language="Slang" extensions="slang;slangh"/>
         
-        <lang.parserDefinition language="Slang" implementationClass="slanglsp.SlangParserDefinition"/>
-        <lang.findUsagesProvider language="Slang" implementationClass="slanglsp.SlangFindUsagesProvider"/>
-        <findUsagesHandlerFactory implementation="slanglsp.SlangFindUsagesHandlerFactory" order="first"/>
-        <renameHandler implementation="slanglsp.SlangRenameHandler"/>
+        <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
+        <lang.findUsagesProvider language="Slang" implementationClass="slanglsp.editor.SlangFindUsagesProvider"/>
+        <findUsagesHandlerFactory implementation="slanglsp.editor.SlangFindUsagesHandlerFactory" order="first"/>
+        <renameHandler implementation="slanglsp.editor.SlangRenameHandler"/>
 
-        <gotoDeclarationHandler id="SlangGotoDeclarationHandler" order="first, before LSPGotoDeclarationHandler" implementation="slanglsp.SlangGotoDeclarationHandler"/>
+        <gotoDeclarationHandler id="SlangGotoDeclarationHandler" order="first, before LSPGotoDeclarationHandler" implementation="slanglsp.editor.SlangGotoDeclarationHandler"/>
 
-        <lang.documentationProvider language="Slang" implementationClass="slanglsp.SlangDocumentationProvider"/>
+        <lang.documentationProvider language="Slang" implementationClass="slanglsp.editor.SlangDocumentationProvider"/>
 
         <colorSettingsPage implementation="slanglsp.highlighting.SlangColorSettingsPage"/>
         <additionalTextAttributes scheme="Darcula" file="colorSchemes/SlangRiderDark.xml"/>
@@ -68,7 +73,7 @@
         <additionalTextAttributes scheme="Default" file="colorSchemes/SlangRiderLight.xml"/>
         <additionalTextAttributes scheme="Light" file="colorSchemes/SlangRiderLight.xml"/>
 
-        <lang.syntaxHighlighterFactory language="Slang" implementationClass="slanglsp.SlangSyntaxHighlighterFactory"/>
+        <lang.syntaxHighlighterFactory language="Slang" implementationClass="slanglsp.highlighting.SlangSyntaxHighlighterFactory"/>
 
         <codeInsight.parameterInfo
                 language="Slang"
@@ -83,14 +88,14 @@
 
         <projectConfigurable
                 parentId="tools"
-                instance="slanglsp.SlangConfigurable"
+                instance="slanglsp.settings.SettingsConfigurable"
                 id="slanglsp.SlangConfigurable"
                 bundle="messages.SlangBundle"
                 key="settings.slang.display.name"
                 nonDefaultProject="true"/>
 
         <projectService 
-                serviceImplementation="slanglsp.SlangPersistentStateConfig"/>
+                serviceImplementation="slanglsp.settings.ProjectSettings"/>
     </extensions>
 
     <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
@@ -100,7 +105,7 @@
                 bundle="messages.SlangBundle"
                 nameKey="server.name"
                 descriptionKey="server.description"
-                factoryClass="slanglsp.SlangLanguageServerFactory"/>
+                factoryClass="slanglsp.server.ServerFactory"/>
 
         <fileNamePatternMapping patterns="*.slang;*.slangh"
                                 serverId="slanglsp.SlangLanguageServer"

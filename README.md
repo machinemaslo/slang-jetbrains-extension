@@ -57,3 +57,25 @@ semantic tokens over LSP.
 ```bash
 ./gradlew test
 ```
+
+### vcpkg discovery project bundle
+
+Run the self-contained project fixtures for CMake, MSBuild, Xmake, and Meson:
+
+```bash
+./gradlew test --tests '*VcpkgProjectBundleTest' --rerun
+```
+
+The bundle generates temporary project files and vcpkg installation trees, then calls the plugin's production discovery code. It checks custom paths with spaces, all three conventional install directories in priority order, host-versus-target selection, missing servers, and Windows executable naming. Fixture executables are placeholders and are never run. These tests need no build tools or network access beyond the normal Gradle dependencies.
+
+To also install the real `shader-slang` package and configure CMake:
+
+```bash
+VCPKG_TEST_ROOT=/absolute/path/to/vcpkg ./gradlew test --tests '*VcpkgProjectBundleTest' --rerun
+```
+
+In PowerShell, set `$env:VCPKG_TEST_ROOT = 'C:\path\to\vcpkg'` before running the Gradle command.
+
+The opt-in test needs a bootstrapped vcpkg checkout, CMake, Ninja, and the native toolchain required by the port. It pins baseline `e6f9e70a29a3e80a1fc510d8503304315447112f`, installs into a temporary custom directory, configures CMake, and asks every adapter to locate the real installed `slangd`. MSBuild, Xmake, and Meson use generated metadata fixtures; their build tools are not invoked. Windows executable naming on a non-Windows machine is likewise a fixture test, not a Windows build.
+
+Temporary projects are cleaned up by JUnit. vcpkg's normal download/build/binary caches may persist in its checkout and user cache. Results are in `build/reports/tests/test/index.html`; without `VCPKG_TEST_ROOT`, only the real-install test is skipped.
