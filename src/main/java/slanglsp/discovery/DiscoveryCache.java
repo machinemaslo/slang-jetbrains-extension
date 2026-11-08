@@ -21,11 +21,13 @@ final class DiscoveryCache {
 
     synchronized Optional<String> get() {
         long now = clock.getAsLong();
+
         if (!initialized || now - checkedAt >= lifetime) {
             value = discover.get().orElse(null);
             initialized = true;
             checkedAt = now;
         }
+
         return Optional.ofNullable(value);
     }
 

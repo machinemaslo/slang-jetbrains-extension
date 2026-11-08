@@ -9,11 +9,13 @@ import com.intellij.util.Processor;
 import org.jetbrains.annotations.NotNull;
 
 public final class SlangFindUsagesHandlerFactory extends FindUsagesHandlerFactory {
-    @Override public boolean canFindUsages(@NotNull PsiElement element) {
+    @Override
+    public boolean canFindUsages(@NotNull PsiElement element) {
         return SlangFindUsagesProvider.isIdentifier(element);
     }
 
-    @Override public FindUsagesHandler createFindUsagesHandler(@NotNull PsiElement element, boolean highlight) {
+    @Override
+    public FindUsagesHandler createFindUsagesHandler(@NotNull PsiElement element, boolean highlight) {
         return new FindUsagesHandler(element) {
             @Override public boolean processElementUsages(@NotNull PsiElement target,
                     @NotNull Processor<? super UsageInfo> processor, @NotNull FindUsagesOptions options) {

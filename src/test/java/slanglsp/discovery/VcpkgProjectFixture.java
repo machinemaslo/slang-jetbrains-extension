@@ -18,12 +18,7 @@ final class VcpkgProjectFixture {
     private static final String BASELINE = "e6f9e70a29a3e80a1fc510d8503304315447112f";
     private static final Gson JSON = new GsonBuilder().setPrettyPrinting().create();
 
-    enum BuildSystem {
-        CMAKE,
-        MSBUILD,
-        XMAKE,
-        MESON
-    }
+    enum BuildSystem { CMAKE, MSBUILD, XMAKE, MESON }
 
     private final Path temporary;
 
@@ -38,10 +33,8 @@ final class VcpkgProjectFixture {
                 Status: install ok installed
                 """.formatted(triplet));
 
-        Path tool = write(
-                installed.resolve(triplet + "/tools/shader-slang/" + executable),
-                "discovery fixture; never executed\n"
-        );
+        Path tool = write(installed.resolve(triplet + "/tools/shader-slang/" + executable),
+                "discovery fixture; never executed\n");
         assertTrue(tool.toFile().setExecutable(true));
 
         return tool;
@@ -49,19 +42,16 @@ final class VcpkgProjectFixture {
 
     Path createProject(BuildSystem system, Path installed, String triplet) throws Exception {
         Path root = temporary.resolve(system.name().toLowerCase(Locale.ROOT) + " project");
-        writeJson(root.resolve("vcpkg.json"), Map.of(
-                "name", "discovery-bundle",
-                "version-string", "0.1.0",
-                "builtin-baseline", BASELINE,
-                "dependencies", List.of("shader-slang")
-        ));
+        writeJson(root.resolve("vcpkg.json"),
+                Map.of("name", "discovery-bundle", "version-string", "0.1.0", "builtin-baseline", BASELINE,
+                        "dependencies", List.of("shader-slang")));
         write(root.resolve("main.cpp"), "int main() { return 0; }\n");
 
         switch (system) {
-            case CMAKE -> createCmake(root, installed, triplet);
-            case MSBUILD -> createMsbuild(root, installed, triplet);
-            case XMAKE -> createXmake(root, installed);
-            case MESON -> createMeson(root, installed, triplet);
+        case CMAKE -> createCmake(root, installed, triplet);
+        case MSBUILD -> createMsbuild(root, installed, triplet);
+        case XMAKE -> createXmake(root, installed);
+        case MESON -> createMeson(root, installed, triplet);
         }
 
         return root;
@@ -73,21 +63,12 @@ final class VcpkgProjectFixture {
                 project(discovery_bundle LANGUAGES NONE)
                 """);
 
-        Map<String, String> variables = Map.of(
-                "VCPKG_INSTALLED_DIR", portablePath(installed),
-                "VCPKG_HOST_TRIPLET", triplet
-        );
+        Map<String, String> variables =
+                Map.of("VCPKG_INSTALLED_DIR", portablePath(installed), "VCPKG_HOST_TRIPLET", triplet);
         Map<String, Object> preset = Map.of(
-                "name", "bundle",
-                "generator", "Ninja",
-                "binaryDir", "${sourceDir}/build",
-                "cacheVariables", variables
-        );
+                "name", "bundle", "generator", "Ninja", "binaryDir", "${sourceDir}/build", "cacheVariables", variables);
 
-        writeJson(root.resolve("CMakePresets.json"), Map.of(
-                "version", 3,
-                "configurePresets", List.of(preset)
-        ));
+        writeJson(root.resolve("CMakePresets.json"), Map.of("version", 3, "configurePresets", List.of(preset)));
     }
 
     private void createMsbuild(Path root, Path installed, String triplet) throws Exception {
@@ -138,10 +119,7 @@ final class VcpkgProjectFixture {
 
         // Saved introspection fixture, not the output of a Meson invocation.
         String include = portablePath(installed) + "/" + triplet + "/include";
-        Map<String, Object> dependency = Map.of(
-                "name", "slang",
-                "compile_args", List.of("-I", include)
-        );
+        Map<String, Object> dependency = Map.of("name", "slang", "compile_args", List.of("-I", include));
 
         writeJson(root.resolve("builddir/meson-info/intro-dependencies.json"), List.of(dependency));
     }
@@ -151,10 +129,10 @@ final class VcpkgProjectFixture {
     void run(Path root, String... command) throws Exception {
         Path log = Files.createTempFile(temporary, "setup-", ".log");
         Process process = new ProcessBuilder(command)
-                .directory(root.toFile())
-                .redirectErrorStream(true)
-                .redirectOutput(log.toFile())
-                .start();
+                                  .directory(root.toFile())
+                                  .redirectErrorStream(true)
+                                  .redirectOutput(log.toFile())
+                                  .start();
 
         try {
             assertTrue(process.waitFor(10, TimeUnit.MINUTES), "Setup timed out: " + Arrays.toString(command));
@@ -178,6 +156,7 @@ final class VcpkgProjectFixture {
 
     private Path write(Path file, String text) throws Exception {
         Files.createDirectories(file.getParent());
+
         return Files.writeString(file, text);
     }
 

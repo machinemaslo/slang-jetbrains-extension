@@ -58,6 +58,7 @@
     <extensions defaultExtensionNs="com.intellij">
         <fileType name="Slang" implementationClass="slanglsp.language.SlangFileType" fieldName="INSTANCE" language="Slang" extensions="slang;slangh"/>
         
+        <externalAnnotator language="Slang" implementationClass="slanglsp.editor.UnusedSymbolsAnnotator"/>
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
         <lang.findUsagesProvider language="Slang" implementationClass="slanglsp.editor.SlangFindUsagesProvider"/>
         <findUsagesHandlerFactory implementation="slanglsp.editor.SlangFindUsagesHandlerFactory" order="first"/>

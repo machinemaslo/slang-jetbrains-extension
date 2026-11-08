@@ -29,7 +29,9 @@ public final class BuiltinFiles implements Disposable {
     private final Map<String, Load> modules = new HashMap<>();
     private String executable;
 
-    public BuiltinFiles(Project project) { this.project = project; }
+    public BuiltinFiles(Project project) {
+        this.project = project;
+    }
 
     public synchronized void serverStarted(String executable) {
         clear();
@@ -47,13 +49,17 @@ public final class BuiltinFiles implements Disposable {
 
     public BuiltinFile resolve(String uri) {
         String module = moduleName(uri);
-        if (module == null) return null;
+
+        if (module == null)
+            return null;
         Load load;
         synchronized (this) {
-            if (executable == null || project.isDisposed()) return null;
+            if (executable == null || project.isDisposed())
+                return null;
             load = modules.computeIfAbsent(module, name -> new Load(executable, name));
             load.waiters++;
         }
+
         try {
             return ProgressIndicatorUtils.awaitWithCheckCanceled(load.result);
         } catch (java.util.concurrent.CancellationException canceled) {
@@ -73,9 +79,11 @@ public final class BuiltinFiles implements Disposable {
         try {
             URI uri = URI.create(value);
             String module = uri.getAuthority();
-            return "slang-synth".equals(uri.getScheme()) && ("core".equals(module) || "glsl".equals(module))
-                    && ("/" + module + ".builtin").equals(uri.getPath())
-                    && uri.getQuery() == null && uri.getFragment() == null ? module : null;
+            return "slang-synth".equals(uri.getScheme()) && ("core".equals(module) || "glsl".equals(module)) &&
+                            ("/" + module + ".builtin").equals(uri.getPath()) && uri.getQuery() == null &&
+                            uri.getFragment() == null
+                    ? module
+                    : null;
         } catch (IllegalArgumentException invalid) {
             return null;
         }
@@ -91,13 +99,17 @@ public final class BuiltinFiles implements Disposable {
                 try {
                     indicator.checkCanceled();
                     var command = new GeneralCommandLine(executable, "--print-builtin-module", module)
-                            .withCharset(StandardCharsets.UTF_8).withWorkDirectory(project.getBasePath());
+                                          .withCharset(StandardCharsets.UTF_8)
+                                          .withWorkDirectory(project.getBasePath());
                     var output = new CapturingProcessHandler(command).runProcessWithProgressIndicator(indicator, 15000);
                     indicator.checkCanceled();
+
                     if (output.isTimeout() || output.getExitCode() != 0 || output.getStdout().isEmpty()) {
                         throw new IllegalStateException(output.isTimeout() ? SlangBundle.message("builtin.timeout")
-                                : SlangBundle.message("builtin.print.failed", module, output.getStderr()));
+                                                                           : SlangBundle.message("builtin.print.failed",
+                                                                                     module, output.getStderr()));
                     }
+
                     result.complete(new BuiltinFile(module, output.getStdout()));
                 } catch (ProcessCanceledException canceled) {
                     result.cancel(false);
@@ -105,9 +117,12 @@ public final class BuiltinFiles implements Disposable {
                 } catch (Exception failure) {
                     // Cache a failed attempt until restart, avoiding repeated hover notifications.
                     result.complete(null);
+
                     if (!project.isDisposed() && !indicator.isCanceled()) {
-                        NotificationGroupManager.getInstance().getNotificationGroup("Slang LSP")
-                                .createNotification(SlangBundle.message("builtin.open.failed"), failure.getMessage(), NotificationType.WARNING)
+                        NotificationGroupManager.getInstance()
+                                .getNotificationGroup("Slang LSP")
+                                .createNotification(SlangBundle.message("builtin.open.failed"), failure.getMessage(),
+                                        NotificationType.WARNING)
                                 .notify(project);
                     }
                 }
@@ -122,8 +137,14 @@ public final class BuiltinFiles implements Disposable {
             uri = URI.create("slang-synth://" + module + "/" + module + ".builtin");
             setWritable(false);
         }
-        public URI uri() { return uri; }
+
+        public URI uri() {
+            return uri;
+        }
     }
 
-    @Override public void dispose() { clear(); }
+    @Override
+    public void dispose() {
+        clear();
+    }
 }

@@ -33,6 +33,7 @@ final class XmakeDiscoveryAdapter implements DiscoveryAdapter {
 
                 read(c, arch.resolve("xmake.conf"));
             }
+
             if (count > 16) {
                 break;
             }
@@ -51,7 +52,10 @@ final class XmakeDiscoveryAdapter implements DiscoveryAdapter {
     private void read(DiscoveryContext c, Path file) {
         String text = c.read(file);
         for (String key : List.of("vcpkg", "buildir", "builddir")) {
-            var match = Pattern.compile("(?m)^\\s*(?:" + key + "|\\[\"" + key + "\"])\\s*=\\s*\"((?:\\\\.|[^\"\\\\])*)\"\\s*,?\\s*$").matcher(text);
+            var match = Pattern.compile("(?m)^\\s*(?:" + key + "|\\[\"" + key +
+                                        "\"])\\s*=\\s*\"((?:\\\\.|[^\"\\\\])*)\"\\s*,?\\s*$")
+                                .matcher(text);
+
             if (match.find()) {
                 String value = match.group(1).replace("\\\\", "\\");
 

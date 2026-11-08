@@ -42,6 +42,7 @@ final class DiscoveryContext {
 
         String text = readBounded(file);
         texts.put(file, text);
+
         return text;
     }
 
@@ -92,6 +93,7 @@ final class DiscoveryContext {
             factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
             var builder = factory.newDocumentBuilder();
             builder.setErrorHandler(new org.xml.sax.helpers.DefaultHandler());
+
             return builder.parse(new ByteArrayInputStream(text.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception ignored) {
             return null;
@@ -101,6 +103,7 @@ final class DiscoveryContext {
     List<Path> children(Path directory, String glob) {
         try (var files = Files.newDirectoryStream(directory, glob)) {
             List<Path> result = new ArrayList<>();
+
             for (Path file : files) {
                 if (result.size() == 256) {
                     break;
@@ -108,7 +111,9 @@ final class DiscoveryContext {
 
                 result.add(file);
             }
+
             result.sort(Comparator.comparing(Path::toString));
+
             return result;
         } catch (IOException | SecurityException ignored) {
             return List.of();
@@ -116,8 +121,8 @@ final class DiscoveryContext {
     }
 
     Path resolve(Path base, String value) {
-        if (value == null || value.isBlank() || value.contains("$") || value.contains("%(")
-                || value.contains("%") || value.contains("~") || value.contains("\n")) {
+        if (value == null || value.isBlank() || value.contains("$") || value.contains("%(") || value.contains("%") ||
+                value.contains("~") || value.contains("\n")) {
             return null;
         }
 
@@ -138,9 +143,11 @@ final class DiscoveryContext {
 
     void vcpkgRoot(Path base, String value) {
         Path path = resolve(base, value);
+
         if (path != null) {
-            if (path.getFileName() != null && Set.of("vcpkg", "vcpkg.exe").contains(path.getFileName().toString())
-                    && Files.isRegularFile(path)) path = path.getParent();
+            if (path.getFileName() != null && Set.of("vcpkg", "vcpkg.exe").contains(path.getFileName().toString()) &&
+                    Files.isRegularFile(path))
+                path = path.getParent();
             installed(path, "installed", null);
         }
     }
@@ -159,9 +166,12 @@ final class DiscoveryContext {
         }
 
         Pattern pattern = Pattern.compile("\\$\\(([^)]+)\\)|\\$\\{([^}]+)}");
+
         for (int i = 0; i < 8; i++) {
-            String next = pattern.matcher(value).replaceAll(m -> java.util.regex.Matcher.quoteReplacement(
-                    Objects.requireNonNullElse(variables.get(m.group(1) == null ? m.group(2) : m.group(1)), m.group())));
+            String next = pattern.matcher(value).replaceAll(m
+                    -> java.util.regex.Matcher.quoteReplacement(Objects.requireNonNullElse(
+                            variables.get(m.group(1) == null ? m.group(2) : m.group(1)), m.group())));
+
             if (next.length() > 8192) {
                 return null;
             }
@@ -172,6 +182,7 @@ final class DiscoveryContext {
 
             value = next;
         }
+
         return value;
     }
 
@@ -187,16 +198,20 @@ final class DiscoveryContext {
         }
 
         String toolchain = expand(values.get("CMAKE_TOOLCHAIN_FILE"), values);
+
         if (toolchain != null) {
             String normalized = toolchain.replace('\\', '/');
             String suffix = "/scripts/buildsystems/vcpkg.cmake";
-            if (normalized.endsWith(suffix)) vcpkgRoot(base, normalized.substring(0, normalized.length() - suffix.length()));
+
+            if (normalized.endsWith(suffix))
+                vcpkgRoot(base, normalized.substring(0, normalized.length() - suffix.length()));
         }
     }
 
     // Compilation metadata supplies a triplet include/lib path, including custom install roots.
     void dependencyPath(Path base, String value) {
         Path path = resolve(base, value);
+
         for (int i = 0; path != null && i < 6; i++, path = path.getParent()) {
             if (Files.isRegularFile(path.resolve("vcpkg/status"))) {
                 installed(path, ".", null);

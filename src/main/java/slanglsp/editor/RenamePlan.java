@@ -26,22 +26,28 @@ final class RenamePlan {
     private record Symbol(URI uri, int line, int character) {
         static Symbol of(Location location) {
             var position = location.getRange().getStart();
+
             return new Symbol(URI.create(location.getUri()).normalize(), position.getLine(), position.getCharacter());
         }
     }
+
     private record Source(PsiFile file, Document document, long stamp, String text, URI uri) {
         Symbol symbol(int offset) {
             var position = LSPIJUtils.toPosition(offset, document);
+
             return new Symbol(uri, position.getLine(), position.getCharacter());
         }
+
         void check() {
-            if (!file.isValid() || !file.getVirtualFile().isValid() || document.getModificationStamp() != stamp
-                    || !uri.equals(UsageSearch.fileUri(file.getVirtualFile()))) {
-                throw new IllegalStateException(SlangBundle.message("rename.files.changed.during.rename.run.rename.again"));
+            if (!file.isValid() || !file.getVirtualFile().isValid() || document.getModificationStamp() != stamp ||
+                    !uri.equals(UsageSearch.fileUri(file.getVirtualFile()))) {
+                throw new IllegalStateException(
+                        SlangBundle.message("rename.files.changed.during.rename.run.rename.again"));
             }
         }
     }
-    private record Edit(Source source, int offset) { }
+
+    private record Edit(Source source, int offset) {}
 
     private final Project project;
     final String oldName;
@@ -58,18 +64,23 @@ final class RenamePlan {
     }
 
     static boolean validName(String name) {
-        return name != null && name.matches("[A-Za-z_][A-Za-z0-9_]*")
-                && UsageCandidates.find(name, name).equals(List.of(0));
+        return name != null && name.matches("[A-Za-z_][A-Za-z0-9_]*") &&
+                UsageCandidates.find(name, name).equals(List.of(0));
     }
 
     private static Set<VirtualFile> projectFiles(Project project) {
         var scope = GlobalSearchScope.projectScope(project);
         Set<VirtualFile> files = new LinkedHashSet<>(FileTypeIndex.getFiles(SlangFileType.INSTANCE, scope));
+
         for (Document document : FileDocumentManager.getInstance().getUnsavedDocuments()) {
             VirtualFile file = FileDocumentManager.getInstance().getFile(document);
-            if (file != null && scope.contains(file) && file.getFileType() == SlangFileType.INSTANCE) files.add(file);
+
+            if (file != null && scope.contains(file) && file.getFileType() == SlangFileType.INSTANCE)
+                files.add(file);
         }
+
         files.removeIf(file -> file instanceof BuiltinFiles.BuiltinFile);
+
         return files;
     }
 
@@ -91,6 +102,7 @@ final class RenamePlan {
         RenamePlan plan = new RenamePlan(project, name, newName, sources, edits);
 
         ReadActions.run(plan::validate);
+
         return plan;
     }
 
@@ -111,28 +123,25 @@ final class RenamePlan {
                 }
 
                 String text = candidates.contains(file) ? document.getText() : "";
-                result.add(new Source(
-                        psi,
-                        document,
-                        document.getModificationStamp(),
-                        text,
-                        UsageSearch.fileUri(file)
-                ));
+                result.add(new Source(psi, document, document.getModificationStamp(), text, UsageSearch.fileUri(file)));
             }
 
             return result;
         });
     }
 
-    private record Declaration(Source source, Symbol symbol, int offset, boolean confirmed) { }
+    private record Declaration(Source source, Symbol symbol, int offset, boolean confirmed) {}
 
     private static Declaration resolveDeclaration(PsiElement element, List<Source> sources, String name) {
-        Source origin = ReadActions.compute(() -> sources.stream()
-                .filter(source -> source.file == element.getContainingFile())
-                .findFirst()
-                .orElseThrow(() -> invalidRename(
-                        "rename.only.symbols.declared.in.this.project.s.slang.files.can.be.renamed"
-                )));
+        Source origin = ReadActions.compute(
+                ()
+                        -> sources.stream()
+                                .filter(source -> source.file == element.getContainingFile())
+                                .findFirst()
+                                .orElseThrow(
+                                        ()
+                                                -> invalidRename(
+                                                        "rename.only.symbols.declared.in.this.project.s.slang.files.can.be.renamed")));
 
         int originOffset = ReadActions.compute(element::getTextOffset);
         Set<Symbol> targets = definitions(origin, originOffset);
@@ -141,13 +150,14 @@ final class RenamePlan {
             throw invalidRename("rename.the.symbol.has.multiple.definitions.and.cannot.be.renamed.safely");
         }
 
-        Symbol symbol = targets.isEmpty()
-                ? ReadActions.compute(() -> origin.symbol(originOffset))
-                : targets.iterator().next();
-        Source source = sources.stream()
-                .filter(candidate -> candidate.uri.equals(symbol.uri))
-                .findFirst()
-                .orElseThrow(() -> invalidRename("rename.built.in.and.external.declarations.cannot.be.renamed"));
+        Symbol symbol =
+                targets.isEmpty() ? ReadActions.compute(() -> origin.symbol(originOffset)) : targets.iterator().next();
+        Source source =
+                sources.stream()
+                        .filter(candidate -> candidate.uri.equals(symbol.uri))
+                        .findFirst()
+                        .orElseThrow(
+                                () -> invalidRename("rename.built.in.and.external.declarations.cannot.be.renamed"));
 
         int offset = declarationOffset(source, symbol, name);
 
@@ -167,6 +177,7 @@ final class RenamePlan {
             }
 
             int offset = source.document.getLineStartOffset(symbol.line) + symbol.character;
+
             return UsageCandidates.find(source.text, name).contains(offset) ? offset : -1;
         });
     }
@@ -183,29 +194,33 @@ final class RenamePlan {
                 indicator.setText2(source.file.getName());
             }
 
-            List<Integer> offsets = UsageCandidates.find(source.text, name).stream()
-                    .filter(offset -> source != declaration.source || offset != declaration.offset)
-                    .toList();
+            List<Integer> offsets =
+                    UsageCandidates.find(source.text, name)
+                            .stream()
+                            .filter(offset -> source != declaration.source || offset != declaration.offset)
+                            .toList();
 
-            UsageSearch.processDefinitions(source.file, source.document, offsets, source::check, (offset, locations) -> {
-                Set<Symbol> targets = new HashSet<>();
-                locations.forEach(location -> targets.add(Symbol.of(location.location())));
+            UsageSearch.processDefinitions(
+                    source.file, source.document, offsets, source::check, (offset, locations) -> {
+                        Set<Symbol> targets = new HashSet<>();
+                        locations.forEach(location -> targets.add(Symbol.of(location.location())));
 
-                if (targets.contains(declaration.symbol)) {
-                    if (targets.size() != 1) {
-                        throw invalidRename("rename.an.ambiguous.usage.prevents.a.safe.rename");
-                    }
+                        if (targets.contains(declaration.symbol)) {
+                            if (targets.size() != 1) {
+                                throw invalidRename("rename.an.ambiguous.usage.prevents.a.safe.rename");
+                            }
 
-                    edits.add(new Edit(source, offset));
-                    confirmed[0] = true;
-                }
+                            edits.add(new Edit(source, offset));
+                            confirmed[0] = true;
+                        }
 
-                return true;
-            });
+                        return true;
+                    });
         }
 
         if (!confirmed[0]) {
-            throw invalidRename("rename.slangd.could.not.verify.this.declaration.rename.is.unavailable.for.this.symbol");
+            throw invalidRename(
+                    "rename.slangd.could.not.verify.this.declaration.rename.is.unavailable.for.this.symbol");
         }
 
         return edits;
@@ -221,28 +236,36 @@ final class RenamePlan {
         ReadActions.run(source::check);
         Set<Symbol> result = new HashSet<>();
         locations.forEach(location -> result.add(Symbol.of(location.location())));
+
         return result;
     }
 
     UsageInfo[] usages() {
         return ReadActions.compute(() -> {
             validate();
-            return edits.stream().map(edit -> new UsageInfo(edit.source.file, edit.offset, edit.offset + oldName.length()))
-                    .toArray(UsageInfo[]::new);
+
+            return edits.stream()
+                    .map(edit -> new UsageInfo(edit.source.file, edit.offset, edit.offset + oldName.length()))
+                    .toArray(UsageInfo[] ::new);
         });
     }
 
     private void validate() {
         Set<VirtualFile> original = new HashSet<>();
+
         for (Source source : sources) {
             source.check();
             original.add(source.file.getVirtualFile());
         }
-        if (!original.equals(projectFiles(project))) throw new IllegalStateException(SlangBundle.message("rename.project.files.changed.run.rename.again"));
+
+        if (!original.equals(projectFiles(project)))
+            throw new IllegalStateException(SlangBundle.message("rename.project.files.changed.run.rename.again"));
+
         for (Edit edit : edits) {
             if (!edit.source.file.isWritable() || !edit.source.document.isWritable()) {
                 throw new IllegalStateException(SlangBundle.message("rename.read.only", edit.source.file.getName()));
             }
+
             if (!edit.source.document.getText().regionMatches(edit.offset, oldName, 0, oldName.length())) {
                 throw new IllegalStateException(SlangBundle.message("rename.a.usage.changed.run.rename.again"));
             }
@@ -250,13 +273,17 @@ final class RenamePlan {
     }
 
     void apply() {
-        WriteCommandAction.runWriteCommandAction(project, SlangBundle.message("rename.command", oldName, newName), null, () -> {
-            // Validate every file before the first edit; never apply a partial stale plan.
-            validate();
-            CommandProcessor.getInstance().markCurrentCommandAsGlobal(project);
-            edits.stream().sorted(Comparator.comparingInt(Edit::offset).reversed()).forEach(edit ->
-                    edit.source.document.replaceString(edit.offset, edit.offset + oldName.length(), newName));
-            PsiDocumentManager.getInstance(project).commitAllDocuments();
-        });
+        WriteCommandAction.runWriteCommandAction(
+                project, SlangBundle.message("rename.command", oldName, newName), null, () -> {
+                    // Validate every file before the first edit; never apply a partial stale plan.
+                    validate();
+                    CommandProcessor.getInstance().markCurrentCommandAsGlobal(project);
+                    edits.stream()
+                            .sorted(Comparator.comparingInt(Edit::offset).reversed())
+                            .forEach(edit
+                                    -> edit.source.document.replaceString(
+                                            edit.offset, edit.offset + oldName.length(), newName));
+                    PsiDocumentManager.getInstance(project).commitAllDocuments();
+                });
     }
 }

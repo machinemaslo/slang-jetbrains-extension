@@ -49,28 +49,33 @@ final class CmakeDiscoveryAdapter implements DiscoveryAdapter {
         Set<Path> profileDirectories = new LinkedHashSet<>();
         for (String file : List.of(".idea/workspace.xml", ".idea/cmake.xml")) {
             var document = c.xml(c.root.resolve(file));
+
             if (document == null) {
                 continue;
             }
 
             var profiles = document.getElementsByTagName("configuration");
+
             for (int i = 0; i < profiles.getLength() && i < 32; i++) {
-                var profile = (Element) profiles.item(i);
+                var profile = (Element)profiles.item(i);
                 if (profile.getAttribute("ENABLED").equalsIgnoreCase("false")) {
                     continue;
                 }
 
                 String directory = profile.getAttribute("GENERATION_DIR");
+
                 if (directory.isBlank()) {
                     directory = profile.getAttribute("generationDir");
                 }
 
                 Path build = c.resolve(c.root, directory.replace("$PROJECT_DIR$", c.root.toString()));
+
                 if (build != null) {
                     profileDirectories.add(build);
                 }
             }
         }
+
         return profileDirectories;
     }
 
@@ -85,6 +90,7 @@ final class CmakeDiscoveryAdapter implements DiscoveryAdapter {
                     cache.put(line.substring(0, colon), line.substring(equals + 1));
                 }
             }
+
             c.variables(directory, cache);
 
             if (!cache.isEmpty()) {
@@ -105,27 +111,41 @@ final class CmakeDiscoveryAdapter implements DiscoveryAdapter {
             if (preset.get("cacheVariables") instanceof JsonObject variables) {
                 variables.entrySet().forEach(e -> {
                     JsonElement value = e.getValue();
-                    if (value instanceof JsonObject object) value = object.get("value");
+
+                    if (value instanceof JsonObject object)
+                        value = object.get("value");
                     String expanded = expand(c, name, preset, string(value));
-                    if (expanded != null) values.put(e.getKey(), expanded);
+
+                    if (expanded != null)
+                        values.put(e.getKey(), expanded);
                 });
             }
             String toolchain = expand(c, name, preset, string(preset.get("toolchainFile")));
-            if (toolchain != null) values.put("CMAKE_TOOLCHAIN_FILE", toolchain);
+
+            if (toolchain != null)
+                values.put("CMAKE_TOOLCHAIN_FILE", toolchain);
             Path build = c.resolve(c.root, expand(c, name, preset, string(preset.get("binaryDir"))));
             c.variables(build == null ? c.root : build, values);
-            if (build != null) c.installed(build, "vcpkg_installed", values.get("VCPKG_HOST_TRIPLET"));
+
+            if (build != null)
+                c.installed(build, "vcpkg_installed", values.get("VCPKG_HOST_TRIPLET"));
         }
     }
 
     private void load(DiscoveryContext c, Path file) {
         file = file.toAbsolutePath().normalize();
-        if (files.size() >= 16 || !files.add(file)) return;
-        if (!(c.json(file) instanceof JsonObject object)) return;
+
+        if (files.size() >= 16 || !files.add(file))
+            return;
+
+        if (!(c.json(file) instanceof JsonObject object))
+            return;
         for (JsonElement include : array(object.get("include"))) {
             String value = expand(c, "", new JsonObject(), string(include));
             Path path = c.resolve(file.getParent(), value);
-            if (path != null) load(c, path);
+
+            if (path != null)
+                load(c, path);
         }
         for (JsonElement element : array(object.get("configurePresets"))) {
             if (element instanceof JsonObject preset && string(preset.get("name")) != null && presets.size() < 32)
@@ -136,13 +156,19 @@ final class CmakeDiscoveryAdapter implements DiscoveryAdapter {
     private JsonObject merged(String name, Set<String> visiting) {
         JsonObject result = new JsonObject();
         JsonObject own = presets.get(name);
-        if (own == null || !visiting.add(name) || visiting.size() > 16) return result;
+
+        if (own == null || !visiting.add(name) || visiting.size() > 16)
+            return result;
         List<JsonElement> parents = array(own.get("inherits"));
-        for (int i = parents.size() - 1; i >= 0; i--) merge(result, merged(string(parents.get(i)), visiting));
+
+        for (int i = parents.size() - 1; i >= 0; i--)
+            merge(result, merged(string(parents.get(i)), visiting));
         merge(result, own);
         // hidden is not inherited by CMake.
-        if (!own.has("hidden")) result.remove("hidden");
+        if (!own.has("hidden"))
+            result.remove("hidden");
         visiting.remove(name);
+
         return result;
     }
 
@@ -150,28 +176,46 @@ final class CmakeDiscoveryAdapter implements DiscoveryAdapter {
         source.entrySet().forEach(e -> {
             if (e.getValue() instanceof JsonObject nested && target.get(e.getKey()) instanceof JsonObject previous)
                 merge(previous, nested);
-            else target.add(e.getKey(), e.getValue().deepCopy());
+            else
+                target.add(e.getKey(), e.getValue().deepCopy());
         });
     }
 
     private static String expand(DiscoveryContext c, String name, JsonObject preset, String value) {
-        if (value == null) return null;
+        if (value == null)
+            return null;
         Map<String, String> environment = new HashMap<>(c.environment);
         if (preset.get("environment") instanceof JsonObject overrides)
-            overrides.entrySet().forEach(e -> { if (string(e.getValue()) != null) environment.put(e.getKey(), string(e.getValue())); });
+            overrides.entrySet().forEach(e -> {
+                if (string(e.getValue()) != null)
+                    environment.put(e.getKey(), string(e.getValue()));
+            });
         Pattern env = Pattern.compile("\\$(p?env)\\{([^}]+)}");
+
         for (int i = 0; i < 8; i++) {
-            String next = env.matcher(value).replaceAll(m -> java.util.regex.Matcher.quoteReplacement(
-                    (m.group(1).equals("penv") ? c.environment : environment).getOrDefault(m.group(2), m.group())));
-            if (next.length() > 8192) return null;
-            if (next.equals(value)) break;
+            String next = env.matcher(value).replaceAll(m
+                    -> java.util.regex.Matcher.quoteReplacement(
+                            (m.group(1).equals("penv") ? c.environment : environment)
+                                    .getOrDefault(m.group(2), m.group())));
+
+            if (next.length() > 8192)
+                return null;
+
+            if (next.equals(value))
+                break;
             value = next;
         }
+
         Map<String, String> macros = new HashMap<>();
         macros.put("sourceDir", c.root.toString());
-        if (c.root.getParent() != null) macros.put("sourceParentDir", c.root.getParent().toString());
-        if (c.root.getFileName() != null) macros.put("sourceDirName", c.root.getFileName().toString());
+
+        if (c.root.getParent() != null)
+            macros.put("sourceParentDir", c.root.getParent().toString());
+
+        if (c.root.getFileName() != null)
+            macros.put("sourceDirName", c.root.getFileName().toString());
         macros.put("presetName", name);
+
         return DiscoveryContext.expand(value, macros);
     }
 
@@ -183,6 +227,7 @@ final class CmakeDiscoveryAdapter implements DiscoveryAdapter {
         if (value instanceof JsonArray array) {
             List<JsonElement> values = new ArrayList<>();
             array.forEach(values::add);
+
             return values;
         }
 

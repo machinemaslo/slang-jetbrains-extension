@@ -8,7 +8,8 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SettingsPanelTest {
-    @Test void formattingSurvivesUiAndPersistenceAndReachesServerSettings() throws Exception {
+    @Test
+    void formattingSurvivesUiAndPersistenceAndReachesServerSettings() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             var state = new ProjectSettings.State();
             assertTrue(state.predefinedMacros.isEmpty());
@@ -19,6 +20,7 @@ class SettingsPanelTest {
             state.additionalIncludePaths = List.of("/shader includes");
             state.predefinedMacros = List.of("FEATURE=1");
             state.enableFormatOnType = false;
+            state.useSlangdUnusedDiagnosticsOnly = true;
             state.clangFormatLocation = "/tools with spaces/clang-format";
             state.clangFormatStyle = "file:/project/.clang-format";
             state.clangFormatFallbackStyle = "LLVM";
@@ -30,6 +32,8 @@ class SettingsPanelTest {
             saved.copyValues(gui.deriveStateFromGUI());
             var restored = XmlSerializer.deserialize(XmlSerializer.serialize(saved), ProjectSettings.State.class);
             assertTrue(state.equals(restored));
+            assertTrue(restored.useSlangdUnusedDiagnosticsOnly);
+            assertFalse(new ProjectSettings.State().useSlangdUnusedDiagnosticsOnly);
             Map<String, Object> settings = restored.createServerSettings();
             assertEquals(false, settings.get("slang.format.enableFormatOnType"));
             assertEquals(state.clangFormatLocation, settings.get("slang.format.clangFormatLocation"));

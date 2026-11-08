@@ -40,6 +40,15 @@ The fallback searches project `.slang` and `.slangh` files under the current ser
 
 ---
 
+### Unused symbols
+Structs, functions, fields, globals, and supported local variable declarations with no references in project Slang files use the IDE's unused-symbol style. Analysis runs in the background and reuses the reference finder. Public declarations are checked across project Slang files. Shader entry points and explicitly exported/external declarations are excluded; unresolved reference candidates are left unmarked.
+
+Under **Settings → Tools → Slang → General**, **Check unused symbols** enables the plugin analysis and is checked by default. Uncheck it to disable the plugin analysis. Server diagnostics remain enabled in either mode.
+
+The fallback cannot see usage outside project Slang files, host-side resource bindings, or inactive configurations. Local declaration discovery is conservative; function bodies containing preprocessor directives are skipped. This checks references, not whether a variable's value is ever read or a function is reachable from an entry point.
+
+---
+
 ### To Run Tests
 The small test suite covers numeric lexing, settings persistence, executable discovery, language isolation, and an optional real-server smoke test. Run it with the included Gradle wrapper (requires JDK 21):
 

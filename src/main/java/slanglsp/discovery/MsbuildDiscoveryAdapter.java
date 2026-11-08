@@ -26,27 +26,35 @@ final class MsbuildDiscoveryAdapter implements DiscoveryAdapter {
         projects.addAll(c.children(c.root, "*.csproj"));
         for (Path solution : c.children(c.root, "*.slnx")) {
             var xml = c.xml(solution);
+
             if (xml == null) {
                 continue;
             }
 
             var nodes = xml.getElementsByTagName("Project");
+
             for (int i = 0; i < nodes.getLength() && projects.size() < 32; i++) {
-                Path path = c.resolve(solution.getParent(), ((Element) nodes.item(i)).getAttribute("Path"));
+                Path path = c.resolve(solution.getParent(), ((Element)nodes.item(i)).getAttribute("Path"));
+
                 if (path != null) {
                     projects.add(path);
                 }
             }
         }
         for (Path solution : c.children(c.root, "*.sln")) {
-            var matches = Pattern.compile("(?m)^Project\\([^\\r\\n]+?=\\s*\"[^\"]*\",\\s*\"([^\"]+\\.(?:vcxproj|csproj))\"").matcher(c.read(solution));
+            var matches =
+                    Pattern.compile("(?m)^Project\\([^\\r\\n]+?=\\s*\"[^\"]*\",\\s*\"([^\"]+\\.(?:vcxproj|csproj))\"")
+                            .matcher(c.read(solution));
+
             while (matches.find() && projects.size() < 32) {
                 Path path = c.resolve(solution.getParent(), matches.group(1));
+
                 if (path != null) {
                     projects.add(path);
                 }
             }
         }
+
         return projects;
     }
 
@@ -62,14 +70,17 @@ final class MsbuildDiscoveryAdapter implements DiscoveryAdapter {
             }
 
             Path directory = project.getParent();
+
             for (int i = 0; directory != null && i < 8; i++, directory = directory.getParent()) {
                 Path candidate = directory.resolve(file);
+
                 if (!c.read(candidate).isBlank()) {
                     read(c, candidate, properties, visited);
                     break;
                 }
             }
         }
+
         return properties;
     }
 
@@ -77,9 +88,12 @@ final class MsbuildDiscoveryAdapter implements DiscoveryAdapter {
         String host = properties.get("VcpkgHostTriplet");
         String install = expand(properties.get("VcpkgInstalledDir"), properties);
         Path installed = c.resolve(project.getParent(), install);
+
         if (installed != null) {
             // In manifest mode this property includes the target triplet, unlike CMake's root.
-            if (installed.getFileName() != null && installed.getFileName().toString().equals(properties.get("VcpkgTriplet")))
+
+            if (installed.getFileName() != null &&
+                    installed.getFileName().toString().equals(properties.get("VcpkgTriplet")))
                 installed = installed.getParent();
             c.installed(installed, ".", host);
         }
@@ -112,8 +126,10 @@ final class MsbuildDiscoveryAdapter implements DiscoveryAdapter {
         }
 
         String previous = properties.put("MSBuildThisFileDirectory", file.getParent() + "/");
+
         for (var node = document.getDocumentElement().getFirstChild(); node != null; node = node.getNextSibling()) {
-            if (!(node instanceof Element element) || !element.getAttribute("Condition").isBlank()) continue;
+            if (!(node instanceof Element element) || !element.getAttribute("Condition").isBlank())
+                continue;
             if (element.getTagName().equals("PropertyGroup")) {
                 for (var property = element.getFirstChild(); property != null; property = property.getNextSibling()) {
                     if (property instanceof Element e && e.getAttribute("Condition").isBlank()) {
@@ -123,15 +139,18 @@ final class MsbuildDiscoveryAdapter implements DiscoveryAdapter {
                 }
             } else if (element.getTagName().equals("Import")) {
                 Path imported = c.resolve(file.getParent(), expand(element.getAttribute("Project"), properties));
+
                 if (imported == null) {
                     continue;
                 }
 
                 String normalized = imported.toString().replace('\\', '/');
                 String suffix = "/scripts/buildsystems/msbuild/vcpkg.props";
+
                 if (normalized.endsWith(suffix))
                     properties.put("VcpkgRoot", normalized.substring(0, normalized.length() - suffix.length()));
-                else read(c, imported, properties, visited);
+                else
+                    read(c, imported, properties, visited);
             }
         }
 
