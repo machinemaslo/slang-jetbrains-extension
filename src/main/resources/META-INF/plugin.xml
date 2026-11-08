@@ -21,8 +21,9 @@
         <p><b>0.0.21</b></p>
         <ul>
             <li>Improved rename and usage-search performance</li>
-            <li>Bug fixes</li>
+            <li>Unused symbols check</li>
             <li>Expanded vcpkg slang auto discovery for CMake, MSBuild, XMake, Meson</li>
+            <li>Bug fixes</li>
         </ul>
         <p><b>0.0.20</b></p>
         <ul>
@@ -42,6 +43,7 @@
             <li>Find Usages</li>
             <li>Native usage navigation from declarations</li>
             <li>Rename</li>
+            <li>Unused symbols check</li>
             <li>Document, selection, and on-type formatting through <code>clang-format</code></li>
             <li>Automatic discovery of locally installed vcpkg <code>slangd</code> packages, plus an explicit server directory and PATH-based discovery</li>
             <li>Project settings for additional include/search paths, predefined macros, and searching workspace subdirectories</li>
