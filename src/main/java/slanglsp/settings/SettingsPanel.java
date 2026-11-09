@@ -264,7 +264,7 @@ public class SettingsPanel {
         }
 
         ServerClient.notifySettingsChanged(project);
-        com.intellij.codeInsight.daemon.DaemonCodeAnalyzer.getInstance(project).restart();
+        com.intellij.codeInsight.daemon.DaemonCodeAnalyzer.getInstance(project).settingsChanged();
     }
 
     public void reset() {

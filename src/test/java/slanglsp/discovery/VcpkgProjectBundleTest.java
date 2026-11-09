@@ -66,6 +66,17 @@ class VcpkgProjectBundleTest {
         assertEquals(Optional.of(expected.toString()), discover(root, "slangd.exe", "Windows 11", "amd64"));
     }
 
+    @ParameterizedTest
+    @EnumSource(VcpkgProjectFixture.BuildSystem.class)
+    void findsInstallationUnderWindowsShortUserDirectory(VcpkgProjectFixture.BuildSystem system) throws Exception {
+        var fixture = new VcpkgProjectFixture(temporary.resolve("RUNNER~1/Temp"));
+        Path installed = temporary.resolve("RUNNER~1/Temp/external sdk/installed");
+        Path expected = fixture.createTool(installed, "x64-windows", "slangd.exe");
+        Path root = fixture.createProject(system, installed, "x64-windows");
+
+        assertEquals(Optional.of(expected.toString()), discover(root, "slangd.exe", "Windows 11", "amd64"));
+    }
+
     @Test
     @Timeout(value = 15, unit = TimeUnit.MINUTES)
     void findsRealInstallation() throws Exception {

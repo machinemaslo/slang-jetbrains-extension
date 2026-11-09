@@ -122,7 +122,7 @@ final class DiscoveryContext {
 
     Path resolve(Path base, String value) {
         if (value == null || value.isBlank() || value.contains("$") || value.contains("%(") || value.contains("%") ||
-                value.contains("~") || value.contains("\n")) {
+                value.startsWith("~") || value.contains("\n")) {
             return null;
         }
 

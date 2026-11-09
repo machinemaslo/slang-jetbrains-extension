@@ -147,4 +147,14 @@ class DiscoveryAdaptersTest {
         assertEquals(
                 Optional.of(selected.toString()), discover(Map.of("VCPKG_ROOT", temp.resolve("fallback").toString())));
     }
+    @Test
+    void rejectsHomeExpansionButAcceptsEmbeddedTildes() throws Exception {
+        var context = new DiscoveryContext(project(), Map.of());
+
+        assertNull(context.resolve(temp, "~/sdk"));
+        assertNull(context.resolve(temp, "~runner/sdk"));
+        assertEquals(temp.resolve("RUNNER~1/sdk").toAbsolutePath().normalize(),
+                context.resolve(temp, "RUNNER~1/sdk"));
+    }
+
 }

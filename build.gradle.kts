@@ -83,9 +83,14 @@ intellijPlatform {
             VerifyPluginTask.FailureLevel.INVALID_PLUGIN,
         )
         ides {
-            latest {
-                types = listOf(IntelliJPlatformType.CLion)
-                channels = listOf(ProductRelease.Channel.RELEASE)
+            val verificationIdePath = providers.gradleProperty("verificationIdePath").orNull
+            if (verificationIdePath != null) {
+                local(file(verificationIdePath))
+            } else {
+                latest {
+                    types = listOf(IntelliJPlatformType.CLion)
+                    channels = listOf(ProductRelease.Channel.RELEASE)
+                }
             }
         }
     }
