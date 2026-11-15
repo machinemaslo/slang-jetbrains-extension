@@ -1,6 +1,5 @@
 package slanglsp.editor;
 
-import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.redhat.devtools.lsp4ij.LSPIJUtils;
@@ -16,64 +15,112 @@ import java.util.List;
 
 /** Some slangd versions report import-dependent columns for the same declaration. */
 final class DefinitionLocations {
-    static List<LocationData> normalize(Project project, String name, List<LocationData> locations) {
+    private record Target(PsiFile file, Range range, List<Range> declarations) {
+    }
+
+    static List<LocationData> normalize(PsiFile source, int offset, String name, List<LocationData> locations) {
         if (name == null || locations.isEmpty()) {
             return locations;
         }
-        return ReadActions.compute(() -> {
-            List<LocationData> result = new ArrayList<>();
-            for (var data : locations) {
-                Location location = data.location();
+
+        List<LocationData> result = new ArrayList<>();
+
+        for (var data : locations) {
+            Location location = data.location();
+            var target = ReadActions.compute(() -> {
                 var file = LSPIJUtils.findResourceFor(location.getUri());
+
                 if (file == null || file instanceof BuiltinFiles.BuiltinFile
                         || file.getFileType() != SlangFileType.INSTANCE) {
-                    result.add(data);
-                    continue;
+                    return null;
                 }
-                var psi = PsiManager.getInstance(project).findFile(file);
+
+                var psi = PsiManager.getInstance(source.getProject()).findFile(file);
                 Range range = psi == null ? null : identifierRange(psi, name, location.getRange());
-                if (range == null) {
-                    // A partial/ambiguous result cannot establish that a candidate is unrelated.
-                    return List.of();
-                }
-                result.add(new LocationData(new Location(location.getUri(), range), data.languageServer()));
+                var declarations = psi == null
+                        ? List.<Range>of()
+                        : identifierRanges(psi, name, location.getRange()).stream()
+                                .filter(candidate -> OverloadMatcher.isFunctionDeclaration(psi, candidate))
+                                .toList();
+
+                return new Target(psi, range, declarations);
+            });
+
+            if (target == null) {
+                result.add(data);
+                continue;
             }
-            return result;
-        });
+
+            Range range = target.range;
+
+            if (target.declarations.size() > 1) {
+                // Even a wrong column can land exactly on another overload.
+                range = OverloadMatcher.resolve(
+                        source, offset, target.file, name, target.declarations, data.languageServer());
+            } else if (range == null && target.declarations.size() == 1) {
+                range = target.declarations.getFirst();
+            }
+
+            if (range == null) {
+                // A partial/ambiguous result cannot establish that a candidate is unrelated.
+                return List.of();
+            }
+
+            result.add(new LocationData(new Location(location.getUri(), range), data.languageServer()));
+        }
+
+        return result;
     }
 
     static Range identifierRange(PsiFile file, String name, Range reported) {
+        var candidates = identifierRanges(file, name, reported);
+
+        for (var candidate : candidates) {
+            if (candidate.getStart().equals(reported.getStart())) {
+                return candidate;
+            }
+        }
+
+        return candidates.size() == 1 ? candidates.getFirst() : null;
+    }
+
+    private static List<Range> identifierRanges(PsiFile file, String name, Range reported) {
         var document = LSPIJUtils.getDocument(file);
+
         if (document == null || reported == null || reported.getStart() == null) {
-            return null;
+            return List.of();
         }
+
         int line = reported.getStart().getLine();
+
         if (line < 0 || line >= document.getLineCount()) {
-            return null;
+            return List.of();
         }
+
         int start = document.getLineStartOffset(line);
         int end = document.getLineEndOffset(line);
         CharSequence text = document.getImmutableCharSequence();
-        int found = -1;
-        int reportedOffset = start + reported.getStart().getCharacter();
+        List<Range> result = new ArrayList<>();
+
         for (int offset = start; offset < end;) {
             var leaf = file.findElementAt(offset);
+
             if (leaf == null) {
-                return null;
+                return List.of();
             }
+
             int tokenStart = leaf.getTextRange().getStartOffset();
             int tokenEnd = leaf.getTextRange().getEndOffset();
+
             if (tokenStart >= start && tokenEnd <= end
                     && SlangFindUsagesProvider.isIdentifier(leaf)
                     && name.contentEquals(text.subSequence(tokenStart, tokenEnd))) {
-                if (tokenStart == reportedOffset) {
-                    return new Range(new Position(line, tokenStart - start), new Position(line, tokenEnd - start));
-                }
-                found = found == -1 ? tokenStart : -2;
+                result.add(new Range(new Position(line, tokenStart - start), new Position(line, tokenEnd - start)));
             }
+
             offset = tokenEnd;
         }
-        return found < 0 ? null
-                : new Range(new Position(line, found - start), new Position(line, found - start + name.length()));
+
+        return result;
     }
 }

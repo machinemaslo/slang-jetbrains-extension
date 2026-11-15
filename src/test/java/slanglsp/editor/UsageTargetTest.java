@@ -14,20 +14,25 @@ class UsageTargetTest {
     void caretTargetFindsCrossFileCallsWithNativeServer() throws Exception {
         String executable = System.getenv("SLANGD_TEST_EXECUTABLE");
         org.junit.jupiter.api.Assumptions.assumeTrue(executable != null);
+
         var factory = IdeaTestFixtureFactory.getFixtureFactory();
         var fixture = factory.createCodeInsightFixture(
                 factory.createLightFixtureBuilder("SlangUsageSearch").getFixture(), new TempDirTestFixtureImpl());
         EdtTestUtil.runInEdtAndWait(fixture::setUp);
+
         try {
             com.intellij.psi.PsiElement[] target = new com.intellij.psi.PsiElement[2];
+
             EdtTestUtil.runInEdtAndWait(() -> {
                 com.intellij.openapi.roots.ModuleRootModificationUtil.addContentRoot(
                         fixture.getModule(), fixture.getTempDirPath());
+
                 var settings = slanglsp.settings.ProjectSettings.getInstance(fixture.getProject()).getState();
                 settings.explicitSlangdLocation = java.nio.file.Path.of(executable).getParent().toString();
                 settings.useLocalVcpkgSlangd = false;
                 settings.additionalIncludePaths = java.util.List.of(fixture.getTempDirPath());
                 slanglsp.settings.ProjectSettings.getInstance(fixture.getProject()).loadState(settings);
+
                 var declaration = fixture.addFileToProject("quartzContour.slang",
                         """
                         module quartzContour;
@@ -39,11 +44,13 @@ class UsageTargetTest {
                                 import quartzContour;
                                 public float4 analyticContour(float2 p) { return quartzContour(p); }
                                 """);
+
                 fixture.configureFromExistingVirtualFile(declaration.getVirtualFile());
                 fixture.getEditor().getCaretModel().moveToOffset(declaration.getText().lastIndexOf("quartzContour") + 3);
                 target[0] = TargetElementUtil.findTargetElement(
                         fixture.getEditor(), TargetElementUtil.ELEMENT_NAME_ACCEPTED);
                 assertNotNull(target[0]);
+
                 var grid = fixture.addFileToProject("page/common/grid_traversal.slang",
                         """
                                 module grid_traversal;
@@ -80,14 +87,17 @@ class UsageTargetTest {
                                 }
                                 """);
                 target[1] = grid.findElementAt(grid.getText().indexOf("intersect_box"));
+
                 com.intellij.openapi.fileEditor.FileDocumentManager.getInstance().saveAllDocuments();
             });
+
             com.intellij.openapi.progress.ProgressManager.getInstance().runProcess(() -> {
                 var handler = new SlangFindUsagesHandlerFactory().createFindUsagesHandler(target[0], false);
                 var options = ReadActions.compute(
                         () -> new com.intellij.find.findUsages.FindUsagesOptions(fixture.getProject()));
                 options.searchScope = com.intellij.psi.search.GlobalSearchScope.projectScope(fixture.getProject());
                 var usages = new java.util.ArrayList<com.intellij.usageView.UsageInfo>();
+
                 assertTrue(handler.processElementUsages(target[0], usages::add, options));
                 assertEquals(1, usages.size());
                 ReadActions.run(() -> {
@@ -96,15 +106,19 @@ class UsageTargetTest {
                     assertEquals("opticalContext.slang", usageFile.getName());
                 });
                 assertFalse(UsageSearch.isUnused(target[0]));
+
                 usages.clear();
                 assertTrue(UsageSearch.process(target[1], options.searchScope, usages::add));
                 assertEquals(3, usages.size(), "All imported intersect_box calls must resolve to one declaration");
                 assertFalse(UsageSearch.isUnused(target[1]), "A used declaration must not be grayed out");
+
                 var annotator = new UnusedSymbolsAnnotator();
                 var input = ReadActions.compute(() -> annotator.collectInformation(target[1].getContainingFile()));
                 assertNotNull(input);
+
                 var result = annotator.doAnnotate(input);
                 assertNotNull(result);
+
                 var unused = result.unused().stream().map(UnusedSymbolsAnnotator.Candidate::name).toList();
                 assertTrue(unused.contains("helper"), unused.toString());
                 assertFalse(unused.contains("intersect_box"), unused.toString());
@@ -120,6 +134,7 @@ class UsageTargetTest {
         var fixture = factory.createCodeInsightFixture(
                 factory.createLightFixtureBuilder("SlangUsageTargets").getFixture(), new TempDirTestFixtureImpl());
         EdtTestUtil.runInEdtAndWait(fixture::setUp);
+
         try {
             EdtTestUtil.runInEdtAndWait(() -> {
                 for (String code : new String[] {

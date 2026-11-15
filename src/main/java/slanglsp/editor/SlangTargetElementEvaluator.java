@@ -8,7 +8,8 @@ import org.jetbrains.annotations.Nullable;
 /** Exposes token-level identifiers to the IDE's Find/Show Usages target lookup. */
 public final class SlangTargetElementEvaluator extends TargetElementEvaluatorEx2 {
     @Override
-    public @Nullable PsiElement getNamedElement(@NotNull PsiElement element) {
+    @Nullable
+    public PsiElement getNamedElement(@NotNull PsiElement element) {
         if (!SlangFindUsagesProvider.isIdentifier(element)) {
             return null;
         }

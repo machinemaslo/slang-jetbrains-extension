@@ -26,7 +26,8 @@ public final class SlangLineIndentProvider implements LineIndentProvider, Joined
     }
 
     @Override
-    public @Nullable String getLineIndent(
+    @Nullable
+    public String getLineIndent(
             @NotNull Project project, @NotNull Editor editor, @Nullable Language language, int offset) {
         if (!isSuitableFor(language)) {
             return null;
@@ -38,11 +39,14 @@ public final class SlangLineIndentProvider implements LineIndentProvider, Joined
         int start = document.getLineStartOffset(line);
         int next = skipSpaces(text, offset);
         boolean memberAccess = false;
+
         if (next < document.getTextLength()) {
             var token = editor.getHighlighter().createIterator(next);
+
             if (protectedToken(token.getTokenType())) {
                 return DO_NOT_ADJUST;
             }
+
             memberAccess = token.getTokenType() == SlangLexer.DOT && token.getEnd() - token.getStart() == 1;
         }
 
@@ -50,12 +54,15 @@ public final class SlangLineIndentProvider implements LineIndentProvider, Joined
         if (line > 0) {
             int previousStart = document.getLineStartOffset(line - 1);
             int previousEnd = document.getLineEndOffset(line - 1);
+
             for (var token = editor.getHighlighter().createIterator(previousStart);
-                 !token.atEnd() && token.getStart() < previousEnd; token.advance()) {
+                    !token.atEnd() && token.getStart() < previousEnd;
+                    token.advance()) {
                 if (protectedToken(token.getTokenType()) && token.getTokenType() != SlangLexer.STRING) {
                     return DO_NOT_ADJUST;
                 }
             }
+
             if (previousEnd > previousStart && text.charAt(previousEnd - 1) == '\\') {
                 return DO_NOT_ADJUST;
             }
@@ -69,17 +76,22 @@ public final class SlangLineIndentProvider implements LineIndentProvider, Joined
         boolean inContinuation = false;
         var closers = new ArrayDeque<Character>();
         HighlighterIterator token = editor.getHighlighter().createIterator(Math.max(0, start - 1));
+
         while (start > 0 && !token.atEnd()) {
             ProgressManager.checkCanceled();
             IElementType type = token.getTokenType();
+
             if (previousChar == '\0' && type != TokenType.WHITE_SPACE) {
                 previousChar = text.charAt(token.getEnd() - 1);
             }
+
             if (type == SlangLexer.DIRECTIVE) {
                 return DO_NOT_ADJUST;
             }
+
             if (type == SlangLexer.BRACES || type == SlangLexer.PARENTHESES || type == SlangLexer.BRACKETS) {
                 char c = text.charAt(token.getStart());
+
                 if (c == '}' || c == ')' || c == ']') {
                     closers.push(c);
                 } else if (!closers.isEmpty()) {
@@ -89,27 +101,35 @@ public final class SlangLineIndentProvider implements LineIndentProvider, Joined
                 } else {
                     inContinuation = c != '{';
                     columns = indentWidth(document, text, token.getStart(), tabSize);
+
                     if (nextChar != closing(c)) {
                         columns += c == '{' ? options.INDENT_SIZE : options.CONTINUATION_INDENT_SIZE;
                     }
+
                     break;
                 }
             }
+
             token.retreat();
         }
+
         if (!closers.isEmpty()) {
             return DO_NOT_ADJUST;
         }
+
         // Without a statement parser, leave unbraced control flow and other
         // incomplete expressions to the existing editor fallback.
         if (!inContinuation && !memberAccess && nextChar != '{' && nextChar != '}'
                 && previousChar != '\0' && previousChar != ';' && previousChar != '{' && previousChar != '}') {
             return DO_NOT_ADJUST;
         }
+
         if (memberAccess && !inContinuation) {
             columns += options.CONTINUATION_INDENT_SIZE;
         }
+
         columns = Math.max(0, columns);
+
         return options.USE_TAB_CHARACTER
                 ? "\t".repeat(columns / tabSize) + " ".repeat(columns % tabSize)
                 : " ".repeat(columns);
@@ -121,20 +141,26 @@ public final class SlangLineIndentProvider implements LineIndentProvider, Joined
         if (!isSuitableFor(language)) {
             return -1;
         }
+
         CharSequence text = editor.getDocument().getImmutableCharSequence();
         int previous = offset - 1;
+
         while (previous >= 0 && Character.isWhitespace(text.charAt(previous))) {
             previous--;
         }
+
         if (previous < 0 || offset >= text.length()) {
             return 0;
         }
+
         char left = text.charAt(previous);
         char right = text.charAt(offset);
+
         if (right == '.' || right == ',' || right == ';' || right == ')' || right == ']'
                 || left == '(' || left == '[' || left == '.') {
             return 0;
         }
+
         return 1;
     }
 
@@ -156,6 +182,7 @@ public final class SlangLineIndentProvider implements LineIndentProvider, Joined
         while (offset < text.length() && (text.charAt(offset) == ' ' || text.charAt(offset) == '\t')) {
             offset++;
         }
+
         return offset;
     }
 
@@ -163,9 +190,11 @@ public final class SlangLineIndentProvider implements LineIndentProvider, Joined
         int start = document.getLineStartOffset(document.getLineNumber(offset));
         int end = skipSpaces(text, start);
         int width = 0;
+
         for (int i = start; i < end; i++) {
             width = text.charAt(i) == '\t' ? (width / tabSize + 1) * tabSize : width + 1;
         }
+
         return width;
     }
 }

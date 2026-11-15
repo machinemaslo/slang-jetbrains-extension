@@ -18,6 +18,11 @@
 
     <change-notes>
         <![CDATA[
+        <p><b>0.0.22</b></p>
+        <ul>
+            <li>Smart indentation support</li>
+            <li>Find references works more reliably, custom overload matcher</li>
+        </ul>
         <p><b>0.0.21</b></p>
         <ul>
             <li>Improved rename and usage-search performance</li>
@@ -64,7 +69,9 @@
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
         <lineIndentProvider implementation="slanglsp.editor.SlangLineIndentProvider"/>
         <lang.findUsagesProvider language="Slang" implementationClass="slanglsp.editor.SlangFindUsagesProvider"/>
-        <targetElementEvaluator language="Slang" implementationClass="slanglsp.editor.SlangTargetElementEvaluator"/>
+        <targetElementEvaluator
+                language="Slang"
+                implementationClass="slanglsp.editor.SlangTargetElementEvaluator"/>
         <findUsagesHandlerFactory implementation="slanglsp.editor.SlangFindUsagesHandlerFactory" order="first"/>
         <renameHandler implementation="slanglsp.editor.SlangRenameHandler"/>
 

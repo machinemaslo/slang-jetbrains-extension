@@ -36,8 +36,9 @@ final class UsageSearch {
         void checkUnchanged() {
             ProgressManager.checkCanceled();
 
-            if (document.getModificationStamp() != stamp)
+            if (document.getModificationStamp() != stamp) {
                 throw new ProcessCanceledException();
+            }
         }
     }
 
@@ -66,8 +67,8 @@ final class UsageSearch {
         } else {
             List<LocationData> references = references(source);
             source.checkUnchanged();
-            // LSP4IJ returns null only when no server supports references. Empty is a valid result.
 
+            // LSP4IJ returns null only when no server supports references. Empty is a valid result.
             if (references != null) {
                 return processReferences(project, references, scope, consumer);
             }
@@ -76,9 +77,9 @@ final class UsageSearch {
                 declarations.add(Symbol.from(location.location()));
             }
         }
+
         // slangd returns null for some declaration-site definition requests (including globals).
         // In that case use the source location; candidates still require semantic confirmation.
-
         if (declarations.isEmpty()) {
             Position position = ReadActions.compute(() -> LSPIJUtils.toPosition(source.offset, source.document));
             declarations.add(new Symbol(fileUri(virtualFile), position.getLine(), position.getCharacter()));
@@ -116,32 +117,31 @@ final class UsageSearch {
                 var psi = PsiManager.getInstance(source.file.getProject()).findFile(file);
                 var doc = FileDocumentManager.getInstance().getDocument(file);
 
-                return psi == null || doc == null ? null
-                                                  : new Source(psi, doc, doc.getModificationStamp(), 0, source.name);
+                return psi == null || doc == null
+                        ? null
+                        : new Source(psi, doc, doc.getModificationStamp(), 0, source.name);
             });
 
             if (candidate == null) {
                 return false;
             }
 
-            var offsets = ReadActions.compute(
-                    ()
-                            -> UsageCandidates.find(candidate.document.getText(), source.name)
-                                    .stream()
-                                    .filter(offset
-                                            -> !file.equals(source.file.getVirtualFile()) || offset != source.offset)
-                                    .toList());
+            var offsets = ReadActions.compute(() ->
+                    UsageCandidates.find(candidate.document.getText(), source.name).stream()
+                            .filter(offset -> !file.equals(source.file.getVirtualFile()) || offset != source.offset)
+                            .toList());
 
-            if (!processDefinitions(candidate.file, candidate.document, offsets,
-                        ()
-                                -> {
-                            source.checkUnchanged();
-                            candidate.checkUnchanged();
-                        },
-                        (offset, targets)
-                                -> !targets.isEmpty() &&
-                                           targets.stream().noneMatch(
-                                                   target -> declaration.equals(Symbol.from(target.location()))))) {
+            boolean allCandidatesUnrelated = processDefinitions(
+                    candidate.file, candidate.document, offsets,
+                    () -> {
+                        source.checkUnchanged();
+                        candidate.checkUnchanged();
+                    },
+                    (offset, targets) -> !targets.isEmpty()
+                            && targets.stream().noneMatch(
+                                    target -> declaration.equals(Symbol.from(target.location()))));
+
+            if (!allCandidatesUnrelated) {
                 return false;
             }
         }
@@ -178,6 +178,7 @@ final class UsageSearch {
 
         for (var reference : references) {
             ProgressManager.checkCanceled();
+
             // LSP4IJ's documented PSI conversion requires its experimental client features.
             var target = LSPPsiElementFactory.toPsiElement(
                     reference.location(), reference.languageServer().getClientFeatures(), project);
@@ -186,8 +187,9 @@ final class UsageSearch {
                 UsageInfo usage = ReadActions.compute(
                         () -> PsiSearchScopeUtil.isInScope(scope, target) ? new UsageInfo(target) : null);
 
-                if (usage != null && !consumer.process(usage))
+                if (usage != null && !consumer.process(usage)) {
                     return false;
+                }
             }
         }
 
@@ -214,8 +216,9 @@ final class UsageSearch {
                 PsiFile psi = PsiManager.getInstance(project).findFile(file);
                 Document doc = FileDocumentManager.getInstance().getDocument(file);
 
-                return psi == null || doc == null ? null
-                                                  : new Source(psi, doc, doc.getModificationStamp(), 0, source.name);
+                return psi == null || doc == null
+                        ? null
+                        : new Source(psi, doc, doc.getModificationStamp(), 0, source.name);
             });
 
             if (candidate == null) {
@@ -224,47 +227,53 @@ final class UsageSearch {
 
             List<Integer> offsets =
                     ReadActions.compute(() -> UsageCandidates.find(candidate.document.getText(), source.name));
-            List<Integer> inScopeOffsets = ReadActions.compute(
-                    ()
-                            -> offsets.stream()
-                                    .filter(offset -> {
-                                        Position position = LSPIJUtils.toPosition(offset, candidate.document);
+            List<Integer> inScopeOffsets = ReadActions.compute(() ->
+                    offsets.stream()
+                            .filter(offset -> {
+                                Position position = LSPIJUtils.toPosition(offset, candidate.document);
 
-                                        if (declarations.contains(new Symbol(
-                                                    fileUri(file), position.getLine(), position.getCharacter())))
-                                            return false;
-                                        var leaf = candidate.file.findElementAt(offset);
+                                if (declarations.contains(new Symbol(
+                                        fileUri(file), position.getLine(), position.getCharacter()))) {
+                                    return false;
+                                }
 
-                                        return leaf != null && PsiSearchScopeUtil.isInScope(scope, leaf);
-                                    })
-                                    .toList());
+                                var leaf = candidate.file.findElementAt(offset);
 
-            if (!processDefinitions(candidate.file, candidate.document, inScopeOffsets,
-                        ()
-                                -> {
-                            source.checkUnchanged();
-                            candidate.checkUnchanged();
-                        },
-                        (offset, targets) -> {
-                            if (targets.stream().anyMatch(
-                                        target -> declarations.contains(Symbol.from(target.location())))) {
-                                UsageInfo usage = ReadActions.compute(
-                                        () -> new UsageInfo(candidate.file, offset, offset + source.name.length()));
+                                return leaf != null && PsiSearchScopeUtil.isInScope(scope, leaf);
+                            })
+                            .toList());
 
-                                return consumer.process(usage);
-                            }
+            boolean completed = processDefinitions(
+                    candidate.file, candidate.document, inScopeOffsets,
+                    () -> {
+                        source.checkUnchanged();
+                        candidate.checkUnchanged();
+                    },
+                    (offset, targets) -> {
+                        if (targets.stream().anyMatch(
+                                target -> declarations.contains(Symbol.from(target.location())))) {
+                            UsageInfo usage = ReadActions.compute(
+                                    () -> new UsageInfo(candidate.file, offset, offset + source.name.length()));
 
-                            return true;
-                        }))
+                            return consumer.process(usage);
+                        }
+
+                        return true;
+                    });
+
+            if (!completed) {
                 return false;
+            }
         }
 
         return true;
     }
 
     static URI fileUri(VirtualFile file) {
-        if (file instanceof BuiltinFiles.BuiltinFile builtin)
+        if (file instanceof BuiltinFiles.BuiltinFile builtin) {
             return builtin.uri();
+        }
+
         URI uri = com.redhat.devtools.lsp4ij.client.features.FileUriSupport.getFileUri(file, null);
 
         if (uri == null) {
@@ -281,8 +290,9 @@ final class UsageSearch {
 
             if (scope instanceof LocalSearchScope local) {
                 for (PsiElement element : local.getScope()) {
-                    if (element.getContainingFile() != null)
+                    if (element.getContainingFile() != null) {
                         files.add(element.getContainingFile().getVirtualFile());
+                    }
                 }
             } else {
                 GlobalSearchScope global =
@@ -294,18 +304,19 @@ final class UsageSearch {
                             return true;
                         }, true);
             }
-            // A just-typed occurrence may not be in the word index yet.
 
+            // A just-typed occurrence may not be in the word index yet.
             for (Document document : FileDocumentManager.getInstance().getUnsavedDocuments()) {
                 VirtualFile file = FileDocumentManager.getInstance().getFile(document);
 
-                if (file != null && scope.contains(file) && document.getText().contains(name))
+                if (file != null && scope.contains(file) && document.getText().contains(name)) {
                     files.add(file);
+                }
             }
 
-            files.removeIf(file
-                    -> file == null || !file.isValid() || file instanceof BuiltinFiles.BuiltinFile ||
-                               file.getFileType() != SlangFileType.INSTANCE);
+            files.removeIf(file -> file == null || !file.isValid()
+                    || file instanceof BuiltinFiles.BuiltinFile
+                    || file.getFileType() != SlangFileType.INSTANCE);
 
             return files;
         });
@@ -324,24 +335,30 @@ final class UsageSearch {
         try {
             return ProgressIndicatorUtils.awaitWithCheckCanceled(future);
         } finally {
-            if (!future.isDone())
+            if (!future.isDone()) {
                 support.cancel();
+            }
         }
     }
 
-    private record DefinitionRequest(LSPDefinitionSupport support, CompletableFuture<List<LocationData>> future,
-                                     Project project, String name)
-            implements AutoCloseable {
+    private record DefinitionRequest(
+            LSPDefinitionSupport support,
+            CompletableFuture<List<LocationData>> future,
+            PsiFile file,
+            int offset,
+            String name
+    ) implements AutoCloseable {
         @Override
         public void close() {
-            if (!future.isDone())
+            if (!future.isDone()) {
                 support.cancel();
+            }
         }
 
         List<LocationData> await() {
             var result = ProgressIndicatorUtils.awaitWithCheckCanceled(future);
 
-            return result == null ? List.of() : DefinitionLocations.normalize(project, name, result);
+            return result == null ? List.of() : DefinitionLocations.normalize(file, offset, name, result);
         }
     }
 
@@ -349,16 +366,17 @@ final class UsageSearch {
         var support = new LSPDefinitionSupport(file);
 
         try {
-            var future = ReadActions.compute(
-                    ()
-                            -> support.getDefinitions(new LSPDefinitionParams(
-                                    new TextDocumentIdentifier(), LSPIJUtils.toPosition(offset, document), offset)));
+            var future = ReadActions.compute(() ->
+                    support.getDefinitions(new LSPDefinitionParams(
+                            new TextDocumentIdentifier(), LSPIJUtils.toPosition(offset, document), offset)));
 
             String name = ReadActions.compute(() -> {
                 var leaf = file.findElementAt(offset);
+
                 return SlangFindUsagesProvider.isIdentifier(leaf) ? leaf.getText() : null;
             });
-            return new DefinitionRequest(support, future, file.getProject(), name);
+
+            return new DefinitionRequest(support, future, file, offset, name);
         } catch (RuntimeException failure) {
             support.cancel();
             throw failure;
@@ -372,7 +390,8 @@ final class UsageSearch {
     }
 
     // Keep a small window in flight, preserving result order and cancelling unused requests.
-    static boolean processDefinitions(PsiFile file, Document document, List<Integer> offsets, Runnable check,
+    static boolean processDefinitions(
+            PsiFile file, Document document, List<Integer> offsets, Runnable check,
             java.util.function.BiPredicate<Integer, List<LocationData>> consumer) {
         for (int start = 0; start < offsets.size(); start += 8) {
             List<DefinitionRequest> requests = new ArrayList<>();
@@ -390,8 +409,9 @@ final class UsageSearch {
                     var targets = requests.get(i).await();
                     ReadActions.run(check);
 
-                    if (!consumer.test(offsets.get(start + i), targets))
+                    if (!consumer.test(offsets.get(start + i), targets)) {
                         return false;
+                    }
                 }
             } finally {
                 requests.forEach(DefinitionRequest::close);

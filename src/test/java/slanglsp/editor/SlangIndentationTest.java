@@ -17,19 +17,23 @@ class SlangIndentationTest {
         CodeInsightTestFixture fixture = factory.createCodeInsightFixture(
                 factory.createLightFixtureBuilder("SlangIndentationTest").getFixture(), new TempDirTestFixtureImpl());
         EdtTestUtil.runInEdtAndWait(fixture::setUp);
+
         try {
             EdtTestUtil.runInEdtAndWait(() -> {
                 var settings = CodeInsightSettings.getInstance();
                 SmartBackspaceMode oldMode = settings.getBackspaceMode();
+
                 var style = CodeStyle.createTestSettings();
                 style.copyFrom(CodeStyle.getSettings(fixture.getProject()));
                 com.intellij.psi.codeStyle.CodeStyleSettingsManager.getInstance(fixture.getProject())
                         .setTemporarySettings(style);
+
                 var options = style.getIndentOptions(slanglsp.language.SlangFileType.INSTANCE);
                 options.INDENT_SIZE = 4;
                 options.CONTINUATION_INDENT_SIZE = 8;
                 options.TAB_SIZE = 4;
                 options.USE_TAB_CHARACTER = false;
+
                 try {
                     settings.setBackspaceMode(SmartBackspaceMode.AUTOINDENT);
                     backspace(fixture, "void f()\n    <caret>{}", "void f()\n<caret>{}");
@@ -71,6 +75,7 @@ class SlangIndentationTest {
                     settings.setBackspaceMode(SmartBackspaceMode.INDENT);
                     backspace(fixture, "void f() {\n    <caret>work();\n}",
                             "void f() {\n<caret>work();\n}");
+
                     settings.setBackspaceMode(SmartBackspaceMode.OFF);
                     backspace(fixture, "void f() {\n    <caret>work();\n}",
                             "void f() {\n   <caret>work();\n}");
@@ -80,6 +85,7 @@ class SlangIndentationTest {
                     fixture.configureByText("test.slang", "void f() {<caret>");
                     fixture.performEditorAction(IdeActions.ACTION_EDITOR_ENTER);
                     fixture.checkResult("void f() {\n    <caret>");
+
                     fixture.configureByText("test.slang", "call(<caret>");
                     fixture.performEditorAction(IdeActions.ACTION_EDITOR_ENTER);
                     fixture.checkResult("call(\n        <caret>");
