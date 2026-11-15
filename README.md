@@ -30,6 +30,18 @@ Use a current `slangd` installation. Configure the server directory in Settings 
 
 ### Formatting
 Install `clang-format`, then open Settings → Tools → Slang → Formatting. Leave the executable field empty to search PATH, or enter its full path.
+
+**Editor → Code Style → Slang** controls tabs, indentation, continuation indentation, line length, and opening-brace placement.
+Use **Set from** to select **Slang (upstream)** (the default, following shader-slang v2026.22's
+[`.clang-format`](https://github.com/shader-slang/slang/blob/v2026.22/.clang-format): four-space indentation,
+100 columns, Allman braces) or **Java-style (K&R)** (attached braces and eight-space continuation indentation).
+These presets are editable and stored in the IDE's code-style scheme.
+
+With formatter **Style** set to `file`, a project's `.clang-format` takes precedence.
+Leave **Fallback style** empty to use the Slang code-style settings when no configuration file is found.
+Existing non-empty style overrides remain supported. Smart typing uses the IDE indentation settings;
+brace placement is applied by explicit formatting and reformat-on-paste.
+
 New projects start with no predefined macros. Existing project macros remain editable under General; examples are shown as help text rather than definitions.
 
 ### Smart editing

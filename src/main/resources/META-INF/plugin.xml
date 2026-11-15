@@ -74,6 +74,9 @@
         
         <externalAnnotator language="Slang" implementationClass="slanglsp.editor.UnusedSymbolsAnnotator"/>
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
+        <langCodeStyleSettingsProvider implementation="slanglsp.settings.SlangCodeStyleProvider"/>
+        <predefinedCodeStyle implementation="slanglsp.settings.SlangCodeStylePresets$Slang"/>
+        <predefinedCodeStyle implementation="slanglsp.settings.SlangCodeStylePresets$Java"/>
         <lineIndentProvider implementation="slanglsp.editor.SlangLineIndentProvider"/>
         <lang.braceMatcher language="Slang" implementationClass="slanglsp.editor.SlangBraceMatcher"/>
         <lang.quoteHandler language="Slang" implementationClass="slanglsp.editor.SlangQuoteHandler"/>
@@ -126,6 +129,11 @@
         <projectService 
                 serviceImplementation="slanglsp.settings.ProjectSettings"/>
     </extensions>
+
+    <projectListeners>
+        <listener class="slanglsp.settings.SlangCodeStyleListener"
+                  topic="com.intellij.psi.codeStyle.CodeStyleSettingsListener"/>
+    </projectListeners>
 
     <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
         <!-- LSP4IJ annotates bundle keys as display text; translations supply capitalization. -->

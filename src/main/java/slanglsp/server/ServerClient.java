@@ -53,7 +53,12 @@ public class ServerClient extends LanguageClientImpl {
     public @NotNull Map<String, Object> createSettings() {
         var state = ProjectSettings.getInstance(project).getState();
 
-        return state.createServerSettings();
+        var settings = state.createServerSettings();
+        if (state.clangFormatFallbackStyle.isBlank()) {
+            settings.put("slang.format.clangFormatFallbackStyle", slanglsp.settings.SlangCodeStyle.clangFormatStyle(
+                    com.intellij.application.options.CodeStyle.getSettings(project)));
+        }
+        return settings;
     }
 
     @Override
