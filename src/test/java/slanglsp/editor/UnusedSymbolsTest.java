@@ -47,6 +47,23 @@ class UnusedSymbolsTest {
                         [shader("compute")]
                         [numthreads(1,1,1)]
                         void main() { usedFunction(); }
+                        void accum(uint32_t* src, uint32_t src_count, uint32_t* dst)
+                        {
+                            uint32_t total = 0;
+                            uint32_t unusedCounter;
+                            for (uint32_t i = 0; i < src_count; i++)
+                                total += src[i];
+                            *dst = total;
+                        }
+                        [shader("compute")]
+                        void pointerMain(uniform uint32_t* src, uniform uint32_t src_count, uniform uint32_t* dst)
+                        {
+                            uint32_t total = 0;
+                            uint32_t unusedEntryCounter;
+                            for (uint32_t i = 0; i < src_count; i++)
+                                total += src[i];
+                            *dst = total;
+                        }
                         """);
                 fixture.addFileToProject("consumer.slang", """
                         import unused;
@@ -67,11 +84,12 @@ class UnusedSymbolsTest {
                 assertNotNull(result);
                 var names = result.unused().stream().map(UnusedSymbolsAnnotator.Candidate::name).toList();
                 assertTrue(names.containsAll(List.of("PrimaryHitGpu", "unusedGlobal", "unusedFunction", "unusedLocal",
-                                   "unusedPublicGlobal", "unusedPublicFunction")),
+                                    "unusedPublicGlobal", "unusedPublicFunction", "unusedCounter", "unusedEntryCounter")),
                         names.toString());
 
                 for (String name :
-                        List.of("UsedType", "ImportedType", "usedFunction", "usedLocal", "external", "main", "value")) {
+                        List.of("UsedType", "ImportedType", "usedFunction", "usedLocal", "external", "main", "value",
+                                "total", "i", "pointerMain")) {
                     assertFalse(names.contains(name), name + " in " + names);
                 }
             }, new EmptyProgressIndicator());

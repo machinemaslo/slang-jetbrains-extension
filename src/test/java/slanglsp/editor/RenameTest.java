@@ -64,13 +64,20 @@ class RenameTest {
                 ProjectSettings.getInstance(fixture.getProject()).loadState(settings);
                 NativeServerSupport.enable(fixture.getProject());
 
+                // Configuring the fixture writes VFS content, so do it before the unsaved edit.
+                fixture.configureFromExistingVirtualFile(files[1].getVirtualFile());
                 for (int i = 0; i < docs.length; i++)
                     docs[i] = PsiDocumentManager.getInstance(fixture.getProject()).getDocument(files[i]);
                 FileDocumentManager.getInstance().saveAllDocuments();
+            });
+            // Let the opened editor's server initialize before sending an unsaved change.
+            assertEquals(2, collect(files[0], main.indexOf("sharedValue"), "renamedValue").usages().length);
+            EdtTestUtil.runInEdtAndWait(() -> {
                 WriteCommandAction.runWriteCommandAction(fixture.getProject(), () -> {
                     docs[1].setText(imported);
                     PsiDocumentManager.getInstance(fixture.getProject()).commitAllDocuments();
                 });
+                assertTrue(FileDocumentManager.getInstance().isDocumentUnsaved(docs[1]));
             });
             // Invoking on either the declaration or an imported reference produces the same plan.
             var fromDeclaration = collect(files[0], main.indexOf("sharedValue"), "renamedValue");
@@ -78,7 +85,7 @@ class RenameTest {
             var plan = collect(files[1], imported.indexOf("sharedValue"), "renamedValue");
             assertEquals(3, plan.usages().length);
             EdtTestUtil.runInEdtAndWait(() -> {
-                fixture.configureFromExistingVirtualFile(files[1].getVirtualFile());
+                assertTrue(FileDocumentManager.getInstance().isDocumentUnsaved(docs[1]));
                 fixture.getEditor().getCaretModel().moveToOffset(imported.indexOf("sharedValue"));
                 var context =
                         com.intellij.openapi.actionSystem.impl.SimpleDataContext.builder()

@@ -15,7 +15,7 @@ import java.util.List;
 
 /** Some slangd versions report import-dependent columns for the same declaration. */
 final class DefinitionLocations {
-    private record Target(PsiFile file, Range range, List<Range> declarations) {
+    private record Target(PsiFile file, String uri, Range range, List<Range> declarations) {
     }
 
     static List<LocationData> normalize(PsiFile source, int offset, String name, List<LocationData> locations) {
@@ -43,10 +43,14 @@ final class DefinitionLocations {
                                 .filter(candidate -> OverloadMatcher.isFunctionDeclaration(psi, candidate))
                                 .toList();
 
-                return new Target(psi, range, declarations);
+                return new Target(psi, UsageSearch.fileUri(file).toString(), range, declarations);
             });
 
             if (target == null) {
+                if ("file".equalsIgnoreCase(java.net.URI.create(location.getUri()).getScheme())) {
+                    // An unresolved local file cannot prove that this is another declaration.
+                    return List.of();
+                }
                 result.add(data);
                 continue;
             }
@@ -66,7 +70,7 @@ final class DefinitionLocations {
                 return List.of();
             }
 
-            result.add(new LocationData(new Location(location.getUri(), range), data.languageServer()));
+            result.add(new LocationData(new Location(target.uri, range), data.languageServer()));
         }
 
         return result;

@@ -194,7 +194,7 @@ final class GenericContext {
                 continue;
             }
             if (depth >= declarationDepth) {
-                if (depth == declarationDepth && Boolean.TRUE.equals(declared) && typeOrFunction) {
+                if (depth == declarationDepth && declared && typeOrFunction) {
                     continue;
                 }
                 declared = generic;
