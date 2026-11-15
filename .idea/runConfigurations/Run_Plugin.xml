@@ -10,6 +10,10 @@
       </option>
       <option name="taskNames">
         <list>
+          <option value="patchPluginXml" />
+          <option value="compileJava" />
+          <option value="prepareSandbox" />
+          <option value="buildPlugin" />
           <option value="runIde" />
         </list>
       </option>

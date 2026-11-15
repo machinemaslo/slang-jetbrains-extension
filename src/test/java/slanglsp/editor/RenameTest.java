@@ -21,7 +21,6 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class RenameTest {
     @Test
@@ -36,8 +35,7 @@ class RenameTest {
     @Test
     @Timeout(90)
     void verifiedRenameIncludesUnsavedImportsPreservesShadowingAndSupportsUndo() throws Exception {
-        String executable = System.getenv("SLANGD_TEST_EXECUTABLE");
-        assumeTrue(executable != null, "Set SLANGD_TEST_EXECUTABLE for native rename verification");
+        String executable = slanglsp.TestDependencies.slangd();
         var factory = IdeaTestFixtureFactory.getFixtureFactory();
         var fixture = factory.createCodeInsightFixture(
                 factory.createLightFixtureBuilder("SlangRenameTest").getFixture(), new TempDirTestFixtureImpl());
@@ -64,6 +62,7 @@ class RenameTest {
                 files[2] = fixture.addFileToProject("other.slang", "float unrelated = 0;\n");
                 settings.additionalIncludePaths = List.of(files[0].getVirtualFile().getParent().getPath());
                 ProjectSettings.getInstance(fixture.getProject()).loadState(settings);
+                NativeServerSupport.enable(fixture.getProject());
 
                 for (int i = 0; i < docs.length; i++)
                     docs[i] = PsiDocumentManager.getInstance(fixture.getProject()).getDocument(files[i]);

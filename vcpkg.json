@@ -1,0 +1,12 @@
+{
+  "name": "slang-jetbrains-tests",
+  "version-string": "0.1.0",
+  "builtin-baseline": "8f363bdc11359ede4bc51e5eb32a2617538049c8",
+  "dependencies": [
+    "shader-slang",
+    {
+      "name": "clang-format",
+      "host": true
+    }
+  ]
+}

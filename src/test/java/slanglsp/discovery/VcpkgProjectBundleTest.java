@@ -16,9 +16,8 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-/** Whole-project fixtures, with an optional real vcpkg installation. */
+/** Whole-project fixtures, including a real vcpkg installation. */
 class VcpkgProjectBundleTest {
     private static final List<String> LOCAL_INSTALLATIONS =
             List.of("vcpkg_installed", "vcpkg/installed", "extern/vcpkg/installed");
@@ -80,7 +79,7 @@ class VcpkgProjectBundleTest {
     @Test
     @Timeout(value = 15, unit = TimeUnit.MINUTES)
     void findsRealInstallation() throws Exception {
-        Path vcpkg = configuredVcpkg();
+        Path vcpkg = slanglsp.TestDependencies.vcpkgRoot();
         Host host = Host.current();
         var fixture = new VcpkgProjectFixture(temporary);
         Path installed = temporary.resolve("real sdk/installed");
@@ -89,14 +88,6 @@ class VcpkgProjectBundleTest {
         installSlang(fixture, vcpkg, cmake, installed, host);
         configureCmake(fixture, vcpkg, cmake, installed);
         assertAllAdapters(fixture, cmake, installed, host);
-    }
-
-    private Path configuredVcpkg() {
-        String root = System.getenv("VCPKG_TEST_ROOT");
-
-        assumeTrue(root != null && !root.isBlank(), "Set VCPKG_TEST_ROOT to opt into a real shader-slang installation");
-
-        return Path.of(root).toAbsolutePath();
     }
 
     private void installSlang(VcpkgProjectFixture fixture, Path vcpkg, Path project, Path installed, Host host)

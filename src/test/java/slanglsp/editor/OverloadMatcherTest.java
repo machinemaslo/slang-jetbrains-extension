@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class OverloadMatcherTest {
     @Test
@@ -68,8 +67,7 @@ class OverloadMatcherTest {
     @Test
     @Timeout(90)
     void resolvesSameLineOverloadsDespiteIncorrectColumns() throws Exception {
-        String executable = System.getenv("SLANGD_TEST_EXECUTABLE");
-        assumeTrue(executable != null);
+        String executable = slanglsp.TestDependencies.slangd();
 
         var factory = IdeaTestFixtureFactory.getFixtureFactory();
         var fixture = factory.createCodeInsightFixture(
@@ -96,6 +94,7 @@ class OverloadMatcherTest {
                 settings.useLocalVcpkgSlangd = false;
                 settings.additionalIncludePaths = List.of(fixture.getTempDirPath());
                 ProjectSettings.getInstance(fixture.getProject()).loadState(settings);
+                NativeServerSupport.enable(fixture.getProject());
 
                 files[0] = fixture.addFileToProject("overloads.slang", declarations);
                 files[1] = fixture.addFileToProject("consumer.slang", calls);

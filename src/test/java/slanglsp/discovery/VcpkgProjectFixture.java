@@ -15,7 +15,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Builds project metadata and package trees shared by the discovery bundle. */
 final class VcpkgProjectFixture {
-    private static final String BASELINE = "e6f9e70a29a3e80a1fc510d8503304315447112f";
     private static final Gson JSON = new GsonBuilder().setPrettyPrinting().create();
 
     enum BuildSystem { CMAKE, MSBUILD, XMAKE, MESON }
@@ -43,7 +42,7 @@ final class VcpkgProjectFixture {
     Path createProject(BuildSystem system, Path installed, String triplet) throws Exception {
         Path root = temporary.resolve(system.name().toLowerCase(Locale.ROOT) + " project");
         writeJson(root.resolve("vcpkg.json"),
-                Map.of("name", "discovery-bundle", "version-string", "0.1.0", "builtin-baseline", BASELINE,
+                Map.of("name", "discovery-bundle", "version-string", "0.1.0", "builtin-baseline", slanglsp.TestDependencies.baseline(),
                         "dependencies", List.of("shader-slang")));
         write(root.resolve("main.cpp"), "int main() { return 0; }\n");
 

@@ -12,8 +12,7 @@ class UsageTargetTest {
     @Test
     @org.junit.jupiter.api.Timeout(90)
     void caretTargetFindsCrossFileCallsWithNativeServer() throws Exception {
-        String executable = System.getenv("SLANGD_TEST_EXECUTABLE");
-        org.junit.jupiter.api.Assumptions.assumeTrue(executable != null);
+        String executable = slanglsp.TestDependencies.slangd();
 
         var factory = IdeaTestFixtureFactory.getFixtureFactory();
         var fixture = factory.createCodeInsightFixture(
@@ -32,6 +31,7 @@ class UsageTargetTest {
                 settings.useLocalVcpkgSlangd = false;
                 settings.additionalIncludePaths = java.util.List.of(fixture.getTempDirPath());
                 slanglsp.settings.ProjectSettings.getInstance(fixture.getProject()).loadState(settings);
+                NativeServerSupport.enable(fixture.getProject());
 
                 var declaration = fixture.addFileToProject("quartzContour.slang",
                         """
