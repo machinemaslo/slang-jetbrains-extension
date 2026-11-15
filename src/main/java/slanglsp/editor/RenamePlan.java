@@ -16,26 +16,17 @@ import com.intellij.psi.search.FileTypeIndex;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.usageView.UsageInfo;
 import com.redhat.devtools.lsp4ij.LSPIJUtils;
-import org.eclipse.lsp4j.Location;
 
 import java.net.URI;
 import java.util.*;
 
 /** A project-local rename verified by definitions, with an immutable document snapshot. */
 final class RenamePlan {
-    private record Symbol(URI uri, int line, int character) {
-        static Symbol of(Location location) {
-            var position = location.getRange().getStart();
-
-            return new Symbol(URI.create(location.getUri()).normalize(), position.getLine(), position.getCharacter());
-        }
-    }
-
     private record Source(PsiFile file, Document document, long stamp, String text, URI uri) {
-        Symbol symbol(int offset) {
+        SymbolLocation symbol(int offset) {
             var position = LSPIJUtils.toPosition(offset, document);
 
-            return new Symbol(uri, position.getLine(), position.getCharacter());
+            return new SymbolLocation(uri, position.getLine(), position.getCharacter());
         }
 
         void check() {
@@ -130,7 +121,7 @@ final class RenamePlan {
         });
     }
 
-    private record Declaration(Source source, Symbol symbol, int offset, boolean confirmed) {}
+    private record Declaration(Source source, SymbolLocation symbol, int offset, boolean confirmed) {}
 
     private static Declaration resolveDeclaration(PsiElement element, List<Source> sources, String name) {
         Source origin = ReadActions.compute(
@@ -144,17 +135,17 @@ final class RenamePlan {
                                                         "rename.only.symbols.declared.in.this.project.s.slang.files.can.be.renamed")));
 
         int originOffset = ReadActions.compute(element::getTextOffset);
-        Set<Symbol> targets = definitions(origin, originOffset);
+        Set<SymbolLocation> targets = definitions(origin, originOffset);
 
         if (targets.size() > 1) {
             throw invalidRename("rename.the.symbol.has.multiple.definitions.and.cannot.be.renamed.safely");
         }
 
-        Symbol symbol =
+        SymbolLocation symbol =
                 targets.isEmpty() ? ReadActions.compute(() -> origin.symbol(originOffset)) : targets.iterator().next();
         Source source =
                 sources.stream()
-                        .filter(candidate -> candidate.uri.equals(symbol.uri))
+                        .filter(candidate -> candidate.uri.equals(symbol.uri()))
                         .findFirst()
                         .orElseThrow(
                                 () -> invalidRename("rename.built.in.and.external.declarations.cannot.be.renamed"));
@@ -168,15 +159,15 @@ final class RenamePlan {
         return new Declaration(source, symbol, offset, !targets.isEmpty());
     }
 
-    private static int declarationOffset(Source source, Symbol symbol, String name) {
+    private static int declarationOffset(Source source, SymbolLocation symbol, String name) {
         return ReadActions.compute(() -> {
             source.check();
 
-            if (symbol.line < 0 || symbol.line >= source.document.getLineCount()) {
+            if (symbol.line() < 0 || symbol.line() >= source.document.getLineCount()) {
                 return -1;
             }
 
-            int offset = source.document.getLineStartOffset(symbol.line) + symbol.character;
+            int offset = source.document.getLineStartOffset(symbol.line()) + symbol.character();
 
             return UsageCandidates.find(source.text, name).contains(offset) ? offset : -1;
         });
@@ -202,8 +193,8 @@ final class RenamePlan {
 
             UsageSearch.processDefinitions(
                     source.file, source.document, offsets, source::check, (offset, locations) -> {
-                        Set<Symbol> targets = new HashSet<>();
-                        locations.forEach(location -> targets.add(Symbol.of(location.location())));
+                        Set<SymbolLocation> targets = new HashSet<>();
+                        locations.forEach(location -> targets.add(SymbolLocation.from(location.location())));
 
                         if (targets.contains(declaration.symbol)) {
                             if (targets.size() != 1) {
@@ -230,12 +221,12 @@ final class RenamePlan {
         return new IllegalArgumentException(SlangBundle.message(messageKey));
     }
 
-    private static Set<Symbol> definitions(Source source, int offset) {
+    private static Set<SymbolLocation> definitions(Source source, int offset) {
         ReadActions.run(source::check);
         var locations = UsageSearch.definitions(source.file, source.document, offset);
         ReadActions.run(source::check);
-        Set<Symbol> result = new HashSet<>();
-        locations.forEach(location -> result.add(Symbol.of(location.location())));
+        Set<SymbolLocation> result = new HashSet<>();
+        locations.forEach(location -> result.add(SymbolLocation.from(location.location())));
 
         return result;
     }

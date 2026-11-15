@@ -42,14 +42,6 @@ final class UsageSearch {
         }
     }
 
-    private record Symbol(URI uri, int line, int character) {
-        static Symbol from(Location location) {
-            var start = location.getRange().getStart();
-
-            return new Symbol(URI.create(location.getUri()).normalize(), start.getLine(), start.getCharacter());
-        }
-    }
-
     static boolean process(PsiElement element, SearchScope scope, Processor<? super UsageInfo> consumer) {
         Source source = snapshot(element);
 
@@ -58,12 +50,12 @@ final class UsageSearch {
         }
 
         Project project = source.file.getProject();
-        Set<Symbol> declarations = new HashSet<>();
+        Set<SymbolLocation> declarations = new HashSet<>();
         var virtualFile = source.file.getVirtualFile();
 
         if (virtualFile instanceof BuiltinFiles.BuiltinFile builtin) {
             Position position = ReadActions.compute(() -> LSPIJUtils.toPosition(source.offset, source.document));
-            declarations.add(new Symbol(builtin.uri(), position.getLine(), position.getCharacter()));
+            declarations.add(new SymbolLocation(builtin.uri(), position.getLine(), position.getCharacter()));
         } else {
             List<LocationData> references = references(source);
             source.checkUnchanged();
@@ -74,7 +66,7 @@ final class UsageSearch {
             }
 
             for (var location : definitions(source.file, source.document, source.offset)) {
-                declarations.add(Symbol.from(location.location()));
+                declarations.add(SymbolLocation.from(location.location()));
             }
         }
 
@@ -82,7 +74,7 @@ final class UsageSearch {
         // In that case use the source location; candidates still require semantic confirmation.
         if (declarations.isEmpty()) {
             Position position = ReadActions.compute(() -> LSPIJUtils.toPosition(source.offset, source.document));
-            declarations.add(new Symbol(fileUri(virtualFile), position.getLine(), position.getCharacter()));
+            declarations.add(new SymbolLocation(fileUri(virtualFile), position.getLine(), position.getCharacter()));
         }
 
         source.checkUnchanged();
@@ -108,7 +100,7 @@ final class UsageSearch {
         var declaration = ReadActions.compute(() -> {
             var position = LSPIJUtils.toPosition(source.offset, source.document);
 
-            return new Symbol(fileUri(source.file.getVirtualFile()), position.getLine(), position.getCharacter());
+            return new SymbolLocation(fileUri(source.file.getVirtualFile()), position.getLine(), position.getCharacter());
         });
         var scope = GlobalSearchScope.projectScope(source.file.getProject());
 
@@ -139,7 +131,7 @@ final class UsageSearch {
                     },
                     (offset, targets) -> !targets.isEmpty()
                             && targets.stream().noneMatch(
-                                    target -> declaration.equals(Symbol.from(target.location()))));
+                                     target -> declaration.equals(SymbolLocation.from(target.location()))));
 
             if (!allCandidatesUnrelated) {
                 return false;
@@ -197,7 +189,7 @@ final class UsageSearch {
     }
 
     private static boolean processCandidates(
-            Source source, Set<Symbol> declarations, SearchScope scope, Processor<? super UsageInfo> consumer) {
+            Source source, Set<SymbolLocation> declarations, SearchScope scope, Processor<? super UsageInfo> consumer) {
         Project project = source.file.getProject();
         var files = candidateFiles(project, scope, source.name);
         int visited = 0;
@@ -232,7 +224,7 @@ final class UsageSearch {
                             .filter(offset -> {
                                 Position position = LSPIJUtils.toPosition(offset, candidate.document);
 
-                                if (declarations.contains(new Symbol(
+                                if (declarations.contains(new SymbolLocation(
                                         fileUri(file), position.getLine(), position.getCharacter()))) {
                                     return false;
                                 }
@@ -251,7 +243,7 @@ final class UsageSearch {
                     },
                     (offset, targets) -> {
                         if (targets.stream().anyMatch(
-                                target -> declarations.contains(Symbol.from(target.location())))) {
+                                target -> declarations.contains(SymbolLocation.from(target.location())))) {
                             UsageInfo usage = ReadActions.compute(
                                     () -> new UsageInfo(candidate.file, offset, offset + source.name.length()));
 
@@ -281,7 +273,7 @@ final class UsageSearch {
             throw new IllegalStateException(SlangBundle.message("usages.uri.failed", file.getName()));
         }
 
-        return uri.normalize();
+        return SymbolLocation.normalizeUri(uri);
     }
 
     static Set<VirtualFile> candidateFiles(Project project, SearchScope scope, String name) {

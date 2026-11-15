@@ -23,6 +23,20 @@ class DefinitionLocationsTest {
                         "module grid_traversal;\npublic bool intersect_box(\n\tfloat3 origin) { return true; }\n");
                 var expected = new Range(new Position(1, 12), new Position(1, 25));
 
+                // Exercise URI and column repair together, including on Linux CI.
+                String encodedUri = UsageSearch.fileUri(file.getVirtualFile()).toString()
+                        .replace("grid_traversal.slang", "%67rid_traversal.slang");
+                var location = new com.redhat.devtools.lsp4ij.usages.LocationData(
+                        new org.eclipse.lsp4j.Location(encodedUri,
+                                new Range(new Position(1, 1), new Position(1, 2))), null);
+                var repaired = DefinitionLocations.normalize(file, 0, "intersect_box", java.util.List.of(location));
+                assertEquals(1, repaired.size());
+                assertEquals(UsageSearch.fileUri(file.getVirtualFile()).toString(), repaired.getFirst().location().getUri());
+                assertEquals(expected, repaired.getFirst().location().getRange());
+                var missing = new com.redhat.devtools.lsp4ij.usages.LocationData(
+                        new org.eclipse.lsp4j.Location(encodedUri + ".missing", expected), null);
+                assertTrue(DefinitionLocations.normalize(file, 0, "intersect_box", java.util.List.of(missing)).isEmpty());
+
                 for (int column : new int[] {1, 2, 12, 200}) {
                     assertEquals(expected, DefinitionLocations.identifierRange(file, "intersect_box",
                             new Range(new Position(1, column), new Position(1, column + 13))));

@@ -120,8 +120,7 @@ class NativeProtocolTest {
             assertNotNull(definition);
             var uris = definition.isLeft() ? definition.getLeft().stream().map(Location::getUri).toList()
                                            : definition.getRight().stream().map(LocationLink::getTargetUri).toList();
-            assertTrue(uris.stream().anyMatch(uri -> Path.of(java.net.URI.create(uri)).equals(scene)),
-                    "Go to definition must resolve Scene to shared/scene.slang: " + uris);
+            assertDefinitionTargets(uris, scene);
             var imported = server.getTextDocumentService()
                                    .definition(new DefinitionParams(
                                            new TextDocumentIdentifier(source.toUri().toString()), new Position(0, 18)))
@@ -129,7 +128,7 @@ class NativeProtocolTest {
             assertNotNull(imported);
             var importUris = imported.isLeft() ? imported.getLeft().stream().map(Location::getUri).toList()
                                                : imported.getRight().stream().map(LocationLink::getTargetUri).toList();
-            assertTrue(importUris.stream().anyMatch(uri -> Path.of(java.net.URI.create(uri)).equals(scene)));
+            assertDefinitionTargets(importUris, scene);
             server.getTextDocumentService().didOpen(new DidOpenTextDocumentParams(
                     new TextDocumentItem(scene.toUri().toString(), "slang", 1, Files.readString(scene))));
             var tokens = server.getTextDocumentService()
@@ -149,6 +148,16 @@ class NativeProtocolTest {
             process.destroyForcibly();
             listening.cancel(true);
         }
+    }
+
+    private static void assertDefinitionTargets(List<String> uris, Path expected) throws java.io.IOException {
+        for (String uri : uris) {
+            // slangd canonicalizes paths; macOS temporary directories may use a symlink alias.
+            if (Files.isSameFile(Path.of(java.net.URI.create(uri)), expected)) {
+                return;
+            }
+        }
+        fail("Go to definition must resolve to " + expected + ": " + uris);
     }
 
     private static void assertHoverContains(org.eclipse.lsp4j.services.LanguageServer server, Path source,
