@@ -1,6 +1,5 @@
 package slanglsp.editor;
 
-import com.intellij.formatting.service.FormattingService;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.command.undo.UndoManager;
 import com.intellij.openapi.fileEditor.impl.text.TextEditorProvider;
@@ -112,26 +111,16 @@ class NativeFormattingTest {
     }
 
     @Test
-    void nativeQuickFixWorksWithoutExecutablesAndCanBeUndone() {
+    void manualFormattingWorksWithoutExecutablesAndCanBeUndone() {
         EdtTestUtil.runInEdtAndWait(() -> {
             var file = fixture.addFileToProject("fix.slang", "float x=1;\n");
             fixture.configureFromExistingVirtualFile(file.getVirtualFile());
-            fixture.enableInspections(new SlangFormattingInspection());
-            assertInstanceOf(NativeFormattingService.class, FormattingService.EP_NAME.getExtensionList().stream()
-                    .filter(service -> service.canFormat(file)).findFirst().orElseThrow());
-            var annotator = new SlangFormattingAnnotator();
-            var input = annotator.collectInformation(file);
-            assertNotNull(input);
-            assertNotNull(annotator.doAnnotate(input));
-            assertTrue(fixture.doHighlighting().stream().anyMatch(info ->
-                    slanglsp.SlangBundle.message("inspection.formatting.message").equals(info.getDescription())));
-            new SlangFormattingAnnotator.Reformat().invoke(fixture.getProject(), fixture.getEditor(), file);
+            assertInstanceOf(com.intellij.formatting.service.CoreFormattingService.class,
+                    com.intellij.formatting.service.FormattingServiceUtil.findService(file, true, false));
+            new com.intellij.codeInsight.actions.ReformatCodeProcessor(fixture.getProject(), file, null, false).run();
             var document = fixture.getEditor().getDocument();
             com.intellij.testFramework.PlatformTestUtil.waitWithEventsDispatching(
-                    "Native quick fix", () -> document.getText().equals("float x = 1;\n"), 10);
-            var formattedInput = annotator.collectInformation(file);
-            assertNotNull(formattedInput);
-            assertNull(annotator.doAnnotate(formattedInput));
+                    "Manual formatting", () -> document.getText().equals("float x = 1;\n"), 10);
             UndoManager.getInstance(fixture.getProject()).undo(
                     TextEditorProvider.getInstance().getTextEditor(fixture.getEditor()));
             assertEquals("float x=1;\n", document.getText());
@@ -151,6 +140,182 @@ class NativeFormattingTest {
         assertTrue(formatted.contains(",\n"), formatted);
         assertEquals(formatted, NativeFormatting.format(formatted, settings));
         assertFormat(source, formatted);
+    }
+
+    @Test
+    void braceAndSpacingOptionsControlActualFormatting() {
+        var custom = settings.getCustomSettings(slanglsp.settings.SlangCodeStyleSettings.class);
+        custom.TYPE_BRACES = 1;
+        custom.FUNCTION_BRACES = 2;
+        custom.CONTROL_BRACES = 1;
+        var common = settings.getCommonSettings(SlangLanguage.INSTANCE);
+        common.ELSE_ON_NEW_LINE = false;
+        common.SPACE_BEFORE_IF_PARENTHESES = false;
+        common.SPACE_AROUND_ADDITIVE_OPERATORS = false;
+        common.SPACE_AROUND_EQUALITY_OPERATORS = false;
+        common.SPACE_AROUND_ASSIGNMENT_OPERATORS = false;
+        assertFormat("struct Data{float value;};\nfloat f(float a,float b){float sum=a+b;if(a==b){return sum;}else{return a-b;}}\n",
+                """
+                struct Data {
+                    float value;
+                };
+                float f(float a, float b)
+                {
+                    float sum=a+b;
+                    if(a==b) {
+                        return sum;
+                    } else {
+                        return a-b;
+                    }
+                }
+                """);
+        String adjacentOperators = "void f(){a = b + +c; a = b - -c;}\n";
+        String formatted = NativeFormatting.format(adjacentOperators, settings);
+        assertEquals(tokens(adjacentOperators), tokens(formatted), "Spacing options must not create ++ or --");
+    }
+
+    @Test
+    void blankLineAndWrappingOptionsAreApplied() {
+        var common = settings.getCommonSettings(SlangLanguage.INSTANCE);
+        common.BLANK_LINES_AROUND_METHOD = 1;
+        common.KEEP_BLANK_LINES_IN_CODE = 0;
+        common.KEEP_BLANK_LINES_IN_DECLARATIONS = 1;
+        common.KEEP_BLANK_LINES_BEFORE_RBRACE = 0;
+        assertFormat("void first(){\n\nreturn;\n\n}\n\n\nvoid second(){return;}\n", """
+                void first()
+                {
+                    return;
+                }
+
+                void second()
+                {
+                    return;
+                }
+                """);
+        common.CALL_PARAMETERS_WRAP = 0;
+        common.ASSIGNMENT_WRAP = 0;
+        common.KEEP_LINE_BREAKS = false;
+        settings.setRightMargin(SlangLanguage.INSTANCE, 20);
+        String call = "void f(){call(firstArgument,\nsecondArgument,thirdArgument);}\n";
+        String unwrapped = NativeFormatting.format(call, settings);
+        assertTrue(unwrapped.contains("call(firstArgument, secondArgument, thirdArgument);"), unwrapped);
+        common.CALL_PARAMETERS_WRAP = com.intellij.psi.codeStyle.CommonCodeStyleSettings.WRAP_ALWAYS;
+        String wrapped = NativeFormatting.format(call, settings);
+        assertTrue(wrapped.contains(",\n        secondArgument,\n        thirdArgument"), wrapped);
+        assertEquals(wrapped, NativeFormatting.format(wrapped, settings));
+    }
+
+    @Test
+    void multilineAlignmentAndSwitchIndentationFollowSettings() {
+        var common = settings.getCommonSettings(SlangLanguage.INSTANCE);
+        common.ALIGN_MULTILINE_PARAMETERS_IN_CALLS = true;
+        common.CALL_PARAMETERS_WRAP = 0;
+        String source = "void f(){call(firstArgument,\nsecondArgument,\nthirdArgument);}\n";
+        String formatted = NativeFormatting.format(source, settings);
+        var lines = formatted.lines().toList();
+        int firstColumn = lines.stream().filter(line -> line.contains("firstArgument")).findFirst().orElseThrow().indexOf("firstArgument");
+        int secondColumn = lines.stream().filter(line -> line.contains("secondArgument")).findFirst().orElseThrow().indexOf("secondArgument");
+        assertEquals(firstColumn, secondColumn, formatted);
+        assertFormat(source, formatted);
+        common.INDENT_CASE_FROM_SWITCH = false;
+        common.INDENT_BREAK_FROM_CASE = false;
+        String switched = NativeFormatting.format(
+                "void f(){switch(value){case 0:value=1;break;default:break;}}\n", settings);
+        assertTrue(switched.contains("\n    case 0:"), switched);
+        assertTrue(switched.contains("\n    break;"), switched);
+        assertEquals(switched, NativeFormatting.format(switched, settings));
+    }
+
+    @Test
+    void platformFormattingInspectionFollowsEngineSelection() {
+        EdtTestUtil.runInEdtAndWait(() -> {
+            var file = fixture.addFileToProject("inspection.slang", "float value=1;\n");
+            fixture.configureFromExistingVirtualFile(file.getVirtualFile());
+            fixture.enableInspections(new com.intellij.codeInspection.incorrectFormatting.IncorrectFormattingInspection());
+            assertTrue(fixture.doHighlighting().stream().anyMatch(info ->
+                    "IncorrectFormatting".equals(info.getInspectionToolId())));
+            settings.getCustomSettings(slanglsp.settings.SlangCodeStyleSettings.class).USE_CLANG_FORMAT = true;
+            com.intellij.codeInsight.daemon.DaemonCodeAnalyzer.getInstance(fixture.getProject()).restart();
+            assertTrue(fixture.doHighlighting().stream().noneMatch(info ->
+                    "IncorrectFormatting".equals(info.getInspectionToolId())));
+        });
+    }
+
+    @Test
+    void nativeFormatterReadsProjectClangFormatWhenEnabled() {
+        EdtTestUtil.runInEdtAndWait(() -> {
+            fixture.addFileToProject(".clang-format", """
+                    BasedOnStyle: LLVM
+                    IndentWidth: 2
+                    BreakBeforeBraces: Attach
+                    """);
+            settings.getCustomSettings(slanglsp.settings.SlangCodeStyleSettings.class).READ_CLANG_FORMAT = true;
+            var manager = CodeStyleSettingsManager.getInstance(fixture.getProject());
+            var previous = manager.getMainProjectCodeStyle();
+            boolean wasProject = manager.USE_PER_PROJECT_SETTINGS;
+            manager.dropTemporarySettings();
+            manager.setMainProjectCodeStyle(settings);
+            manager.USE_PER_PROJECT_SETTINGS = true;
+            var file = fixture.addFileToProject("config.slang", "void f(){return;}\n");
+            try {
+                WriteCommandAction.runWriteCommandAction(fixture.getProject(), () -> {
+                    CodeStyleManager.getInstance(fixture.getProject()).reformat(file);
+                });
+                assertEquals("void f() {\n  return;\n}\n", file.getText());
+                assertTrue(settings.getCustomSettings(slanglsp.settings.SlangCodeStyleSettings.class).BRACES_ON_NEW_LINE,
+                        "Reading a file must not mutate the IDE scheme");
+            } finally {
+                manager.setMainProjectCodeStyle(previous);
+                manager.USE_PER_PROJECT_SETTINGS = wasProject;
+            }
+        });
+    }
+
+    @Test
+    void shaderAttributesAndPublicDeclarationsUseSlangAwareFormatting() {
+        EdtTestUtil.runInEdtAndWait(() -> {
+            var state = ProjectSettings.getInstance(fixture.getProject()).getState();
+            state.clangFormatLocation = slanglsp.TestDependencies.clangFormat();
+            ProjectSettings.getInstance(fixture.getProject()).loadState(state);
+            for (String source : List.of("""
+                    [shader("compute")]
+                    [numthreads(64, 1, 1)]
+                    void main(uint3 id : SV_DispatchThreadID)
+                    {
+                        return;
+                    }
+                    """, """
+                    public float3 shadeSurface(float3 color, float intensity)
+                    {
+                        return color * intensity;
+                    }
+                    """)) {
+                var file = fixture.addFileToProject("shader" + System.nanoTime() + ".slang", source);
+                fixture.configureFromExistingVirtualFile(file.getVirtualFile());
+                assertNull(ClangFormat.options(file), "C++ formatting must not rewrite Slang declaration syntax");
+                assertEquals(source, NativeFormatting.format(source, settings));
+            }
+        });
+    }
+
+    @Test
+    void selectionFormattingOnlyChangesTargetFunction() {
+        EdtTestUtil.runInEdtAndWait(() -> {
+            String source = """
+                    float first=1;
+
+                    float badlyFormatted(float x){if(x>0){return x+1;}else{return -x;}}
+                    """;
+            var file = fixture.addFileToProject("multiple.slang", source);
+            fixture.configureFromExistingVirtualFile(file.getVirtualFile());
+            int function = source.indexOf("float badlyFormatted");
+            WriteCommandAction.runWriteCommandAction(fixture.getProject(),
+                    () -> CodeStyleManager.getInstance(fixture.getProject()).reformatText(file, function, source.length()));
+            String expected = "float first=1;\n\n"
+                    + NativeFormatting.format(source.substring(source.indexOf("float badlyFormatted")), settings);
+            com.intellij.testFramework.PlatformTestUtil.waitWithEventsDispatching(
+                    "Formatting intention", () -> fixture.getEditor().getDocument().getText().equals(expected), 10);
+        });
     }
 
     @Test

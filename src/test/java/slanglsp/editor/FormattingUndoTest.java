@@ -57,7 +57,10 @@ class FormattingUndoTest {
         LanguageServerManager.getInstance(fixture.getProject())
                 .stop("slanglsp.SlangLanguageServer",
                         new LanguageServerManager.StopOptions().setWillDisable(false));
-        EdtTestUtil.runInEdtAndWait(fixture::tearDown);
+        EdtTestUtil.runInEdtAndWait(() -> {
+            com.intellij.psi.codeStyle.CodeStyleSettingsManager.getInstance(fixture.getProject()).dropTemporarySettings();
+            fixture.tearDown();
+        });
     }
 
     @Test
@@ -155,6 +158,13 @@ class FormattingUndoTest {
             settings.clangFormatLocation = clangFormat;
             settings.clangFormatStyle = "LLVM";
             ProjectSettings.getInstance(fixture.getProject()).loadState(settings);
+            var styles = com.intellij.psi.codeStyle.CodeStyleSettingsManager.getInstance(fixture.getProject());
+            var scheme = styles.createSettings();
+            var formatter = scheme.getCustomSettings(slanglsp.settings.SlangCodeStyleSettings.class);
+            formatter.USE_CLANG_FORMAT = true;
+            formatter.USE_CUSTOM_CLANG_FORMAT = true;
+            formatter.CLANG_FORMAT_PATH = clangFormat;
+            styles.setTemporarySettings(scheme);
 
             open("format.slang", original);
         });

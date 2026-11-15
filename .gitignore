@@ -11,6 +11,7 @@ vcpkg_installed/
 .idea/libraries/
 *.iws
 *.iml
+!dev/playground/.idea/playground.iml
 *.ipr
 out/
 !**/src/main/**/out/

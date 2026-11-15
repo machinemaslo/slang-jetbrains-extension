@@ -1,0 +1,17 @@
+backprop
+bindless
+byteaddressbuffer
+cbuffer
+constantbuffer
+numthreads
+rwbyteaddressbuffer
+rwstructuredbuffer
+samplerstate
+slangc
+slangd
+slangpy
+spirv
+std
+structuredbuffer
+texture
+wgsl

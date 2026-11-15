@@ -10,8 +10,8 @@ import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiFile;
-import slanglsp.settings.ProjectSettings;
-import slanglsp.settings.SlangCodeStyle;
+import slanglsp.settings.SlangCodeStyleSettings;
+import slanglsp.settings.BundledClangFormat;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -28,13 +28,15 @@ final class ClangFormat {
     static Options options(PsiFile file) {
         var virtualFile = file.getVirtualFile();
         if (virtualFile == null || !virtualFile.isInLocalFileSystem()) return null;
-        var state = ProjectSettings.getInstance(file.getProject()).getState();
-        String executable = executable(state.clangFormatLocation);
-        if (executable == null) return null;
-        String fallback = state.clangFormatFallbackStyle.isBlank()
-                ? SlangCodeStyle.clangFormatStyle(CodeStyle.getSettings(file)) : state.clangFormatFallbackStyle;
-        return new Options(executable, virtualFile.toNioPath(),
-                state.clangFormatStyle.isBlank() ? "file" : state.clangFormatStyle, fallback);
+        var state = CodeStyle.getSettings(file).getCustomSettings(SlangCodeStyleSettings.class);
+        if (!state.USE_CLANG_FORMAT) return null;
+        String executable = state.USE_CUSTOM_CLANG_FORMAT ? state.CLANG_FORMAT_PATH.trim()
+                : state.USE_BUNDLED_CLANG_FORMAT ? BundledClangFormat.executable() : null;
+        if (executable == null || executable.isBlank()) {
+            executable = executable("");
+            if (executable == null) executable = SystemInfo.isWindows ? "clang-format.exe" : "clang-format";
+        }
+        return new Options(executable, virtualFile.toNioPath(), "file", "LLVM");
     }
 
     private static String executable(String configured) {

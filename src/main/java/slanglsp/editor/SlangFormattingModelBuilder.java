@@ -6,7 +6,7 @@ import com.intellij.formatting.FormattingModelBuilder;
 import com.intellij.formatting.FormattingModelProvider;
 import org.jetbrains.annotations.NotNull;
 
-/** Native whitespace formatting; clang-format remains the preferred external service. */
+/** Native whitespace formatting, selected through Editor / Code Style / Slang. */
 public final class SlangFormattingModelBuilder implements FormattingModelBuilder {
     @Override
     public @NotNull FormattingModel createModel(@NotNull FormattingContext context) {

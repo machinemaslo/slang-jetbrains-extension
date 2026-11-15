@@ -9,6 +9,18 @@ import java.util.function.Supplier;
 public final class ExecutableLocator {
     public static Optional<String> find(String explicitDirectory, boolean useVcpkg, Supplier<Optional<String>> vcpkg,
             String path, String vulkanSdk, String executableName) {
+        return find(explicitDirectory, useVcpkg, vcpkg, path, vulkanSdk, executableName, null);
+    }
+
+    public static Optional<String> find(String explicitDirectory, boolean useVcpkg, Supplier<Optional<String>> vcpkg,
+            String path, String vulkanSdk, String executableName, String projectBasePath) {
+        if (explicitDirectory != null && !explicitDirectory.isBlank() && projectBasePath != null) {
+            try {
+                explicitDirectory = Path.of(projectBasePath).resolve(explicitDirectory).normalize().toString();
+            } catch (InvalidPathException ignored) {
+                // Invalid configured paths still allow normal SDK/PATH discovery below.
+            }
+        }
         Optional<String> explicit = inDirectory(explicitDirectory, executableName);
 
         if (explicit.isPresent())

@@ -29,33 +29,87 @@ Use a current `slangd` installation. Configure the server directory in Settings 
 ---
 
 ### Formatting
-Install `clang-format`, then open Settings → Tools → Slang → Formatting. Leave the executable field empty to search PATH, or enter its full path.
+Choose the engine under **Editor → Code Style → Slang → General**:
+
+- **Slang formatter** (default): uses the native JetBrains model and the Slang
+  code-style tabs. No executable is required.
+- **Read code style from .clang-format files**: keeps the native engine and
+  imports supported settings from the nearest `.clang-format` or `_clang-format`.
+  Supported options are `IndentWidth`, `ContinuationIndentWidth`, `TabWidth`,
+  `UseTab`, `ColumnLimit`, and `BreakBeforeBraces` (`Allman`, `GNU`, `Attach`).
+  Common `BasedOnStyle` presets supply the corresponding native values;
+  `InheritParentConfig` and default/C++ YAML document sections are supported.
+  Unsupported options do not change the native settings.
+- **Clang-Format**: runs the IDE's bundled executable when detected (CLion/Rider),
+  an executable on PATH, or a custom executable selected with Browse.
+  It uses `.clang-format`, falling back to LLVM when no file exists.
+  Native Code Style formatting options do not affect this engine.
+  Missing tools produce a formatting error rather than silently switching engines.
 
 **Editor → Code Style → Slang** controls tabs, indentation, continuation indentation, line length, and opening-brace placement.
+The page opens on **General** and uses standard JetBrains option tables and live previews:
+
+- **Tabs and Indents** — spaces/tabs, indentation, continuation indentation, tab width, smart tabs.
+- **Braces Layout** — default placement plus separate function, type/namespace, and control-flow overrides;
+  placement of `else`, `catch`, and `while`.
+- **Blank Lines** — retained blank lines in code/declarations, before closing braces, and between top-level functions.
+- **Line Breaks and Wrapping** — line width, preserving existing breaks, argument/parameter lists, assignments.
+- **Spaces** — control/function parentheses, parentheses/bracket interiors, commas, semicolons, and operators.
+- **Indentation and Alignment** — multiline argument/parameter alignment and switch/case/break indentation.
+
+The organization follows [JetBrains' C/C++ Code Style settings](https://www.jetbrains.com/help/clion/settings-code-style-c-cpp.html),
+with options implemented for Slang's native formatter. Previews include shader attributes and Slang declarations.
 Use **Set from** to select **Slang (upstream)** (the default, following shader-slang v2026.22's
 [`.clang-format`](https://github.com/shader-slang/slang/blob/v2026.22/.clang-format): four-space indentation,
 100 columns, Allman braces) or **Java-style (K&R)** (attached braces and eight-space continuation indentation).
 These presets are editable and stored in the IDE's code-style scheme.
 
-With formatter **Style** set to `file`, a project's `.clang-format` takes precedence.
-Leave **Fallback style** empty to use the Slang code-style settings when no configuration file is found.
-Existing non-empty style overrides remain supported. Smart typing uses the IDE indentation settings;
-brace placement is applied by explicit formatting and reformat-on-paste.
-
-When `clang-format` is configured or available on PATH, it is the preferred formatter and runs directly,
-without requiring slangd. Otherwise the native JetBrains formatter uses **Editor → Code Style → Slang**.
 The native formatter handles braces, spacing, indentation, continuation indentation, and wrapping,
 and powers the Code Style preview. It preserves token contents (including strings, comments, and
 multiline preprocessor directives) and keeps ambiguous pointer/generic spacing unchanged.
-Native formatting uses IDE settings, not `.clang-format` configuration.
-**Editor → Inspections → Slang → Code does not follow formatting style** enables background style checks
-(weak warnings by default). **Reformat file** fixes the current document with undo support.
-Checks use the selected formatter, skip files larger than 1 MB, and discard
-results if you edit the document while a check is running.
+clang-format parses Slang as C++; choose the native engine to preserve Slang-specific
+attribute and visibility-modifier layouts.
+
+Use the IDE's normal
+**Reformat Code** action to format the entire file or an explicit selection.
+For optional live checks with the native engine, enable the built-in
+**Editor → Inspections → General → Incorrect formatting** inspection.
+The platform skips this inspection when clang-format is selected. There is no
+separate Slang formatting inspection.
 
 New projects start with no predefined macros. Existing project macros remain editable under General; examples are shown as help text rather than definitions.
 
+### Development playground
+
+Select **Run Plugin** (or run `./gradlew runPlugin`) to launch the latest release
+of IntelliJ IDEA in a dedicated plugin sandbox. Gradle downloads/caches the IDE,
+its runtime, and a compatible LSP4IJ. The task seeds `build/playground` with open
+Slang files, cross-file function calls, unused symbols, spelling mistakes, and
+formatting examples. See the playground's README for the manual checks.
+
+Put installed `slangd` on PATH or use the repository's existing `vcpkg_installed`
+tools. The playground defaults to the native formatter; select clang-format in
+Code Style if desired. Launching does not install native tools. Playground edits and
+settings persist; close the sandbox and delete `build/playground` to reset it.
+The Slang executable-directory setting accepts paths relative to the project root.
+The playground uses `../../vcpkg_installed/<host-triplet>/tools/shader-slang`.
+On each launch, appearance settings (including normal UI zoom, theme, and fonts)
+are inherited from the most recently used IntelliJ IDEA configuration in the
+OS's standard JetBrains settings directory. With no existing configuration,
+the sandbox keeps its own settings. Presentation Mode zoom is a separate setting
+and only applies while Presentation Mode is active.
+
+Plugin DevKit can be enabled in your development IDE for plugin.xml assistance
+and plugin development inspections. The shared Gradle run configuration handles
+building, sandbox dependencies, launching, and debugging across developer machines.
+
 ### Smart editing
+Comments and strings use the IDE's **Proofreading → Typo** inspection and its built-in, project,
+application, and custom dictionaries. Standard Alt+Enter spelling suggestions and **Save to dictionary**
+actions are available; the IDE's spelling settings control whether saving asks for a project/application
+dictionary or uses a default. Code identifiers are not spellchecked.
+A small [Slang terminology dictionary](docs/spelling-dictionary.md) is bundled with the plugin.
+
 Slang provides local bracket and quote pairing, paired deletion, selection wrapping, smart Enter and Backspace,
 comment continuation, closing-brace indentation, and paste indentation. These follow **Editor → General → Smart Keys**
 and the IDE's indentation options. Enter in a populated inline body expands it onto separate lines.

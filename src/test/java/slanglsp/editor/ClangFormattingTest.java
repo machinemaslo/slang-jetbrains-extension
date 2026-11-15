@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ClangFormattingTest {
     @Test
-    void liveChecksAndUndoWorkWithoutLanguageServer() throws Exception {
+    void manualFormattingAndUndoWorkWithoutLanguageServer() throws Exception {
         var factory = IdeaTestFixtureFactory.getFixtureFactory();
         var fixture = factory.createCodeInsightFixture(factory.createLightFixtureBuilder("ClangFormatting").getFixture(),
                 new TempDirTestFixtureImpl());
@@ -43,14 +43,16 @@ class ClangFormattingTest {
                 settings.clangFormatStyle = "file";
                 settings.clangFormatFallbackStyle = "";
                 ProjectSettings.getInstance(fixture.getProject()).loadState(settings);
-                fixture.enableInspections(new SlangFormattingInspection());
+                var styles = com.intellij.psi.codeStyle.CodeStyleSettingsManager.getInstance(fixture.getProject());
+                var scheme = styles.createSettings();
+                var formatter = scheme.getCustomSettings(slanglsp.settings.SlangCodeStyleSettings.class);
+                formatter.USE_CLANG_FORMAT = true;
+                formatter.USE_CUSTOM_CLANG_FORMAT = true;
+                formatter.CLANG_FORMAT_PATH = TestDependencies.clangFormat();
+                styles.setTemporarySettings(scheme);
                 var file = fixture.addFileToProject("sample.slang", "float value=1;\n");
                 fixture.configureFromExistingVirtualFile(file.getVirtualFile());
             });
-            var annotator = new SlangFormattingAnnotator();
-            var input = ReadActions.compute(() -> annotator.collectInformation(fixture.getFile()));
-            assertNotNull(input);
-            assertNotNull(annotator.doAnnotate(input));
             EdtTestUtil.runInEdtAndWait(() -> {
                 var file = fixture.getFile();
                 var document = fixture.getEditor().getDocument();
@@ -58,7 +60,6 @@ class ClangFormattingTest {
                         .filter(service -> service.canFormat(file)).findFirst().orElseThrow());
                 WriteCommandAction.runWriteCommandAction(fixture.getProject(), () -> document.setText("float value=2;\n"));
             });
-            assertNull(annotator.doAnnotate(input), "Do not diagnose a stale document snapshot");
             EdtTestUtil.runInEdtAndWait(() -> {
                 var document = fixture.getEditor().getDocument();
                 document.putUserData(AsyncDocumentFormattingService.FORMAT_DOCUMENT_SYNCHRONOUSLY, true);
@@ -74,33 +75,28 @@ class ClangFormattingTest {
                 undo.redo(TextEditorProvider.getInstance().getTextEditor(fixture.getEditor()));
                 assertEquals("float value = 2;\n", document.getText());
             });
-            var formatted = ReadActions.compute(() -> annotator.collectInformation(fixture.getFile()));
-            assertNotNull(formatted);
-            assertNull(annotator.doAnnotate(formatted));
             EdtTestUtil.runInEdtAndWait(() -> {
                 var document = fixture.getEditor().getDocument();
                 WriteCommandAction.runWriteCommandAction(fixture.getProject(), () -> document.setText("float value=3;\n"));
                 com.intellij.psi.PsiDocumentManager.getInstance(fixture.getProject()).commitAllDocuments();
-                var diagnostics = fixture.doHighlighting();
-                assertTrue(diagnostics.stream().anyMatch(info ->
-                        slanglsp.SlangBundle.message("inspection.formatting.message").equals(info.getDescription())));
-                new SlangFormattingAnnotator.Reformat().invoke(fixture.getProject(), fixture.getEditor(), fixture.getFile());
+                new com.intellij.codeInsight.actions.ReformatCodeProcessor(
+                        fixture.getProject(), fixture.getFile(), null, false).run();
                 com.intellij.testFramework.PlatformTestUtil.waitWithEventsDispatching(
-                        "Formatting quick fix", () -> document.getText().equals("float value = 3;\n"), 10);
+                        "Manual formatting", () -> document.getText().equals("float value = 3;\n"), 10);
                 UndoManager.getInstance(fixture.getProject()).undo(
                         TextEditorProvider.getInstance().getTextEditor(fixture.getEditor()));
                 assertEquals("float value=3;\n", document.getText());
-                fixture.disableInspections(new SlangFormattingInspection());
-                assertNull(annotator.collectInformation(fixture.getFile()), "Respect the inspection profile");
                 var state = ProjectSettings.getInstance(fixture.getProject()).getState();
                 state.clangFormatLocation = fixture.getTempDirPath() + "/missing-clang-format";
                 ProjectSettings.getInstance(fixture.getProject()).loadState(state);
+                CodeStyle.getSettings(fixture.getFile()).getCustomSettings(
+                        slanglsp.settings.SlangCodeStyleSettings.class).USE_CLANG_FORMAT = false;
                 assertFalse(new ClangFormattingService().canFormat(fixture.getFile()));
-                assertNull(annotator.collectInformation(fixture.getFile()));
             });
         } finally {
             EdtTestUtil.runInEdtAndWait(() -> {
                 NativeServerSupport.enable(fixture.getProject());
+                com.intellij.psi.codeStyle.CodeStyleSettingsManager.getInstance(fixture.getProject()).dropTemporarySettings();
                 fixture.tearDown();
             });
         }

@@ -15,7 +15,10 @@ public final class SlangCodeStylePresets {
         indent.CONTINUATION_INDENT_SIZE = javaStyle ? 8 : 4;
         indent.TAB_SIZE = javaStyle ? 4 : 8;
         indent.USE_TAB_CHARACTER = false;
-        settings.getCustomSettings(SlangCodeStyleSettings.class).BRACES_ON_NEW_LINE = !javaStyle;
+        var custom = settings.getCustomSettings(SlangCodeStyleSettings.class);
+        custom.BRACES_ON_NEW_LINE = !javaStyle;
+        custom.FUNCTION_BRACES = custom.TYPE_BRACES = custom.CONTROL_BRACES = 0;
+        common.ELSE_ON_NEW_LINE = common.CATCH_ON_NEW_LINE = common.WHILE_ON_NEW_LINE = !javaStyle;
     }
 
     public static final class Slang extends PredefinedCodeStyle {

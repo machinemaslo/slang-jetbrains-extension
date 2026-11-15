@@ -13,7 +13,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-/** Prefer a local clang-format over a language-server round trip. */
+/** Runs the clang-format executable selected in the Slang code-style scheme. */
 public final class ClangFormattingService extends AsyncDocumentFormattingService {
     @Override
     public @NotNull Set<Feature> getFeatures() {

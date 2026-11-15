@@ -54,7 +54,8 @@ class ServerConnection extends ProcessStreamConnectionProvider {
         var exePath = ExecutableLocator.find(config.explicitSlangdLocation, config.useLocalVcpkgSlangd,
                 ()
                         -> project.getService(VcpkgDiscoveryService.class).findExecutable(),
-                EnvironmentUtil.getValue("PATH"), EnvironmentUtil.getValue("VULKAN_SDK"), getLspExeName());
+                EnvironmentUtil.getValue("PATH"), EnvironmentUtil.getValue("VULKAN_SDK"), getLspExeName(),
+                project.getBasePath());
 
         if (exePath.isPresent()) {
             super.setCommands(List.of(exePath.get()));

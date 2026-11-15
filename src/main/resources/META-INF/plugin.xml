@@ -73,14 +73,11 @@
         <fileType name="Slang" implementationClass="slanglsp.language.SlangFileType" fieldName="INSTANCE" language="Slang" extensions="slang;slangh"/>
         
         <externalAnnotator language="Slang" implementationClass="slanglsp.editor.UnusedSymbolsAnnotator"/>
-        <externalAnnotator language="Slang" implementationClass="slanglsp.editor.SlangFormattingAnnotator"/>
-        <localInspection language="Slang" shortName="SlangFormatting"
-                         bundle="messages.SlangBundle" key="inspection.formatting.name"
-                         groupBundle="messages.SlangBundle" groupKey="inspection.group.slang"
-                         enabledByDefault="true" level="WEAK WARNING"
-                         implementationClass="slanglsp.editor.SlangFormattingInspection"/>
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
         <lang.formatter language="Slang" implementationClass="slanglsp.editor.SlangFormattingModelBuilder"/>
+        <codeStyleSettingsModifier implementation="slanglsp.settings.SlangClangFormatSettings"/>
+        <spellchecker.support language="Slang" implementationClass="slanglsp.editor.SlangSpellcheckingStrategy"/>
+        <spellchecker.bundledDictionaryProvider implementation="slanglsp.editor.SlangDictionaryProvider"/>
         <langCodeStyleSettingsProvider implementation="slanglsp.settings.SlangCodeStyleProvider"/>
         <predefinedCodeStyle implementation="slanglsp.settings.SlangCodeStylePresets$Slang"/>
         <predefinedCodeStyle implementation="slanglsp.settings.SlangCodeStylePresets$Java"/>
@@ -94,13 +91,7 @@
         <typingActionsExtension implementation="slanglsp.editor.SlangTypingActions"/>
         <formattingService id="SlangClangFormat"
                            implementation="slanglsp.editor.ClangFormattingService"
-                           order="first, before SlangNativeFormat, before SlangLspFormat"/>
-        <formattingService id="SlangNativeFormat"
-                           implementation="slanglsp.editor.NativeFormattingService"
-                           order="first, after SlangClangFormat, before SlangLspFormat"/>
-        <formattingService id="SlangLspFormat"
-                implementation="slanglsp.editor.SlangFormattingService"
-                order="first"/>
+                           order="first"/>
         <lang.findUsagesProvider language="Slang" implementationClass="slanglsp.editor.SlangFindUsagesProvider"/>
         <targetElementEvaluator
                 language="Slang"

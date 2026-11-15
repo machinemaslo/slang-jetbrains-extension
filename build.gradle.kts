@@ -99,6 +99,45 @@ val installTestDependencies = tasks.register<Exec>("installTestDependencies") {
     }
 }
 
+val preparePlayground = tasks.register<PreparePlayground>("preparePlayground") {
+    group = "intellij platform"
+    description = "Seed the editable Slang playground and connect installed native tools."
+    templateDirectory.set(layout.projectDirectory.dir("dev/playground"))
+    playgroundDirectory.set(layout.buildDirectory.dir("playground"))
+    slangdCandidate.set(testSlangd.asFile.absolutePath)
+    clangFormatCandidate.set(testClangFormat.asFile.absolutePath)
+    searchPath.set(providers.environmentVariable("PATH").getOrElse(""))
+    outputs.upToDateWhen { false }
+}
+
+val syncSandboxAppearance = tasks.register<SyncSandboxAppearance>("syncSandboxAppearance") {
+    val home = providers.systemProperty("user.home").get()
+    val configRoot = when (hostOs) {
+        "windows" -> providers.environmentVariable("APPDATA").getOrElse("$home/AppData/Roaming")
+        "osx" -> "$home/Library/Application Support"
+        else -> providers.environmentVariable("XDG_CONFIG_HOME").getOrElse("$home/.config")
+    }
+    userConfigRoot.set("$configRoot/JetBrains")
+}
+
+val runPlugin = intellijPlatformTesting.runIde.register("runPlugin") {
+    type = IntelliJPlatformType.IntellijIdea
+    version = "latest"
+    plugins {
+        compatiblePlugin("com.redhat.devtools.lsp4ij")
+    }
+    task {
+        dependsOn(preparePlayground, syncSandboxAppearance)
+        args(layout.buildDirectory.dir("playground").get().asFile.absolutePath)
+    }
+}
+
+syncSandboxAppearance.configure {
+    val sandbox = tasks.named<org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask>("prepareSandbox_runPlugin")
+    dependsOn(sandbox)
+    sandboxConfigDirectory.set(sandbox.flatMap { it.sandboxConfigDirectory })
+}
+
 tasks {
     withType<JavaCompile> {
         options.release.set(21)

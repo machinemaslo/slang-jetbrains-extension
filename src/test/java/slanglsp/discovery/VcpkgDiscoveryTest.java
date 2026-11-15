@@ -25,6 +25,18 @@ class VcpkgDiscoveryTest {
     }
 
     @Test
+    void resolvesExplicitDirectoryAgainstProjectRoot() throws Exception {
+        Path tool = executable("vcpkg_installed/tools/shader-slang/slangd");
+        Path project = Files.createDirectories(root.resolve("build/playground"));
+        assertEquals(Optional.of(tool.toString()), ExecutableLocator.find(
+                "../../vcpkg_installed/tools/shader-slang", false, Optional::empty,
+                null, null, "slangd", project.toString()));
+        assertEquals(Optional.of(tool.toString()), ExecutableLocator.find(
+                tool.getParent().toString(), false, Optional::empty,
+                null, null, "slangd", project.toString()));
+    }
+
+    @Test
     void preservesPriorityAndFallsBackWhenVulkanSdkHasNoServer() throws Exception {
         Path explicit = executable("explicit/slangd");
         Path local = executable("local/slangd");
