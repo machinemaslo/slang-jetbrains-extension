@@ -16,14 +16,12 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class UnusedSymbolsTest {
     @Test
     @Timeout(90)
     void findsUnusedDeclarationsUsingNativeServer() throws Exception {
-        String executable = System.getenv("SLANGD_TEST_EXECUTABLE");
-        assumeTrue(executable != null);
+        String executable = slanglsp.TestDependencies.slangd();
         var factory = IdeaTestFixtureFactory.getFixtureFactory();
         var fixture = factory.createCodeInsightFixture(
                 factory.createLightFixtureBuilder("UnusedSymbols").getFixture(), new TempDirTestFixtureImpl());
@@ -56,6 +54,7 @@ class UnusedSymbolsTest {
                         """);
                 settings.additionalIncludePaths = List.of(file[0].getVirtualFile().getParent().getPath());
                 ProjectSettings.getInstance(fixture.getProject()).loadState(settings);
+                NativeServerSupport.enable(fixture.getProject());
                 FileDocumentManager.getInstance().saveAllDocuments();
             });
 

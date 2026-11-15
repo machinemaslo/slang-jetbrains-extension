@@ -25,15 +25,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 // Integration checks exercise LSP4IJ's experimental extension points.
 class NavigationTest {
     @Test
     @Timeout(90)
     void builtinNavigationAndIndexedUsagesIncludeUnsavedEditsButExcludeShadowedNames() throws Exception {
-        String executable = System.getenv("SLANGD_TEST_EXECUTABLE");
-        assumeTrue(executable != null, "Set SLANGD_TEST_EXECUTABLE for native navigation verification");
+        String executable = slanglsp.TestDependencies.slangd();
         var factory = IdeaTestFixtureFactory.getFixtureFactory();
         CodeInsightTestFixture fixture = factory.createCodeInsightFixture(
                 factory.createLightFixtureBuilder("SlangNavigationTest").getFixture(), new TempDirTestFixtureImpl());
@@ -60,6 +58,7 @@ class NavigationTest {
                     fixture.addFileToProject("unrelated" + i + ".slang", "// sharedValue\nfloat other = 0;\n");
                 settings.additionalIncludePaths = List.of(files[0].getVirtualFile().getParent().getPath());
                 ProjectSettings.getInstance(fixture.getProject()).loadState(settings);
+                NativeServerSupport.enable(fixture.getProject());
                 FileDocumentManager.getInstance().saveAllDocuments();
                 var document = PsiDocumentManager.getInstance(fixture.getProject()).getDocument(files[1]);
                 assertNotNull(document);

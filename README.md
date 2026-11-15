@@ -64,17 +64,26 @@ The fallback cannot see usage outside project Slang files, host-side resource bi
 ---
 
 ### To Run Tests
-The small test suite covers numeric lexing, settings persistence, executable discovery, language isolation, and an optional real-server smoke test. Run it with the included Gradle wrapper (requires JDK 21):
+The test suite includes native language-server integration and real vcpkg installation/discovery tests. Prerequisites:
+
+- JDK 21 or newer.
+- The `VCPKG_ROOT` environment variable set to a bootstrapped vcpkg checkout. Gradle runs the executable in that directory; it does not need to be on `PATH`.
+- CMake, Ninja, and the native build toolchain required by `shader-slang`.
+
+Gradle's `installTestDependencies` task installs `shader-slang` and prebuilt `clang-format` into `vcpkg_installed/` before tests run. No separate Slang, clang-format, or Python installation is needed, and clang-format does not build LLVM from source. Subsequent runs reuse vcpkg's installed packages and caches. Missing prerequisites fail the run rather than skipping integration tests.
+
+**`builtin-baseline` in `vcpkg.json` is the single version selector.** Before installation, `generateClangFormatPort` reads LLVM's version from that exact official vcpkg commit, resolves the same clang-format release on PyPI, verifies the archive against PyPI's SHA-256 digest, and generates a SHA-512-pinned overlay port under `build/generated/vcpkg-ports/clang-format/`. The generated `provenance.json` records the baseline, version, URL, and checksums.
+
+Changing only `builtin-baseline` regenerates the overlay on the next **Run Tests**, and vcpkg installs the matching tools. Discovery fixtures also read that same manifest. If the new baseline selects the same LLVM version, clang-format naturally stays at that version. Keep your local vcpkg checkout updated so its version index includes the selected official packages.
+
+Prebuilt binaries come from the community [ssciwr clang-format-wheel distribution](https://github.com/ssciwr/clang-format-wheel) on PyPI. The native executable is extracted directly; pip and Python wrappers are not used. Supported hosts are x64/arm64 Windows and macOS, and glibc Linux. OS/runtime minimums depend on the chosen release (23.1.5 requires glibc 2.27+ on x64 and 2.26+ on arm64). Missing, yanked, or ambiguous matching binaries fail clearly; there is no LLVM source-build or alternate-version fallback. Generating a new overlay requires network access; unchanged task inputs reuse it.
+
+In IDEA, select the shared **Run Tests** configuration. It inherits `VCPKG_ROOT` from IDEA's environment, runs Gradle's `test` task, and displays test results and standard output/error in the Run tool window. It forces tests to run even when Gradle considers them up to date. Reports are saved under `build/reports/tests/test/`, with machine-readable results under `build/test-results/test/`; no shell redirection to `/tmp` is used.
 
 **On Windows:**
-```cmd
-./gradlew test
+```powershell
+.\gradlew.bat test
 ```
-
-To also test import resolution through a real language server, set `SLANGD_TEST_EXECUTABLE`
-to the absolute path of `slangd` before running the tests. This checks configured
-include paths, configuration replies, cross-file go-to-definition, hover, and
-semantic tokens over LSP.
 
 **On macOS/Linux:**
 ```bash
@@ -89,16 +98,8 @@ Run the self-contained project fixtures for CMake, MSBuild, Xmake, and Meson:
 ./gradlew test --tests '*VcpkgProjectBundleTest' --rerun
 ```
 
-The bundle generates temporary project files and vcpkg installation trees, then calls the plugin's production discovery code. It checks custom paths with spaces, all three conventional install directories in priority order, host-versus-target selection, missing servers, and Windows executable naming. Fixture executables are placeholders and are never run. These tests need no build tools or network access beyond the normal Gradle dependencies.
+The bundle generates temporary project files and vcpkg installation trees, then calls the plugin's production discovery code. It checks custom paths with spaces, all three conventional install directories in priority order, host-versus-target selection, missing servers, and Windows executable naming.
 
-To also install the real `shader-slang` package and configure CMake:
+The real-install test uses the same vcpkg checkout, installs `shader-slang` into a temporary custom directory, configures CMake, and asks every adapter to locate the real installed `slangd`. Its baseline matches the root manifest. MSBuild, Xmake, and Meson use generated metadata fixtures; their build tools are not invoked. Windows executable naming on a non-Windows machine is likewise a fixture test, not a Windows build.
 
-```bash
-VCPKG_TEST_ROOT=/absolute/path/to/vcpkg ./gradlew test --tests '*VcpkgProjectBundleTest' --rerun
-```
-
-In PowerShell, set `$env:VCPKG_TEST_ROOT = 'C:\path\to\vcpkg'` before running the Gradle command.
-
-The opt-in test needs a bootstrapped vcpkg checkout, CMake, Ninja, and the native toolchain required by the port. It pins baseline `e6f9e70a29a3e80a1fc510d8503304315447112f`, installs into a temporary custom directory, configures CMake, and asks every adapter to locate the real installed `slangd`. MSBuild, Xmake, and Meson use generated metadata fixtures; their build tools are not invoked. Windows executable naming on a non-Windows machine is likewise a fixture test, not a Windows build.
-
-Temporary projects are cleaned up by JUnit. vcpkg's normal download/build/binary caches may persist in its checkout and user cache. Results are in `build/reports/tests/test/index.html`; without `VCPKG_TEST_ROOT`, only the real-install test is skipped.
+Temporary projects are cleaned up by JUnit. The root `vcpkg_installed/` directory and vcpkg's download/build/binary caches persist for reuse. Results are in `build/reports/tests/test/index.html`. For IDE test runs, use the Gradle test runner so dependency installation and test properties are configured.

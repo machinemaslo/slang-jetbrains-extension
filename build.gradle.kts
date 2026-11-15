@@ -7,7 +7,14 @@ group = "slang"
 
 plugins {
     id("java")
+    idea
     id("org.jetbrains.intellij.platform") version "2.20.1"
+}
+
+idea {
+    module {
+        excludeDirs.add(file("vcpkg_installed"))
+    }
 }
 
 repositories {
@@ -48,6 +55,50 @@ java {
     targetCompatibility = JavaVersion.VERSION_21
 }
 
+val windowsHost = System.getProperty("os.name").startsWith("Windows")
+val hostOs = when {
+    windowsHost -> "windows"
+    System.getProperty("os.name").startsWith("Mac") -> "osx"
+    else -> "linux"
+}
+val hostArch: String = when (System.getProperty("os.arch").lowercase()) {
+    "amd64", "x86_64" -> "x64"
+    "aarch64", "arm64" -> "arm64"
+    else -> System.getProperty("os.arch")
+}
+val testTriplet = "$hostArch-$hostOs"
+val vcpkgName = if (windowsHost) "vcpkg.exe" else "vcpkg"
+val vcpkgRoot = providers.environmentVariable("VCPKG_ROOT").getOrElse("")
+val testInstalled = layout.projectDirectory.dir("vcpkg_installed")
+val testSlangd = testInstalled.file("$testTriplet/tools/shader-slang/${if (windowsHost) "slangd.exe" else "slangd"}")
+val testClangFormat = testInstalled.file("$testTriplet/tools/clang-format/${if (windowsHost) "clang-format.exe" else "clang-format"}")
+val generateClangFormatPort = tasks.register<GenerateClangFormatPort>("generateClangFormatPort") {
+    description = "Resolve a prebuilt clang-format matching LLVM at the project's vcpkg baseline."
+    group = "verification"
+    manifest.set(layout.projectDirectory.file("vcpkg.json"))
+    hostPlatform.set(testTriplet)
+    portDirectory.set(layout.buildDirectory.dir("generated/vcpkg-ports/clang-format"))
+}
+val installTestDependencies = tasks.register<Exec>("installTestDependencies") {
+    val configuredRoot = vcpkgRoot
+    dependsOn(generateClangFormatPort)
+    description = "Install the pinned Slang and clang-format test dependencies using vcpkg."
+    group = "verification"
+    workingDir(layout.projectDirectory)
+    commandLine(
+        if (vcpkgRoot.isNotBlank()) File(vcpkgRoot, vcpkgName).absolutePath else vcpkgName,
+        "install", "--triplet=$testTriplet", "--host-triplet=$testTriplet",
+        "--x-install-root=${testInstalled.asFile.absolutePath}",
+        "--overlay-ports=${generateClangFormatPort.get().portDirectory.get().asFile.absolutePath}"
+    )
+    // Let vcpkg check its package state on every run; unchanged installs are inexpensive.
+    doFirst {
+        require(configuredRoot.isNotBlank()) {
+            "Tests require VCPKG_ROOT to point to a bootstrapped vcpkg checkout."
+        }
+    }
+}
+
 tasks {
     withType<JavaCompile> {
         options.release.set(21)
@@ -55,8 +106,25 @@ tasks {
     }
 
     test {
+        dependsOn(installTestDependencies)
         useJUnitPlatform()
+        systemProperty("junit.jupiter.testclass.order.default", $$"org.junit.jupiter.api.ClassOrderer$ClassName")
         systemProperty("idea.load.plugins.id", "slanglsp_r")
+        systemProperty("idea.log.config.properties.file",
+            layout.projectDirectory.file("src/test/resources/test-log.properties").asFile.absolutePath)
+        inputs.file("src/test/resources/test-log.properties").withPropertyName("testLoggingConfig")
+        systemProperty("slang.test.executable", testSlangd.asFile.absolutePath)
+        systemProperty("slang.test.clangFormat", testClangFormat.asFile.absolutePath)
+        systemProperty("slang.test.vcpkgRoot", vcpkgRoot)
+        systemProperty("slang.test.manifest", layout.projectDirectory.file("vcpkg.json").asFile.absolutePath)
+        inputs.file(layout.projectDirectory.file("vcpkg.json")).withPropertyName("vcpkgManifest")
+        inputs.file(testSlangd).withPropertyName("nativeSlangd")
+        inputs.file(testClangFormat).withPropertyName("nativeClangFormat")
+        testLogging {
+            events("passed", "skipped", "failed")
+            exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+            showStandardStreams = true
+        }
     }
 
     check {

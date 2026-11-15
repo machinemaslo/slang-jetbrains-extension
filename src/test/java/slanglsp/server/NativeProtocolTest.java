@@ -17,7 +17,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /** Optional end-to-end test against a real slangd, using the plugin's LSP4J transport. */
 class NativeProtocolTest {
@@ -27,8 +26,7 @@ class NativeProtocolTest {
     @SuppressWarnings("resource")
     @Test
     void importsHoverAndSemanticTokensWorkWithNativeServer() throws Exception {
-        String executable = System.getenv("SLANGD_TEST_EXECUTABLE");
-        assumeTrue(executable != null, "Set SLANGD_TEST_EXECUTABLE to run the native protocol test");
+        String executable = slanglsp.TestDependencies.slangd();
         Path scene = project.resolve("src/shader/shared/scene.slang");
         Path source = project.resolve("src/shader/page/common/bounds.slang");
         Files.createDirectories(scene.getParent());

@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class FormattingUndoTest {
     private CodeInsightTestFixture fixture;
@@ -44,7 +43,16 @@ class FormattingUndoTest {
         var factory = IdeaTestFixtureFactory.getFixtureFactory();
         fixture = factory.createCodeInsightFixture(
                 factory.createLightFixtureBuilder("SlangFormattingUndo").getFixture(), new TempDirTestFixtureImpl());
-        EdtTestUtil.runInEdtAndWait(fixture::setUp);
+        EdtTestUtil.runInEdtAndWait(() -> {
+            fixture.setUp();
+            // Light fixtures reuse a project. Pending editor requests from an earlier test can
+            // start Slang while undo tests drain the event queue, even for a plain-text file.
+            var settings = ProjectSettings.getInstance(fixture.getProject()).getState();
+            settings.explicitSlangdLocation = Path.of(slanglsp.TestDependencies.slangd()).getParent().toString();
+            settings.useLocalVcpkgSlangd = false;
+            ProjectSettings.getInstance(fixture.getProject()).loadState(settings);
+            NativeServerSupport.enable(fixture.getProject());
+        });
     }
 
     @AfterEach
@@ -129,9 +137,8 @@ class FormattingUndoTest {
     @Test
     @Timeout(90)
     void nativeFormattingHasSeparateUndoAndRedoSteps() {
-        String executable = System.getenv("SLANGD_TEST_EXECUTABLE");
-        String clangFormat = System.getenv("CLANG_FORMAT_TEST_EXECUTABLE");
-        assumeTrue(executable != null && clangFormat != null);
+        String executable = slanglsp.TestDependencies.slangd();
+        String clangFormat = slanglsp.TestDependencies.clangFormat();
 
         String original = """
                 float value=1;
