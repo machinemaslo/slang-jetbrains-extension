@@ -80,6 +80,7 @@
                          enabledByDefault="true" level="WEAK WARNING"
                          implementationClass="slanglsp.editor.SlangFormattingInspection"/>
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
+        <lang.formatter language="Slang" implementationClass="slanglsp.editor.SlangFormattingModelBuilder"/>
         <langCodeStyleSettingsProvider implementation="slanglsp.settings.SlangCodeStyleProvider"/>
         <predefinedCodeStyle implementation="slanglsp.settings.SlangCodeStylePresets$Slang"/>
         <predefinedCodeStyle implementation="slanglsp.settings.SlangCodeStylePresets$Java"/>
@@ -93,7 +94,10 @@
         <typingActionsExtension implementation="slanglsp.editor.SlangTypingActions"/>
         <formattingService id="SlangClangFormat"
                            implementation="slanglsp.editor.ClangFormattingService"
-                           order="first, before SlangLspFormat"/>
+                           order="first, before SlangNativeFormat, before SlangLspFormat"/>
+        <formattingService id="SlangNativeFormat"
+                           implementation="slanglsp.editor.NativeFormattingService"
+                           order="first, after SlangClangFormat, before SlangLspFormat"/>
         <formattingService id="SlangLspFormat"
                 implementation="slanglsp.editor.SlangFormattingService"
                 order="first"/>

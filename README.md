@@ -43,10 +43,14 @@ Existing non-empty style overrides remain supported. Smart typing uses the IDE i
 brace placement is applied by explicit formatting and reformat-on-paste.
 
 When `clang-format` is configured or available on PATH, it is the preferred formatter and runs directly,
-without requiring slangd. The language-server formatter remains a fallback.
+without requiring slangd. Otherwise the native JetBrains formatter uses **Editor → Code Style → Slang**.
+The native formatter handles braces, spacing, indentation, continuation indentation, and wrapping,
+and powers the Code Style preview. It preserves token contents (including strings, comments, and
+multiline preprocessor directives) and keeps ambiguous pointer/generic spacing unchanged.
+Native formatting uses IDE settings, not `.clang-format` configuration.
 **Editor → Inspections → Slang → Code does not follow formatting style** enables background style checks
 (weak warnings by default). **Reformat file** fixes the current document with undo support.
-Checks use the same formatter settings, skip unavailable tools and files larger than 1 MB, and discard
+Checks use the selected formatter, skip files larger than 1 MB, and discard
 results if you edit the document while a check is running.
 
 New projects start with no predefined macros. Existing project macros remain editable under General; examples are shown as help text rather than definitions.

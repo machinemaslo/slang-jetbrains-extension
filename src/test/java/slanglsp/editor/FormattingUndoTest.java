@@ -9,8 +9,6 @@ import com.intellij.openapi.command.undo.UndoManager;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.impl.text.TextEditorProvider;
-import com.intellij.openapi.progress.util.ProgressIndicatorUtils;
-import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.roots.ModuleRootModificationUtil;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiFile;
@@ -20,7 +18,6 @@ import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import com.intellij.testFramework.fixtures.impl.TempDirTestFixtureImpl;
 import com.intellij.util.ui.UIUtil;
 import com.redhat.devtools.lsp4ij.LanguageServerManager;
-import com.redhat.devtools.lsp4ij.features.formatting.LSPFormattingSupport;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -162,16 +159,14 @@ class FormattingUndoTest {
             open("format.slang", original);
         });
 
-        DumbService.getInstance(fixture.getProject()).waitForSmartMode();
-        var source = ReadActions.compute(fixture::getFile);
-        new FormattingServerSupport(source).awaitReady();
-
         EdtTestUtil.runInEdtAndWait(() -> {
             Document document = fixture.getEditor().getDocument();
+            document.putUserData(
+                    com.intellij.formatting.service.AsyncDocumentFormattingService.FORMAT_DOCUMENT_SYNCHRONOUSLY, true);
             edit(edited);
             var file = fixture.getFile();
             var context = FormattingContext.create(file, CodeStyle.getSettings(file));
-            var service = new SlangFormattingService();
+            var service = new ClangFormattingService();
 
             String before = document.getText();
             var ranges = List.of(new TextRange(0, document.getTextLength()));
@@ -232,22 +227,6 @@ class FormattingUndoTest {
         var undo = UndoManager.getInstance(fixture.getProject());
         assertTrue(undo.isRedoAvailable(editor));
         undo.redo(editor);
-    }
-
-    private static final class FormattingServerSupport extends LSPFormattingSupport {
-        FormattingServerSupport(PsiFile file) {
-            super(file);
-        }
-
-        void awaitReady() {
-            var file = getFile();
-            var servers = ReadActions.compute(() -> getLanguageServers(
-                    file,
-                    features -> features.getFormattingFeature().isEnabled(file),
-                    features -> features.getFormattingFeature().isFormattingSupported(file)));
-
-            assertFalse(ProgressIndicatorUtils.awaitWithCheckCanceled(servers).isEmpty());
-        }
     }
 
     private record Request(FormattingContext context, String text) implements AsyncFormattingRequest {

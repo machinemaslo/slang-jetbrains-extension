@@ -20,7 +20,7 @@ import slanglsp.SlangBundle;
 
 import java.util.List;
 
-/** The daemon schedules external annotators after editing; no processes run under a read action. */
+/** Checks the selected formatter after editing, using a private snapshot for native formatting. */
 public final class SlangFormattingAnnotator
         extends ExternalAnnotator<SlangFormattingAnnotator.Input, SlangFormattingAnnotator.Result> {
     public static final class Input {
@@ -28,12 +28,15 @@ public final class SlangFormattingAnnotator
         private final long stamp;
         private final String text;
         private final ClangFormat.Options options;
+        private final com.intellij.psi.codeStyle.CodeStyleSettings settings;
 
-        Input(Document document, long stamp, String text, ClangFormat.Options options) {
+        Input(Document document, long stamp, String text, ClangFormat.Options options,
+                com.intellij.psi.codeStyle.CodeStyleSettings settings) {
             this.document = document;
             this.stamp = stamp;
             this.text = text;
             this.options = options;
+            this.settings = settings;
         }
     }
 
@@ -58,14 +61,18 @@ public final class SlangFormattingAnnotator
         var document = PsiDocumentManager.getInstance(file.getProject()).getDocument(file);
         if (document == null || document.getTextLength() == 0 || document.getTextLength() > 1_000_000) return null;
         var options = ClangFormat.options(file);
-        return options == null ? null : new Input(document, document.getModificationStamp(), document.getText(), options);
+        var settings = com.intellij.psi.codeStyle.CodeStyleSettingsManager.getInstance(file.getProject())
+                .cloneSettings(com.intellij.application.options.CodeStyle.getSettings(file));
+        return new Input(document, document.getModificationStamp(), document.getText(), options, settings);
     }
 
     @Override
     public Result doAnnotate(Input input) {
         if (input.document.getModificationStamp() != input.stamp) return null;
         try {
-            String formatted = ClangFormat.format(input.options, input.text, List.of(), handler -> {});
+            String formatted = input.options != null
+                    ? ClangFormat.format(input.options, input.text, List.of(), handler -> {})
+                    : NativeFormatting.format(input.text, input.settings);
             if (formatted.equals(input.text) || input.document.getModificationStamp() != input.stamp) return null;
             int offset = 0;
             while (offset < Math.min(formatted.length(), input.text.length())
@@ -83,7 +90,10 @@ public final class SlangFormattingAnnotator
     @Override
     public void apply(@NotNull PsiFile file, Result result, @NotNull AnnotationHolder holder) {
         if (result == null || result.input.document.getModificationStamp() != result.input.stamp
-                || !result.input.options.equals(ClangFormat.options(file))) return;
+                || !java.util.Objects.equals(result.input.options, ClangFormat.options(file))
+                || !slanglsp.settings.SlangCodeStyle.clangFormatStyle(result.input.settings).equals(
+                        slanglsp.settings.SlangCodeStyle.clangFormatStyle(
+                                com.intellij.application.options.CodeStyle.getSettings(file)))) return;
         var key = HighlightDisplayKey.find(SlangFormattingInspection.SHORT_NAME);
         var profile = InspectionProjectProfileManager.getInstance(file.getProject()).getCurrentProfile();
         if (key == null || !profile.isToolEnabled(key, file)) return;
@@ -107,7 +117,8 @@ public final class SlangFormattingAnnotator
 
         @Override
         public boolean isAvailable(@NotNull Project project, Editor editor, PsiFile file) {
-            return file != null && file.isWritable() && ClangFormat.options(file) != null;
+            return file != null && file.isWritable()
+                    && file.getLanguage().isKindOf(slanglsp.language.SlangLanguage.INSTANCE);
         }
 
         @Override
