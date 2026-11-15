@@ -121,8 +121,11 @@ public final class SlangEnterHandler extends EnterHandlerDelegateAdapter {
                         content++;
                     }
 
-                    splitTrailingBrace(editor, token.getStart(), offset, lineStart);
+                    boolean atBodyEnd = splitTrailingBrace(editor, token.getStart(), offset, lineStart, content < offset);
                     if (content == offset) {
+                        document.deleteString(bodyStart, content);
+                        caretOffset.set(bodyStart);
+                        editor.getCaretModel().moveToOffset(bodyStart);
                         return Result.Continue;
                     }
 
@@ -139,7 +142,7 @@ public final class SlangEnterHandler extends EnterHandlerDelegateAdapter {
                     int newOffset = offset + 1 + indent.length() - (content - bodyStart);
                     caretOffset.set(newOffset);
                     editor.getCaretModel().moveToOffset(newOffset);
-                    return Result.Continue;
+                    return atBodyEnd ? Result.Stop : Result.Continue;
                 }
             }
             token.retreat();
@@ -147,7 +150,7 @@ public final class SlangEnterHandler extends EnterHandlerDelegateAdapter {
         return Result.Continue;
     }
 
-    private static void splitTrailingBrace(Editor editor, int opening, int caret, int lineStart) {
+    private static boolean splitTrailingBrace(Editor editor, int opening, int caret, int lineStart, boolean populated) {
         var document = editor.getDocument();
         var text = document.getImmutableCharSequence();
         var token = editor.getHighlighter().createIterator(opening);
@@ -161,16 +164,17 @@ public final class SlangEnterHandler extends EnterHandlerDelegateAdapter {
                 while (end > caret && Character.isWhitespace(text.charAt(end - 1))) {
                     end--;
                 }
-                if (end > caret) {
+                if (end > caret || (populated && end == caret)) {
                     int indentEnd = lineStart;
                     while (indentEnd < opening && Character.isWhitespace(text.charAt(indentEnd))) {
                         indentEnd++;
                     }
                     document.replaceString(end, close, "\n" + text.subSequence(lineStart, indentEnd));
                 }
-                return;
+                return populated && end == caret;
             }
             token.advance();
         }
+        return false;
     }
 }

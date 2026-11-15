@@ -128,7 +128,7 @@ class SlangIndentationTest {
 
                     fixture.configureByText("test.slang", "void text() { return;<caret>}");
                     fixture.performEditorAction(IdeActions.ACTION_EDITOR_ENTER);
-                    fixture.checkResult("void text() {\n    return;\n<caret>}");
+                    fixture.checkResult("void text() {\n    return;<caret>\n}");
 
                     enter(fixture, "void f() {\n    if (ready)<caret>\n}",
                             "void f() {\n    if (ready)\n        <caret>\n}");
@@ -141,21 +141,25 @@ class SlangIndentationTest {
                     enter(fixture, "/**<caret>", "/**\n * <caret>\n */");
                     enter(fixture, "    /// Description<caret>", "    /// Description\n    /// <caret>");
                     enter(fixture, "void f() {return;<caret>}",
-                            "void f() {\n    return;\n<caret>}");
+                            "void f() {\n    return;<caret>\n}");
+                    enter(fixture, "void f() { return;<caret>   }",
+                            "void f() {\n    return;<caret>\n}");
+                    enter(fixture, "void f() { <caret>return; }",
+                            "void f() {\n    <caret>return;\n}");
                     enter(fixture, "void f() {<caret>return;}",
                             "void f() {\n    <caret>return;\n}");
                     fixture.configureByText("test.slang", "<caret>");
                     fixture.type("void test() {return;");
                     fixture.checkResult("void test() {return;<caret>}");
                     fixture.performEditorAction(IdeActions.ACTION_EDITOR_ENTER);
-                    fixture.checkResult("void test() {\n    return;\n<caret>}");
+                    fixture.checkResult("void test() {\n    return;<caret>\n}");
                     enter(fixture, "void f() {a();<caret>b();}",
                             "void f() {\n    a();\n    <caret>b();\n}");
                     enter(fixture, "void f() {\n    while (\n        ready)<caret>\n}",
                             "void f() {\n    while (\n        ready)\n        <caret>\n}");
 
                     options.USE_TAB_CHARACTER = true;
-                    enter(fixture, "void f() {return;<caret>}", "void f() {\n\treturn;\n<caret>}");
+                    enter(fixture, "void f() {return;<caret>}", "void f() {\n\treturn;<caret>\n}");
                     options.USE_TAB_CHARACTER = false;
 
                     fixture.configureByText("test.slang", "void f() {\n        return;\n    <caret>}");
@@ -176,7 +180,7 @@ class SlangIndentationTest {
                     undo.undo(textEditor);
                     fixture.checkResult("void f() {return;<caret>}");
                     undo.redo(textEditor);
-                    fixture.checkResult("void f() {\n    return;\n<caret>}");
+                    fixture.checkResult("void f() {\n    return;<caret>\n}");
 
                     fixture.configureByText("test.slang", "<caret>");
                     fixture.type("/*");
@@ -213,7 +217,7 @@ class SlangIndentationTest {
                     fixture.checkResult("void f() {\nif (ready) {\n  work();\n}<caret>\n}");
 
                     enter(fixture, "void a() {return;<caret>}\nvoid b() {return;<caret>}",
-                            "void a() {\n    return;\n<caret>}\nvoid b() {\n    return;\n<caret>}");
+                            "void a() {\n    return;<caret>\n}\nvoid b() {\n    return;<caret>\n}");
 
                     fixture.configureByText("test.slang", "string s = \"a\\<caret>\";");
                     fixture.type('"');
