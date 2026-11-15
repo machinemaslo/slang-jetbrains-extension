@@ -42,6 +42,13 @@ Leave **Fallback style** empty to use the Slang code-style settings when no conf
 Existing non-empty style overrides remain supported. Smart typing uses the IDE indentation settings;
 brace placement is applied by explicit formatting and reformat-on-paste.
 
+When `clang-format` is configured or available on PATH, it is the preferred formatter and runs directly,
+without requiring slangd. The language-server formatter remains a fallback.
+**Editor → Inspections → Slang → Code does not follow formatting style** enables background style checks
+(weak warnings by default). **Reformat file** fixes the current document with undo support.
+Checks use the same formatter settings, skip unavailable tools and files larger than 1 MB, and discard
+results if you edit the document while a check is running.
+
 New projects start with no predefined macros. Existing project macros remain editable under General; examples are shown as help text rather than definitions.
 
 ### Smart editing

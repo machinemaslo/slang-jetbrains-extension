@@ -73,6 +73,12 @@
         <fileType name="Slang" implementationClass="slanglsp.language.SlangFileType" fieldName="INSTANCE" language="Slang" extensions="slang;slangh"/>
         
         <externalAnnotator language="Slang" implementationClass="slanglsp.editor.UnusedSymbolsAnnotator"/>
+        <externalAnnotator language="Slang" implementationClass="slanglsp.editor.SlangFormattingAnnotator"/>
+        <localInspection language="Slang" shortName="SlangFormatting"
+                         bundle="messages.SlangBundle" key="inspection.formatting.name"
+                         groupBundle="messages.SlangBundle" groupKey="inspection.group.slang"
+                         enabledByDefault="true" level="WEAK WARNING"
+                         implementationClass="slanglsp.editor.SlangFormattingInspection"/>
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
         <langCodeStyleSettingsProvider implementation="slanglsp.settings.SlangCodeStyleProvider"/>
         <predefinedCodeStyle implementation="slanglsp.settings.SlangCodeStylePresets$Slang"/>
@@ -85,7 +91,10 @@
         <typedHandler implementation="slanglsp.editor.SlangTypedHandler"/>
         <backspaceHandlerDelegate implementation="slanglsp.editor.SlangAngleBackspaceHandler"/>
         <typingActionsExtension implementation="slanglsp.editor.SlangTypingActions"/>
-        <formattingService
+        <formattingService id="SlangClangFormat"
+                           implementation="slanglsp.editor.ClangFormattingService"
+                           order="first, before SlangLspFormat"/>
+        <formattingService id="SlangLspFormat"
                 implementation="slanglsp.editor.SlangFormattingService"
                 order="first"/>
         <lang.findUsagesProvider language="Slang" implementationClass="slanglsp.editor.SlangFindUsagesProvider"/>

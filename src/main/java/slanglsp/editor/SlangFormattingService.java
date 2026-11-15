@@ -89,6 +89,10 @@ public final class SlangFormattingService extends LSPFormattingAndRangeBothServi
             document.putUserData(LATEST_REQUEST, commandGroup);
         }
 
+        void cancel() {
+            cancelled.set(true);
+        }
+
         @Override
         public void onTextReady(@Nullable String updatedText) {
             if (!completed.compareAndSet(false, true)) {

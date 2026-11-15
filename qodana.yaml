@@ -17,11 +17,11 @@ profile:
 #include:
 #  - name: <SomeEnabledInspectionId>
 
-#Disable inspections
-#exclude:
-#  - name: <SomeDisabledInspectionId>
-#    paths:
-#      - <path/where/not/run/inspection>
+# vcpkg generates third-party package metadata; it is not project source.
+exclude:
+  - name: All
+    paths:
+      - vcpkg_installed
 
 projectJDK: "21" #(Applied in CI/CD pipeline)
 

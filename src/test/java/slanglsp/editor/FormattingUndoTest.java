@@ -181,7 +181,7 @@ class FormattingUndoTest {
             UIUtil.dispatchAllInvocationEvents();
             assertTrue(document.getText().contains("float value = 2;"), document.getText());
 
-            assertSame(SlangFormattingService.class, FormattingService.EP_NAME.getExtensionList().stream()
+            assertSame(ClangFormattingService.class, FormattingService.EP_NAME.getExtensionList().stream()
                     .filter(candidate -> candidate.canFormat(file))
                     .findFirst().orElseThrow().getClass());
 

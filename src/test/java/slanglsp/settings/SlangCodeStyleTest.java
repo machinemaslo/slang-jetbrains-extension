@@ -1,6 +1,7 @@
 package slanglsp.settings;
 
 import com.intellij.psi.codeStyle.CodeStyleSettings;
+import com.intellij.psi.codeStyle.CodeStyleSettingsManager;
 import com.intellij.psi.codeStyle.LanguageCodeStyleSettingsProvider;
 import com.intellij.testFramework.EdtTestUtil;
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
@@ -23,17 +24,18 @@ class SlangCodeStyleTest {
             EdtTestUtil.runInEdtAndWait(() -> {
                 assertInstanceOf(SlangCodeStyleProvider.class,
                         LanguageCodeStyleSettingsProvider.forLanguage(SlangLanguage.INSTANCE));
-                styles[0] = new CodeStyleSettings();
+                var manager = CodeStyleSettingsManager.getInstance(fixture.getProject());
+                styles[0] = manager.createSettings();
                 assertEquals(SlangCodeStyle.DEFAULT_STYLE, SlangCodeStyle.clangFormatStyle(styles[0]));
                 new SlangCodeStylePresets.Java().apply(styles[0]);
                 var xml = new org.jdom.Element("code_scheme");
                 styles[0].writeExternal(xml);
-                styles[1] = new CodeStyleSettings();
+                styles[1] = manager.createSettings();
                 styles[1].readExternal(xml);
                 assertEquals(SlangCodeStyle.clangFormatStyle(styles[0]), SlangCodeStyle.clangFormatStyle(styles[1]));
 
                 var provider = new SlangCodeStyleProvider();
-                var configurable = provider.createConfigurable(styles[0], styles[0].clone());
+                var configurable = provider.createConfigurable(styles[0], manager.cloneSettings(styles[0]));
                 try {
                     assertNotNull(configurable.createComponent());
                     configurable.reset();
