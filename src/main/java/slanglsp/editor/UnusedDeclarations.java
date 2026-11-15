@@ -2,6 +2,7 @@ package slanglsp.editor;
 
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.TokenType;
+import org.jetbrains.annotations.NotNull;
 import slanglsp.language.SlangLexer;
 
 import java.util.*;
@@ -26,22 +27,7 @@ final class UnusedDeclarations {
             return result;
         }
 
-        var lexer = new SlangLexer();
-        lexer.start(text, start, end, 0);
-        List<Token> tokens = new ArrayList<>();
-
-        while (lexer.getTokenType() != null) {
-            var kind = lexer.getTokenType();
-
-            if (kind != TokenType.WHITE_SPACE && kind != SlangLexer.COMMENT && kind != SlangLexer.BLOCK_COMMENT) {
-                String word = text.substring(lexer.getTokenStart(), lexer.getTokenEnd());
-                boolean type = kind == SlangLexer.BUILTIN_TYPE || kind == SlangLexer.TYPE ||
-                               kind == SlangLexer.VARIABLE || kind == SlangLexer.TEXT;
-                tokens.add(new Token(word, lexer.getTokenStart(), type));
-            }
-
-            lexer.advance();
-        }
+        List<Token> tokens = getTokens(text, start, end);
 
         boolean inBody = false;
 
@@ -107,5 +93,25 @@ final class UnusedDeclarations {
         }
 
         return result;
+    }
+
+    private static @NotNull List<Token> getTokens(String text, int start, int end) {
+        var lexer = new SlangLexer();
+        lexer.start(text, start, end, 0);
+        List<Token> tokens = new ArrayList<>();
+
+        while (lexer.getTokenType() != null) {
+            var kind = lexer.getTokenType();
+
+            if (kind != TokenType.WHITE_SPACE && kind != SlangLexer.COMMENT && kind != SlangLexer.BLOCK_COMMENT) {
+                String word = text.substring(lexer.getTokenStart(), lexer.getTokenEnd());
+                boolean type = kind == SlangLexer.BUILTIN_TYPE || kind == SlangLexer.TYPE ||
+                               kind == SlangLexer.VARIABLE || kind == SlangLexer.TEXT;
+                tokens.add(new Token(word, lexer.getTokenStart(), type));
+            }
+
+            lexer.advance();
+        }
+        return tokens;
     }
 }

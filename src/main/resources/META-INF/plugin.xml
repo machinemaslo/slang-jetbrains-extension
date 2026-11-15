@@ -18,9 +18,17 @@
 
     <change-notes>
         <![CDATA[
+        <p><b>0.0.23</b></p>
+        <ul>
+            <li>Smart indentation fix, bracket and quote pairing, comment continuation, and paste indentation</li>
+            <li>Smart indentation fix, bracket and quote pairing, comment continuation, and paste indentation</li>
+            <li>Bracket and quote, generic bracket pairing</li>
+            <li>Comment continuation, and paste indentation</li>
+            <li>Find references works more reliably, custom overload matcher</li>
+        </ul>
         <p><b>0.0.22</b></p>
         <ul>
-            <li>Smart indentation support</li>
+            <li>Smart indentation</li>
             <li>Find references works more reliably, custom overload matcher</li>
         </ul>
         <p><b>0.0.21</b></p>
@@ -49,7 +57,7 @@
             <li>Native usage navigation from declarations</li>
             <li>Rename</li>
             <li>Unused symbols check</li>
-            <li>Document, selection, and on-type formatting through <code>clang-format</code></li>
+            <li>Document and selection formatting through <code>clang-format</code>, with local smart editing</li>
             <li>Automatic discovery of locally installed vcpkg <code>slangd</code> packages, plus an explicit server directory and PATH-based discovery</li>
             <li>Project settings for additional include/search paths, predefined macros, and searching workspace subdirectories</li>
         </ul>
@@ -68,6 +76,16 @@
         <externalAnnotator language="Slang" implementationClass="slanglsp.editor.UnusedSymbolsAnnotator"/>
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
         <lineIndentProvider implementation="slanglsp.editor.SlangLineIndentProvider"/>
+        <lang.braceMatcher language="Slang" implementationClass="slanglsp.editor.SlangBraceMatcher"/>
+        <lang.quoteHandler language="Slang" implementationClass="slanglsp.editor.SlangQuoteHandler"/>
+        <lang.commenter language="Slang" implementationClass="slanglsp.editor.SlangCommenter"/>
+        <enterHandlerDelegate implementation="slanglsp.editor.SlangEnterHandler" order="first"/>
+        <typedHandler implementation="slanglsp.editor.SlangTypedHandler"/>
+        <backspaceHandlerDelegate implementation="slanglsp.editor.SlangAngleBackspaceHandler"/>
+        <typingActionsExtension implementation="slanglsp.editor.SlangTypingActions"/>
+        <formattingService
+                implementation="slanglsp.editor.SlangFormattingService"
+                order="first"/>
         <lang.findUsagesProvider language="Slang" implementationClass="slanglsp.editor.SlangFindUsagesProvider"/>
         <targetElementEvaluator
                 language="Slang"

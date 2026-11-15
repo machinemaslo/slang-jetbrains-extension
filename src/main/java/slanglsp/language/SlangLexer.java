@@ -30,9 +30,12 @@ public class SlangLexer extends LexerBase {
     public static final IElementType BUILTIN_TYPE = new IElementType("BUILTIN_TYPE", SlangLanguage.INSTANCE);
     public static final IElementType DIRECTIVE = new IElementType("DIRECTIVE", SlangLanguage.INSTANCE);
     public static final IElementType OPERATOR = new IElementType("OPERATOR", SlangLanguage.INSTANCE);
-    public static final IElementType BRACES = new IElementType("BRACES", SlangLanguage.INSTANCE);
-    public static final IElementType BRACKETS = new IElementType("BRACKETS", SlangLanguage.INSTANCE);
-    public static final IElementType PARENTHESES = new IElementType("PARENTHESES", SlangLanguage.INSTANCE);
+    public static final IElementType LBRACE = new IElementType("LBRACE", SlangLanguage.INSTANCE);
+    public static final IElementType RBRACE = new IElementType("RBRACE", SlangLanguage.INSTANCE);
+    public static final IElementType LBRACKET = new IElementType("LBRACKET", SlangLanguage.INSTANCE);
+    public static final IElementType RBRACKET = new IElementType("RBRACKET", SlangLanguage.INSTANCE);
+    public static final IElementType LPAREN = new IElementType("LPAREN", SlangLanguage.INSTANCE);
+    public static final IElementType RPAREN = new IElementType("RPAREN", SlangLanguage.INSTANCE);
     public static final IElementType COMMA = new IElementType("COMMA", SlangLanguage.INSTANCE);
     public static final IElementType DOT = new IElementType("DOT", SlangLanguage.INSTANCE);
     public static final IElementType SEMICOLON = new IElementType("SEMICOLON", SlangLanguage.INSTANCE);
@@ -144,9 +147,8 @@ public class SlangLexer extends LexerBase {
             readNumber();
             tokenType = NUMBER;
         } else if (c == '#') {
-            position++;
-            while (position < endOffset && (buffer.charAt(position) == ' ' || buffer.charAt(position) == '\t'))
-                position++;
+            do position++;
+            while (position < endOffset && (buffer.charAt(position) == ' ' || buffer.charAt(position) == '\t'));
 
             while (position < endOffset && Character.isLetter(buffer.charAt(position)))
                 position++;
@@ -160,11 +162,10 @@ public class SlangLexer extends LexerBase {
             if (state == MODULE_PATH) {
                 while (position + 1 < endOffset && buffer.charAt(position) == '.' &&
                         (Character.isLetter(buffer.charAt(position + 1)) || buffer.charAt(position + 1) == '_')) {
-                    position++;
 
+                    do position++;
                     while (position < endOffset &&
-                            (Character.isLetterOrDigit(buffer.charAt(position)) || buffer.charAt(position) == '_'))
-                        position++;
+                            (Character.isLetterOrDigit(buffer.charAt(position)) || buffer.charAt(position) == '_'));
                 }
 
                 tokenType = MODULE_NAME;
@@ -196,9 +197,12 @@ public class SlangLexer extends LexerBase {
             }
 
             tokenType = switch (c) {
-                case '{', '}' -> BRACES;
-                case '[', ']' -> BRACKETS;
-                case '(', ')' -> PARENTHESES;
+                case '{' -> LBRACE;
+                case '}' -> RBRACE;
+                case '[' -> LBRACKET;
+                case ']' -> RBRACKET;
+                case '(' -> LPAREN;
+                case ')' -> RPAREN;
                 case ',' -> COMMA;
                 case '.' -> DOT;
                 case ';' -> SEMICOLON;

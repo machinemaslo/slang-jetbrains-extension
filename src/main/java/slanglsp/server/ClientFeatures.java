@@ -17,6 +17,14 @@ final class ClientFeatures extends LSPClientFeatures {
     ClientFeatures() {
         setSemanticTokensFeature(new SemanticTokensFeature());
         setHoverFeature(new HoverFeature());
+        // Local smart keys own whitespace while typing. Server on-type formatting can
+        // otherwise rewrite an unfinished inline body after an unrelated keystroke.
+        setFormattingFeature(new com.redhat.devtools.lsp4ij.client.features.LSPFormattingFeature() {
+            @Override
+            public boolean isOnTypeFormattingEnabled(@NotNull com.intellij.psi.PsiFile file) {
+                return false;
+            }
+        });
         // Our Find Usages handler owns references and the indexed fallback. Avoid duplicate searches.
         setUsageFeature(new com.redhat.devtools.lsp4ij.client.features.LSPUsageFeature() {
             @Override
