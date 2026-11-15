@@ -19,7 +19,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class UnusedSymbolsTest {
-    @SuppressWarnings("deprecation") // Platform test adapter for checking the emitted annotation attributes.
     @Test
     @Timeout(90)
     void findsUnusedDeclarationsUsingNativeServer() throws Exception {
@@ -51,7 +50,10 @@ class UnusedSymbolsTest {
                         [numthreads(1,1,1)]
                         void main() { usedFunction(); }
                         """);
-                fixture.addFileToProject("consumer.slang", "import unused;\nImportedType imported;\n");
+                fixture.addFileToProject("consumer.slang", """
+                        import unused;
+                        ImportedType imported;
+                        """);
                 settings.additionalIncludePaths = List.of(file[0].getVirtualFile().getParent().getPath());
                 ProjectSettings.getInstance(fixture.getProject()).loadState(settings);
                 FileDocumentManager.getInstance().saveAllDocuments();
@@ -70,25 +72,24 @@ class UnusedSymbolsTest {
                         names.toString());
 
                 for (String name :
-                        List.of("UsedType", "ImportedType", "usedFunction", "usedLocal", "external", "main", "value"))
+                        List.of("UsedType", "ImportedType", "usedFunction", "usedLocal", "external", "main", "value")) {
                     assertFalse(names.contains(name), name + " in " + names);
-                ReadActions.run(() -> {
-                    var holder = new com.intellij.codeInsight.daemon.impl.AnnotationHolderImpl(
-                            new com.intellij.lang.annotation.AnnotationSession(file[0]), false);
-                    holder.runAnnotatorWithContext(
-                            file[0], (element, annotations) -> annotator.apply(file[0], result, annotations));
-                    holder.assertAllAnnotationsCreated();
-                    var struct =
-                            holder.stream()
-                                    .filter(annotation
-                                            -> annotation.getStartOffset() == input.text().indexOf("PrimaryHitGpu"))
-                                    .findFirst()
-                                    .orElseThrow();
-                    assertEquals(com.intellij.openapi.editor.colors.CodeInsightColors.NOT_USED_ELEMENT_ATTRIBUTES,
-                            struct.getTextAttributes());
-                    assertTrue(struct.getMessage().contains("PrimaryHitGpu"));
-                });
+                }
             }, new EmptyProgressIndicator());
+
+            EdtTestUtil.runInEdtAndWait(() -> {
+                fixture.configureFromExistingVirtualFile(file[0].getVirtualFile());
+
+                var struct = fixture.doHighlighting().stream()
+                        .filter(highlight -> highlight.getStartOffset() == input.text().indexOf("PrimaryHitGpu"))
+                        .filter(highlight -> highlight.getDescription() != null
+                                && highlight.getDescription().contains("PrimaryHitGpu"))
+                        .findFirst()
+                        .orElseThrow();
+
+                assertEquals(com.intellij.openapi.editor.colors.CodeInsightColors.NOT_USED_ELEMENT_ATTRIBUTES,
+                        struct.forcedTextAttributesKey);
+            });
         } finally {
             EdtTestUtil.runInEdtAndWait(fixture::tearDown);
         }

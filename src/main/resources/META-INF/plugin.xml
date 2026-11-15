@@ -68,6 +68,9 @@
         <externalAnnotator language="Slang" implementationClass="slanglsp.editor.UnusedSymbolsAnnotator"/>
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
         <lineIndentProvider implementation="slanglsp.editor.SlangLineIndentProvider"/>
+        <formattingService
+                implementation="slanglsp.editor.SlangFormattingService"
+                order="first"/>
         <lang.findUsagesProvider language="Slang" implementationClass="slanglsp.editor.SlangFindUsagesProvider"/>
         <targetElementEvaluator
                 language="Slang"

@@ -38,7 +38,7 @@ class ServerConnection extends ProcessStreamConnectionProvider {
         return responses;
     }
 
-    Project project;
+    final Project project;
     @Override
     public void start() throws com.redhat.devtools.lsp4ij.server.CannotStartProcessException {
         super.start();

@@ -23,11 +23,14 @@ import java.util.*;
 /** Network and index work runs outside the read action; stale results are never applied. */
 public final class UnusedSymbolsAnnotator
         extends ExternalAnnotator<UnusedSymbolsAnnotator.Input, UnusedSymbolsAnnotator.Result> {
-    record Input(PsiFile file, Document document, long stamp, long projectStamp, String text) {}
+    public record Input(PsiFile file, Document document, long stamp, long projectStamp, String text) {
+    }
 
-    record Candidate(String name, String kind, TextRange range) {}
+    public record Candidate(String name, String kind, TextRange range) {
+    }
 
-    record Result(Input input, List<Candidate> unused) {}
+    public record Result(Input input, List<Candidate> unused) {
+    }
 
     @Override
     public Input collectInformation(
@@ -168,7 +171,7 @@ public final class UnusedSymbolsAnnotator
         check(result.input);
 
         for (var candidate : result.unused) {
-            // A weak-warning layer takes precedence over LSP semantic token colours.
+            // A weak-warning layer takes precedence over LSP semantic token colors.
             holder.newAnnotation(HighlightSeverity.WEAK_WARNING,
                           SlangBundle.message("unused.symbol", candidate.kind, candidate.name))
                     .range(candidate.range)
