@@ -21,8 +21,52 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/.ci/vcpkg
+      VCPKG_DOWNLOADS: ${{ github.workspace }}/.ci/vcpkg-downloads
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.ci/vcpkg-binaries
+      VCPKG_BINARY_SOURCES: clear;default,readwrite
+      VCPKG_DISABLE_METRICS: '1'
     steps:
       - uses: actions/checkout@v6
+      - name: Read vcpkg baseline
+        id: vcpkg
+        shell: pwsh
+        run: |
+          $baseline = (Get-Content vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
+          if ($baseline -notmatch '^[0-9a-f]{40}$') {
+            throw 'vcpkg.json must specify a 40-character builtin-baseline'
+          }
+          "baseline=$baseline" >> $env:GITHUB_OUTPUT
+          New-Item -ItemType Directory -Force $env:VCPKG_DOWNLOADS, $env:VCPKG_DEFAULT_BINARY_CACHE
+      - name: Check out pinned vcpkg
+        uses: actions/checkout@v6
+        with:
+          repository: microsoft/vcpkg
+          ref: ${{ steps.vcpkg.outputs.baseline }}
+          path: .ci/vcpkg
+          fetch-depth: 0
+      - name: Cache native dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ env.VCPKG_DOWNLOADS }}
+            ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('vcpkg.json', 'buildSrc/src/main/java/GenerateClangFormatPort.java') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-${{ runner.arch }}-
+      - name: Bootstrap vcpkg (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_ROOT/bootstrap-vcpkg.bat" -disableMetrics
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Bootstrap vcpkg (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -30,12 +74,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
       - name: Test and build
         shell: bash
-        run: ./gradlew test buildPlugin --stacktrace
+        run: ./gradlew :buildSrc:test test buildPlugin --stacktrace --console=plain
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: tests-${{ matrix.os }}
-          path: build/reports/tests
+          path: |
+            build/reports/tests/
+            build/test-results/
+            buildSrc/build/reports/tests/
+            buildSrc/build/test-results/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: plugin-distribution-${{ matrix.os }}
+          path: build/distributions/*.zip
+          if-no-files-found: error
 
   verify:
     name: Verify CLion
@@ -54,7 +107,3 @@ jobs:
         with:
           name: plugin-verifier-CL
           path: build/reports/pluginVerifier
-      - uses: actions/upload-artifact@v7
-        with:
-          name: plugin-distribution
-          path: build/distributions/*.zip
