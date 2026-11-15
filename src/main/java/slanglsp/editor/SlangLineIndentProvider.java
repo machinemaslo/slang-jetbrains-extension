@@ -74,25 +74,46 @@ public final class SlangLineIndentProvider implements LineIndentProvider, Joined
         char nextChar = next < text.length() ? text.charAt(next) : '\0';
         char previousChar = '\0';
         boolean inContinuation = false;
+        boolean caseBody = false;
         var closers = new ArrayDeque<Character>();
+        GenericContext generics = null;
         HighlighterIterator token = editor.getHighlighter().createIterator(Math.max(0, start - 1));
 
         while (start > 0 && !token.atEnd()) {
             ProgressManager.checkCanceled();
             IElementType type = token.getTokenType();
 
-            if (previousChar == '\0' && type != TokenType.WHITE_SPACE) {
+            if (previousChar == '\0' && type != TokenType.WHITE_SPACE
+                    && type != SlangLexer.COMMENT && type != SlangLexer.BLOCK_COMMENT) {
                 previousChar = text.charAt(token.getEnd() - 1);
             }
 
             if (type == SlangLexer.DIRECTIVE) {
-                return DO_NOT_ADJUST;
+                token.retreat();
+                continue;
             }
 
-            if (type == SlangLexer.BRACES || type == SlangLexer.PARENTHESES || type == SlangLexer.BRACKETS) {
+            if (closers.isEmpty() && type == SlangLexer.KEYWORD) {
+                String word = text.subSequence(token.getStart(), token.getEnd()).toString();
+                caseBody |= word.equals("case") || word.equals("default");
+            }
+
+            boolean genericAngle = false;
+            if (type == SlangLexer.OPERATOR
+                    && (text.charAt(token.getStart()) == '<' || text.charAt(token.getStart()) == '>')) {
+                if (generics == null) {
+                    generics = GenericResolver.context(editor);
+                }
+                int index = generics.tokenAt(token.getStart());
+                genericAngle = generics.isOpening(index) || generics.isClosing(index);
+            }
+
+            if (genericAngle || type == SlangLexer.LBRACE || type == SlangLexer.RBRACE
+                    || type == SlangLexer.LPAREN || type == SlangLexer.RPAREN
+                    || type == SlangLexer.LBRACKET || type == SlangLexer.RBRACKET) {
                 char c = text.charAt(token.getStart());
 
-                if (c == '}' || c == ')' || c == ']') {
+                if (c == '}' || c == ')' || c == ']' || c == '>') {
                     closers.push(c);
                 } else if (!closers.isEmpty()) {
                     if (closing(c) != closers.pop()) {
@@ -117,9 +138,27 @@ public final class SlangLineIndentProvider implements LineIndentProvider, Joined
             return DO_NOT_ADJUST;
         }
 
-        // Without a statement parser, leave unbraced control flow and other
-        // incomplete expressions to the existing editor fallback.
+        String currentLine = text.subSequence(next, document.getLineEndOffset(line)).toString();
+        boolean caseLabel = currentLine.startsWith("case ") || currentLine.startsWith("default:");
+        if (caseBody && !inContinuation && !caseLabel && nextChar != '}') {
+            columns += options.INDENT_SIZE;
+        }
+
+        int controlIndent = controlBodyIndent(document, editor, text, start, tabSize);
+        if (!inContinuation && controlIndent >= 0 && nextChar != '{' && nextChar != '}') {
+            columns = controlIndent + options.INDENT_SIZE;
+        }
+
+        // A trailing operator starts a continuation; retain it until the statement ends.
+        boolean expressionContinuation = previousChar == '=' || previousChar == '+' || previousChar == '-'
+                || previousChar == '*' || previousChar == '/' || previousChar == '&' || previousChar == '|'
+                || previousChar == '?' || previousChar == ',' || previousChar == ':';
+        if (!inContinuation && controlIndent < 0 && expressionContinuation && !caseBody) {
+            columns += options.CONTINUATION_INDENT_SIZE;
+        }
+
         if (!inContinuation && !memberAccess && nextChar != '{' && nextChar != '}'
+                && controlIndent < 0 && !expressionContinuation && !caseBody
                 && previousChar != '\0' && previousChar != ';' && previousChar != '{' && previousChar != '}') {
             return DO_NOT_ADJUST;
         }
@@ -169,11 +208,52 @@ public final class SlangLineIndentProvider implements LineIndentProvider, Joined
                 || type == SlangLexer.STRING || type == SlangLexer.DIRECTIVE;
     }
 
+    private static int controlBodyIndent(
+            Document document, Editor editor, CharSequence text, int start, int tabSize) {
+        if (start == 0) {
+            return -1;
+        }
+
+        var token = editor.getHighlighter().createIterator(start - 1);
+        while (!token.atEnd() && (token.getTokenType() == TokenType.WHITE_SPACE
+                || token.getTokenType() == SlangLexer.COMMENT || token.getTokenType() == SlangLexer.BLOCK_COMMENT)) {
+            token.retreat();
+        }
+        if (token.atEnd()) {
+            return -1;
+        }
+
+        if (token.getTokenType() == SlangLexer.RPAREN) {
+            int depth = 1;
+            token.retreat();
+            while (!token.atEnd() && depth > 0) {
+                if (token.getTokenType() == SlangLexer.RPAREN) {
+                    depth++;
+                } else if (token.getTokenType() == SlangLexer.LPAREN) {
+                    depth--;
+                }
+                token.retreat();
+            }
+            while (!token.atEnd() && token.getTokenType() == TokenType.WHITE_SPACE) {
+                token.retreat();
+            }
+        }
+        if (!token.atEnd() && token.getTokenType() == SlangLexer.KEYWORD) {
+            String word = text.subSequence(token.getStart(), token.getEnd()).toString();
+            if (word.equals("if") || word.equals("for") || word.equals("while")
+                    || word.equals("else") || word.equals("do")) {
+                return indentWidth(document, text, token.getStart(), tabSize);
+            }
+        }
+        return -1;
+    }
+
     private static char closing(char opener) {
         return switch (opener) {
             case '{' -> '}';
             case '(' -> ')';
             case '[' -> ']';
+            case '<' -> '>';
             default -> '\0';
         };
     }

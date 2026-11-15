@@ -32,6 +32,20 @@ Use a current `slangd` installation. Configure the server directory in Settings 
 Install `clang-format`, then open Settings → Tools → Slang → Formatting. Leave the executable field empty to search PATH, or enter its full path.
 New projects start with no predefined macros. Existing project macros remain editable under General; examples are shown as help text rather than definitions.
 
+### Smart editing
+Slang provides local bracket and quote pairing, paired deletion, selection wrapping, smart Enter and Backspace,
+comment continuation, closing-brace indentation, and paste indentation. These follow **Editor → General → Smart Keys**
+and the IDE's indentation options. Enter in a populated inline body expands it onto separate lines.
+
+Generic angle-bracket pairing understands Slang's `name<T>`, `__generic<T>`, and `extension<T>` forms,
+including value parameters, type packs, nested arguments, paired deletion, type-over, selection wrapping,
+and Tab-out. It recognizes local declarations, directly imported indexed declarations, and common built-in
+generic types. Comparisons and shifts remain operators; unresolved or expensive symbol lookups are left
+unpaired rather than guessing from capitalization. Generic argument lists also support multiline indentation.
+
+Ordinary typing does not request server-side on-type formatting, so entering a statement does not unexpectedly
+rewrite its surrounding spaces. Explicit formatting and reformat-on-paste use the configured formatter.
+
 ---
 
 ### Rename

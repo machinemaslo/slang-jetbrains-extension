@@ -32,13 +32,13 @@ public class SlangSyntaxHighlighter extends SyntaxHighlighterBase {
         if (tokenType.equals(SlangLexer.OPERATOR))
             return pack(SyntaxColors.OPERATOR);
 
-        if (tokenType.equals(SlangLexer.BRACES))
+        if (tokenType == SlangLexer.LBRACE || tokenType == SlangLexer.RBRACE)
             return pack(SyntaxColors.BRACES);
 
-        if (tokenType.equals(SlangLexer.BRACKETS))
+        if (tokenType == SlangLexer.LBRACKET || tokenType == SlangLexer.RBRACKET)
             return pack(SyntaxColors.BRACKETS);
 
-        if (tokenType.equals(SlangLexer.PARENTHESES))
+        if (tokenType == SlangLexer.LPAREN || tokenType == SlangLexer.RPAREN)
             return pack(SyntaxColors.PARENTHESES);
 
         if (tokenType.equals(SlangLexer.COMMA))

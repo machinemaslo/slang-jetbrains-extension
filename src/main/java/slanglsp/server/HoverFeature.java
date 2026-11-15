@@ -98,7 +98,8 @@ final class HoverFeature extends LSPHoverFeature {
                 previousDocLine = false;
                 // Never borrow docs from a preceding declaration or enclosing type.
 
-                if (type == SlangLexer.SEMICOLON || type == SlangLexer.BRACES || type == SlangLexer.COMMENT ||
+                if (type == SlangLexer.SEMICOLON || type == SlangLexer.LBRACE || type == SlangLexer.RBRACE
+                        || type == SlangLexer.COMMENT ||
                         type == SlangLexer.BLOCK_COMMENT || type == SlangLexer.DIRECTIVE)
                     comment.setLength(0);
             }
