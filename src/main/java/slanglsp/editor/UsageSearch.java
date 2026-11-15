@@ -329,7 +329,8 @@ final class UsageSearch {
         }
     }
 
-    private record DefinitionRequest(LSPDefinitionSupport support, CompletableFuture<List<LocationData>> future)
+    private record DefinitionRequest(LSPDefinitionSupport support, CompletableFuture<List<LocationData>> future,
+                                     Project project, String name)
             implements AutoCloseable {
         @Override
         public void close() {
@@ -340,7 +341,7 @@ final class UsageSearch {
         List<LocationData> await() {
             var result = ProgressIndicatorUtils.awaitWithCheckCanceled(future);
 
-            return result == null ? List.of() : result;
+            return result == null ? List.of() : DefinitionLocations.normalize(project, name, result);
         }
     }
 
@@ -353,7 +354,11 @@ final class UsageSearch {
                             -> support.getDefinitions(new LSPDefinitionParams(
                                     new TextDocumentIdentifier(), LSPIJUtils.toPosition(offset, document), offset)));
 
-            return new DefinitionRequest(support, future);
+            String name = ReadActions.compute(() -> {
+                var leaf = file.findElementAt(offset);
+                return SlangFindUsagesProvider.isIdentifier(leaf) ? leaf.getText() : null;
+            });
+            return new DefinitionRequest(support, future, file.getProject(), name);
         } catch (RuntimeException failure) {
             support.cancel();
             throw failure;

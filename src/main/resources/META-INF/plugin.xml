@@ -64,6 +64,7 @@
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
         <lineIndentProvider implementation="slanglsp.editor.SlangLineIndentProvider"/>
         <lang.findUsagesProvider language="Slang" implementationClass="slanglsp.editor.SlangFindUsagesProvider"/>
+        <targetElementEvaluator language="Slang" implementationClass="slanglsp.editor.SlangTargetElementEvaluator"/>
         <findUsagesHandlerFactory implementation="slanglsp.editor.SlangFindUsagesHandlerFactory" order="first"/>
         <renameHandler implementation="slanglsp.editor.SlangRenameHandler"/>
 

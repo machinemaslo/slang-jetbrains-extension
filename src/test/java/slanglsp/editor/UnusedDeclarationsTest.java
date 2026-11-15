@@ -9,11 +9,22 @@ import static org.junit.jupiter.api.Assertions.*;
 class UnusedDeclarationsTest {
     @Test
     void discoversLocalsWithoutTreatingExpressionsOrParametersAsDeclarations() {
-        String code = "(float parameter) { float unused; const float initialized = call(parameter); "
-                      + "Thing object; var inferred = 1; let inferredToo = 2; "
-                      + "for (int index = 0; index < 2; index++) { float nested; } "
-                      + "return object; call(parameter); object.field = 1; // float comment;\n"
-                      + "string text = \"float fake;\"; }";
+        String code = """
+                (float parameter) {
+                    float unused;
+                    const float initialized = call(parameter);
+                    Thing object;
+                    var inferred = 1;
+                    let inferredToo = 2;
+                    for (int index = 0; index < 2; index++) {
+                        float nested;
+                    }
+                    return object;
+                    call(parameter);
+                    object.field = 1; // float comment;
+                    string text = "float fake;";
+                }
+                """;
 
         var locals = UnusedDeclarations.locals(code, 0, code.length());
         assertEquals(List.of("unused", "initialized", "object", "inferred", "inferredToo", "index", "nested", "text"),
