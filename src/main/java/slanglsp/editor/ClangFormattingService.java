@@ -31,7 +31,7 @@ public final class ClangFormattingService extends AsyncDocumentFormattingService
         var options = ClangFormat.options(file);
         var document = PsiDocumentManager.getInstance(file.getProject()).getDocument(file);
         if (options == null || document == null) return null;
-        var result = new SlangFormattingService.Result(request, document);
+        var result = new UndoableFormattingService.Result(request, document);
         var cancelled = new AtomicBoolean();
         var process = new AtomicReference<CapturingProcessHandler>();
         return new FormattingTask() {

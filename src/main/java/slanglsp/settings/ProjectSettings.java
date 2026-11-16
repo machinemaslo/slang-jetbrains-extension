@@ -83,7 +83,7 @@ public class ProjectSettings implements PersistentStateComponent<ProjectSettings
             settings.put("slang.format.clangFormatLocation", clangFormatLocation);
             settings.put("slang.format.clangFormatStyle", clangFormatStyle);
             settings.put("slang.format.clangFormatFallbackStyle",
-                    clangFormatFallbackStyle.isBlank() ? SlangCodeStyle.DEFAULT_STYLE : clangFormatFallbackStyle);
+                    clangFormatFallbackStyle.isBlank() ? ClangFormatStyle.DEFAULT_STYLE : clangFormatFallbackStyle);
             settings.put(
                     "slang.format.allowLineBreakChangesInOnTypeFormatting", allowLineBreakChangesInOnTypeFormatting);
             settings.put("slang.format.allowLineBreakChangesInRangeFormatting", allowLineBreakChangesInRangeFormatting);

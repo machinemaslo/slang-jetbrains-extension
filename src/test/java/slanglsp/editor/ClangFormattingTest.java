@@ -17,7 +17,7 @@ import com.redhat.devtools.lsp4ij.LanguageServersRegistry;
 import org.junit.jupiter.api.Test;
 import slanglsp.TestDependencies;
 import slanglsp.settings.ProjectSettings;
-import slanglsp.settings.SlangCodeStyle;
+import slanglsp.settings.ClangFormatStyle;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -110,7 +110,7 @@ class ClangFormattingTest {
         try {
             Path source = root.resolve("nested/sample.slang");
             Files.createDirectories(source.getParent());
-            var options = new ClangFormat.Options(TestDependencies.clangFormat(), source, "file", SlangCodeStyle.DEFAULT_STYLE);
+            var options = new ClangFormat.Options(TestDependencies.clangFormat(), source, "file", ClangFormatStyle.DEFAULT_STYLE);
             String body = "float f(){return 0;}\n";
             assertTrue(ClangFormat.format(options, body, List.of(), handler -> {}).contains("f()\n{"));
             Files.writeString(root.resolve(".clang-format"), "BasedOnStyle: LLVM\nBreakBeforeBraces: Attach\n");

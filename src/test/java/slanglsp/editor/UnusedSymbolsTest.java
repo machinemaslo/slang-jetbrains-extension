@@ -107,6 +107,32 @@ class UnusedSymbolsTest {
                 assertEquals(com.intellij.openapi.editor.colors.CodeInsightColors.NOT_USED_ELEMENT_ATTRIBUTES,
                         struct.forcedTextAttributesKey);
             });
+            var removalInput = ReadActions.compute(() -> annotator.collectInformation(file[0]));
+            UnusedSymbolsAnnotator.Result[] removal = new UnusedSymbolsAnnotator.Result[1];
+            ProgressManager.getInstance().runProcess(() -> removal[0] = annotator.doAnnotate(removalInput),
+                    new EmptyProgressIndicator());
+            assertNotNull(removal[0]);
+            EdtTestUtil.runInEdtAndWait(() -> {
+                var holder = new AnnotationRecorder();
+                annotator.apply(file[0], removal[0], holder.holder());
+                int offset = removalInput.text().indexOf("unusedFunction");
+                var warning = holder.stream().filter(a -> a.getStartOffset() == offset).findFirst().orElseThrow();
+                assertEquals("Function 'unusedFunction' is never used", warning.getMessage());
+                var fix = warning.getQuickFixes().getFirst().quickFix;
+                assertEquals("Remove unused function", fix.getText());
+                assertTrue(fix.isAvailable(fixture.getProject(), fixture.getEditor(), file[0]));
+                fix.invoke(fixture.getProject(), fixture.getEditor(), file[0]);
+                com.intellij.testFramework.PlatformTestUtil.waitWithEventsDispatching("Remove unused function",
+                        () -> !fixture.getEditor().getDocument().getText().contains("float unusedFunction()"), 30);
+                assertFalse(fixture.getEditor().getDocument().getText().contains("float unusedLocal;"));
+                assertTrue(fixture.getEditor().getDocument().getText().contains("UsedType usedFunction()"));
+                com.intellij.openapi.command.undo.UndoManager.getInstance(fixture.getProject())
+                        .undo(com.intellij.openapi.fileEditor.FileEditorManager.getInstance(fixture.getProject())
+                                .getSelectedEditor(file[0].getVirtualFile()));
+                assertEquals(removalInput.text(), fixture.getEditor().getDocument().getText());
+                assertFalse(fix.isAvailable(fixture.getProject(), fixture.getEditor(), file[0]),
+                        "A stale removal fix must not mutate a changed document");
+            });
         } finally {
             EdtTestUtil.runInEdtAndWait(fixture::tearDown);
         }

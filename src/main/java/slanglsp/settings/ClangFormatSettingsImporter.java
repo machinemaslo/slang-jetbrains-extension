@@ -18,9 +18,13 @@ import slanglsp.language.SlangLanguage;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Imports only settings that the native Slang model can represent. No subprocess is used. */
-public final class SlangClangFormatSettings implements CodeStyleSettingsModifier {
-    private static final Logger LOG = Logger.getInstance(SlangClangFormatSettings.class);
+/**
+ * Imports only settings that the native Slang model can represent. No subprocess is used.
+ * The platform's per-file code-style modifier extension is still experimental.
+ */
+@SuppressWarnings("UnstableApiUsage")
+public final class ClangFormatSettingsImporter implements CodeStyleSettingsModifier {
+    private static final Logger LOG = Logger.getInstance(ClangFormatSettingsImporter.class);
 
     @Override
     public boolean modifySettings(@NotNull TransientCodeStyleSettings settings, @NotNull PsiFile file) {
@@ -42,9 +46,16 @@ public final class SlangClangFormatSettings implements CodeStyleSettingsModifier
         }
     }
 
-    @Override public @NotNull String getName() { return "Slang .clang-format"; }
-    @Override public @Nullable CodeStyleStatusBarUIContributor getStatusBarUiContributor(
-            @NotNull TransientCodeStyleSettings settings) { return null; }
+    @Override
+    public @NotNull String getName() {
+        return slanglsp.SlangBundle.message("settings.clang.format.importer.name");
+    }
+
+    @Override
+    public @Nullable CodeStyleStatusBarUIContributor getStatusBarUiContributor(
+            @NotNull TransientCodeStyleSettings settings) {
+        return null;
+    }
 
     private static Map<String, Object> find(VirtualFile directory) throws java.io.IOException {
         for (var current = directory; current != null; current = current.getParent()) {

@@ -55,7 +55,7 @@ public class ServerClient extends LanguageClientImpl {
 
         var settings = state.createServerSettings();
         if (state.clangFormatFallbackStyle.isBlank()) {
-            settings.put("slang.format.clangFormatFallbackStyle", slanglsp.settings.SlangCodeStyle.clangFormatStyle(
+            settings.put("slang.format.clangFormatFallbackStyle", slanglsp.settings.ClangFormatStyle.clangFormatStyle(
                     com.intellij.application.options.CodeStyle.getSettings(project)));
         }
         return settings;

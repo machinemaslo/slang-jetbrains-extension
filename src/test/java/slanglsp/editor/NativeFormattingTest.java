@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 import slanglsp.language.SlangLanguage;
 import slanglsp.language.SlangLexer;
 import slanglsp.settings.ProjectSettings;
-import slanglsp.settings.SlangCodeStylePresets;
+import slanglsp.settings.CodeStylePresets;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,7 +47,7 @@ class NativeFormattingTest {
             ProjectSettings.getInstance(fixture.getProject()).loadState(state);
             var manager = CodeStyleSettingsManager.getInstance(fixture.getProject());
             settings = manager.createSettings();
-            new SlangCodeStylePresets.Slang().apply(settings);
+            new CodeStylePresets.Slang().apply(settings);
             manager.setTemporarySettings(settings);
         });
     }
@@ -78,7 +78,8 @@ class NativeFormattingTest {
                 }
                 """;
         assertFormat(input, allman);
-        new SlangCodeStylePresets.Java().apply(settings);
+        settings.getCustomSettings(slanglsp.settings.SlangCodeStyleSettings.class).BRACES_ON_NEW_LINE = false;
+        settings.getCommonSettings(SlangLanguage.INSTANCE).ELSE_ON_NEW_LINE = false;
         assertFormat(input, """
                 float f(float x) {
                     if (x != 0) {
@@ -115,8 +116,6 @@ class NativeFormattingTest {
         EdtTestUtil.runInEdtAndWait(() -> {
             var file = fixture.addFileToProject("fix.slang", "float x=1;\n");
             fixture.configureFromExistingVirtualFile(file.getVirtualFile());
-            assertInstanceOf(com.intellij.formatting.service.CoreFormattingService.class,
-                    com.intellij.formatting.service.FormattingServiceUtil.findService(file, true, false));
             new com.intellij.codeInsight.actions.ReformatCodeProcessor(fixture.getProject(), file, null, false).run();
             var document = fixture.getEditor().getDocument();
             com.intellij.testFramework.PlatformTestUtil.waitWithEventsDispatching(

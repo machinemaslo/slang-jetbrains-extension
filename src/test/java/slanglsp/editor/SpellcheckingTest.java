@@ -16,7 +16,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class SlangSpellcheckingTest {
+class SpellcheckingTest {
     @Test
     void checksCommentsAndStringsWithStandardDictionariesAndFixes() throws Exception {
         var factory = IdeaTestFixtureFactory.getFixtureFactory();
@@ -69,14 +69,16 @@ class SlangSpellcheckingTest {
                 assertTrue(fixture.doHighlighting().stream()
                         .noneMatch(info -> info.getDescription() != null && info.getDescription().startsWith("Typo:")));
 
-                // Exercise the same platform save path used by SaveTo, in both dictionary scopes.
+                // Exercise the public SaveTo quick fix in both dictionary scopes.
                 var projectLayer = new ProjectDictionaryLayer(fixture.getProject());
                 var appLayer = ApplicationDictionaryLayer.INSTANCE;
                 for (var layer : List.of(projectLayer, appLayer)) {
                     String word = layer == projectLayer ? "slangprojectvocabulary" : "slangapplicationvocabulary";
                     assertTrue(manager.hasProblem(word));
                     try {
-                        manager.acceptWordAsCorrect$intellij_spellchecker(word, null, fixture.getProject(), layer);
+                        fixture.configureByText("dictionary.slang", "// " + word + "\n");
+                        SaveTo.applyFix(fixture.getProject(), fixture.getFile(),
+                                com.intellij.openapi.util.TextRange.from(3, word.length()), word, layer);
                         assertFalse(manager.hasProblem(word));
                         assertTrue(layer.getDictionary().getEditableWords().contains(word));
                     } finally {

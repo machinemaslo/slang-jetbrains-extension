@@ -73,14 +73,19 @@
         <fileType name="Slang" implementationClass="slanglsp.language.SlangFileType" fieldName="INSTANCE" language="Slang" extensions="slang;slangh"/>
         
         <externalAnnotator language="Slang" implementationClass="slanglsp.editor.UnusedSymbolsAnnotator"/>
+        <externalAnnotator language="Slang" implementationClass="slanglsp.editor.NamingAnnotator"/>
+        <localInspection language="Slang" shortName="SlangInconsistentNaming"
+                         bundle="messages.SlangBundle" key="naming.inspection"
+                         groupBundle="messages.SlangBundle" groupKey="inspection.group.slang"
+                         enabledByDefault="true" level="WARNING"
+                         implementationClass="slanglsp.editor.InconsistentNamingInspection"/>
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
         <lang.formatter language="Slang" implementationClass="slanglsp.editor.SlangFormattingModelBuilder"/>
-        <codeStyleSettingsModifier implementation="slanglsp.settings.SlangClangFormatSettings"/>
+        <codeStyleSettingsModifier implementation="slanglsp.settings.ClangFormatSettingsImporter"/>
         <spellchecker.support language="Slang" implementationClass="slanglsp.editor.SlangSpellcheckingStrategy"/>
         <spellchecker.bundledDictionaryProvider implementation="slanglsp.editor.SlangDictionaryProvider"/>
         <langCodeStyleSettingsProvider implementation="slanglsp.settings.SlangCodeStyleProvider"/>
-        <predefinedCodeStyle implementation="slanglsp.settings.SlangCodeStylePresets$Slang"/>
-        <predefinedCodeStyle implementation="slanglsp.settings.SlangCodeStylePresets$Java"/>
+        <predefinedCodeStyle implementation="slanglsp.settings.CodeStylePresets$Slang"/>
         <lineIndentProvider implementation="slanglsp.editor.SlangLineIndentProvider"/>
         <lang.braceMatcher language="Slang" implementationClass="slanglsp.editor.SlangBraceMatcher"/>
         <lang.quoteHandler language="Slang" implementationClass="slanglsp.editor.SlangQuoteHandler"/>
@@ -134,8 +139,13 @@
                 serviceImplementation="slanglsp.settings.ProjectSettings"/>
     </extensions>
 
+    <applicationListeners>
+        <listener class="slanglsp.editor.ReformatNotifications"
+                  topic="com.intellij.openapi.actionSystem.ex.AnActionListener"/>
+    </applicationListeners>
+
     <projectListeners>
-        <listener class="slanglsp.settings.SlangCodeStyleListener"
+        <listener class="slanglsp.settings.CodeStyleChangeListener"
                   topic="com.intellij.psi.codeStyle.CodeStyleSettingsListener"/>
     </projectListeners>
 

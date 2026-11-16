@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Seeds once so edits, dictionary additions and formatting survive subsequent launches. */
+/** Refreshes template-owned files on every launch, retaining IDE-created workspace files. */
 public abstract class PreparePlayground extends DefaultTask {
     @InputDirectory public abstract DirectoryProperty getTemplateDirectory();
     @OutputDirectory public abstract DirectoryProperty getPlaygroundDirectory();
@@ -24,49 +24,24 @@ public abstract class PreparePlayground extends DefaultTask {
             for (Path path : paths.filter(Files::isRegularFile).toList()) {
                 Path destination = target.resolve(source.relativize(path));
                 Files.createDirectories(destination.getParent());
-                if (!Files.exists(destination)) Files.copy(path, destination);
+                Files.copy(path, destination, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             }
-        }
-        // Migrate the original generated module without resetting playground edits.
-        Path module = target.resolve(".idea/playground.iml");
-        if (Files.exists(module)) {
-            String content = Files.readString(module);
-            String corrected = content.replace("file://$MODULE_DIR$/..", "file://$MODULE_DIR$")
-                    .replace("file://$PROJECT_DIR$", "file://$MODULE_DIR$");
-            if (!content.equals(corrected)) Files.writeString(module, corrected);
         }
         Path settings = target.resolve(".idea/SlangPluginSettings.xml");
-        // Remove the obsolete formatting inspection from previously seeded playgrounds.
-        Path profile = target.resolve(".idea/inspectionProfiles/Project_Default.xml");
-        if (Files.exists(profile)) {
-            String content = Files.readString(profile);
-            String corrected = content.replaceAll("(?m)^\\s*<inspection_tool class=\"SlangFormatting\"[^>]*/>\\s*\\R?", "");
-            if (!content.equals(corrected)) Files.writeString(profile, corrected);
+        String slangd = findExecutable(getSlangdCandidate().get(), "slangd");
+        String clang = findExecutable(getClangFormatCandidate().get(), "clang-format");
+        if (slangd.isEmpty()) {
+            throw new IllegalStateException("Playground requires installed slangd on PATH or in vcpkg_installed. "
+                    + "Install/configure it and rerun Run Plugin; no native tools are installed by this task.");
         }
-        if (!Files.exists(settings)) {
-            String slangd = findExecutable(getSlangdCandidate().get(), "slangd");
-            String clang = findExecutable(getClangFormatCandidate().get(), "clang-format");
-            if (slangd.isEmpty()) {
-                throw new IllegalStateException("Playground requires installed slangd on PATH or in vcpkg_installed. "
-                        + "Install/configure it and rerun Run Plugin; no native tools are installed by this task.");
-            }
-            Files.writeString(settings, """
-                    <project version="4">
-                      <component name="SlangPersistentStateComponentConfig">
-                        <option name="explicitSlangdLocation" value="%s" />
-                        <option name="clangFormatLocation" value="%s" />
-                      </component>
-                    </project>
-                    """.formatted(xml(slangdDirectory(target, slangd)), xml(clang)));
-        } else {
-            // Repair the original seed, which incorrectly supplied a file to a directory setting.
-            String content = Files.readString(settings);
-            String candidate = getSlangdCandidate().get();
-            String corrected = content.replace(
-                    "name=\"explicitSlangdLocation\" value=\"" + xml(candidate) + "\"",
-                    "name=\"explicitSlangdLocation\" value=\"" + xml(slangdDirectory(target, candidate)) + "\"");
-            if (!content.equals(corrected)) Files.writeString(settings, corrected);
-        }
+        Files.writeString(settings, """
+                <project version="4">
+                  <component name="SlangPersistentStateComponentConfig">
+                    <option name="explicitSlangdLocation" value="%s" />
+                    <option name="clangFormatLocation" value="%s" />
+                  </component>
+                </project>
+                """.formatted(xml(slangdDirectory(target, slangd)), xml(clang)));
         getLogger().lifecycle("Slang playground: {}", target);
     }
 

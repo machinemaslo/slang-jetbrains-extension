@@ -21,7 +21,7 @@ public final class SlangCodeStyleProvider extends LanguageCodeStyleSettingsProvi
     }
 
     @Override
-    public CustomCodeStyleSettings createCustomSettings(CodeStyleSettings settings) {
+    public CustomCodeStyleSettings createCustomSettings(@NotNull CodeStyleSettings settings) {
         return new SlangCodeStyleSettings(settings);
     }
 
@@ -148,28 +148,32 @@ public final class SlangCodeStyleProvider extends LanguageCodeStyleSettingsProvi
 
                     @Override
                      protected void initTabs(CodeStyleSettings settings) {
-                        addTab(new SlangFormatterPanel(settings));
+                        addTab(new FormatterPanel(settings));
                         addTab(new MyIndentOptionsWrapper(settings, new SmartIndentOptionsEditor()) {
                             @Override protected int getRightMargin() {
                                 return getSettings().getRightMargin(SlangLanguage.INSTANCE);
                             }
-                            @Override protected void installPreviewPanel(JPanel preview) {
+                            @Override protected void installPreviewPanel(@NotNull JPanel preview) {
                                 super.installPreviewPanel(preview);
-                                SlangLayoutPanels.padPreview(preview);
+                                LayoutPanels.padPreview(preview);
                             }
                         });
-                        addTab(new SlangLayoutPanels.Braces(settings));
-                        addTab(new SlangLayoutPanels.BlankLines(settings));
-                        addTab(new SlangLayoutPanels.Wrapping(settings));
-                        addTab(new SlangLayoutPanels.Spaces(settings));
-                        addTab(new SlangLayoutPanels.Indentation(settings));
+                        addTab(new NamingPanel(settings));
+                        addTab(new LayoutPanels.Braces(settings));
+                        addTab(new LayoutPanels.BlankLines(settings));
+                        addTab(new LayoutPanels.Wrapping(settings));
+                        addTab(new LayoutPanels.Spaces(settings));
+                        addTab(new LayoutPanels.Indentation(settings));
                     }
 
                     @Override
                     public JComponent getPanel() {
                         if (container == null) {
                             container = new JPanel(new BorderLayout());
-                            container.add(super.getPanel(), BorderLayout.CENTER);
+                            var content = super.getPanel();
+                            if (content != null) {
+                                container.add(content, BorderLayout.CENTER);
+                            }
                         }
                         return container;
                     }

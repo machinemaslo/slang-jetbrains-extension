@@ -20,7 +20,7 @@ import javax.swing.*;
 import java.awt.GridBagLayout;
 import java.awt.GridBagConstraints;
 
-final class SlangFormatterPanel extends CodeStyleAbstractPanel {
+final class FormatterPanel extends CodeStyleAbstractPanel {
     private final JPanel panel = new JPanel();
     private final JRadioButton nativeFormatter = new JRadioButton(SlangBundle.message("settings.formatter.native"));
     private final JRadioButton clang = new JRadioButton(SlangBundle.message("settings.formatter.clang"));
@@ -29,7 +29,7 @@ final class SlangFormatterPanel extends CodeStyleAbstractPanel {
     private final JCheckBox bundled = new JCheckBox(SlangBundle.message("settings.formatter.bundled"));
     private final TextFieldWithBrowseButton executable = new TextFieldWithBrowseButton();
 
-    SlangFormatterPanel(CodeStyleSettings settings) {
+    FormatterPanel(CodeStyleSettings settings) {
         super(settings);
         panel.setLayout(new GridBagLayout());
         panel.setBorder(JBUI.Borders.empty(12, 16));
@@ -117,10 +117,33 @@ final class SlangFormatterPanel extends CodeStyleAbstractPanel {
                 || !state.CLANG_FORMAT_PATH.equals(executable.getText().trim());
     }
 
-    @Override public JComponent getPanel() { return panel; }
-    @Override protected String getTabTitle() { return SlangBundle.message("settings.general"); }
-    @Override protected int getRightMargin() { return 0; }
-    @Override protected EditorHighlighter createHighlighter(EditorColorsScheme scheme) { return null; }
-    @Override protected FileType getFileType() { return SlangFileType.INSTANCE; }
-    @Override protected String getPreviewText() { return ""; }
+    @Override
+    public JComponent getPanel() {
+        return panel;
+    }
+
+    @Override
+    protected @NotNull String getTabTitle() {
+        return SlangBundle.message("settings.general");
+    }
+
+    @Override
+    protected int getRightMargin() {
+        return 0;
+    }
+
+    @Override
+    protected EditorHighlighter createHighlighter(@NotNull EditorColorsScheme scheme) {
+        return null;
+    }
+
+    @Override
+    protected @NotNull FileType getFileType() {
+        return SlangFileType.INSTANCE;
+    }
+
+    @Override
+    protected String getPreviewText() {
+        return "";
+    }
 }

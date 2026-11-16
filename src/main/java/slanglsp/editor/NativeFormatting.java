@@ -13,7 +13,7 @@ import slanglsp.language.SlangLanguage;
 /** Runs the same JetBrains formatting engine on a private document for background inspections. */
 final class NativeFormatting {
     static String format(String text, CodeStyleSettings settings) {
-        var model = new SnapshotModel(text, new SlangFormattingBlock(text, settings));
+        var model = new SnapshotModel(text, new NativeFormattingBlock(text, settings));
         // The private model has no PSI node from which the engine can infer a right margin.
         var effective = com.intellij.psi.codeStyle.CodeStyleSettingsManager.getInstance().cloneSettings(settings);
         effective.setRightMargin(null, settings.getRightMargin(SlangLanguage.INSTANCE));

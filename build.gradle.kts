@@ -101,7 +101,7 @@ val installTestDependencies = tasks.register<Exec>("installTestDependencies") {
 
 val preparePlayground = tasks.register<PreparePlayground>("preparePlayground") {
     group = "intellij platform"
-    description = "Seed the editable Slang playground and connect installed native tools."
+    description = "Refresh Slang playground templates on every launch and connect installed native tools."
     templateDirectory.set(layout.projectDirectory.dir("dev/playground"))
     playgroundDirectory.set(layout.buildDirectory.dir("playground"))
     slangdCandidate.set(testSlangd.asFile.absolutePath)

@@ -50,6 +50,7 @@ Choose the engine under **Editor → Code Style → Slang → General**:
 The page opens on **General** and uses standard JetBrains option tables and live previews:
 
 - **Tabs and Indents** — spaces/tabs, indentation, continuation indentation, tab width, smart tabs.
+- **Naming** — ordered Slang naming rules with previews, casing, prefixes/suffixes, and abbreviations.
 - **Braces Layout** — default placement plus separate function, type/namespace, and control-flow overrides;
   placement of `else`, `catch`, and `while`.
 - **Blank Lines** — retained blank lines in code/declarations, before closing braces, and between top-level functions.
@@ -59,10 +60,27 @@ The page opens on **General** and uses standard JetBrains option tables and live
 
 The organization follows [JetBrains' C/C++ Code Style settings](https://www.jetbrains.com/help/clion/settings-code-style-c-cpp.html),
 with options implemented for Slang's native formatter. Previews include shader attributes and Slang declarations.
-Use **Set from** to select **Slang (upstream)** (the default, following shader-slang v2026.22's
+
+**Inconsistent Naming** (under **Editor → Inspections → Slang**) checks declarations against the
+first matching naming rule. Its enable checkbox is also available on the Naming tab.
+Warnings underline the first two characters and offer **Rename to 'suggested_name'** throughout the identifier.
+Ordinary renames update verified declarations and references directly as one undoable operation.
+Use **Preview** in the Rename dialog to review changes explicitly. Generated-code references,
+read-only occurrences, and unloaded project modules trigger a preview automatically.
+The **Slang** defaults follow upstream: `UpperCamelCase` types, `lowerCamelCase` values,
+`ITransformer` interfaces, `gViewParams` globals, and `kSampleCount` static constants.
+See [the per-category conventions and upstream examples](docs/slang-naming.md).
+Declaration discovery uses `slangd`, supplemented by conservative parameter/local detection.
+Shader entry-point names, explicit external/override declarations, and interface requirements are excluded.
+Unused declarations take precedence in hover tooltips and offer **Remove unused function**,
+**Remove unused struct**, or the corresponding action for methods, classes, enums, fields, constants,
+and variables. Naming still underlines the first two characters and offers **Rename to …** in
+the lightbulb menu. Removal rechecks references and supports undo. Shared variable declarations and
+initializers whose evaluation cannot safely be discarded retain the warning without a removal action.
+Use **Set from → Slang** to apply the default naming rules and formatting, following shader-slang v2026.22's
 [`.clang-format`](https://github.com/shader-slang/slang/blob/v2026.22/.clang-format): four-space indentation,
-100 columns, Allman braces) or **Java-style (K&R)** (attached braces and eight-space continuation indentation).
-These presets are editable and stored in the IDE's code-style scheme.
+100 columns, Allman braces.
+These settings are editable and stored in the IDE's code-style scheme.
 
 The native formatter handles braces, spacing, indentation, continuation indentation, and wrapping,
 and powers the Code Style preview. It preserves token contents (including strings, comments, and
@@ -83,14 +101,15 @@ New projects start with no predefined macros. Existing project macros remain edi
 
 Select **Run Plugin** (or run `./gradlew runPlugin`) to launch the latest release
 of IntelliJ IDEA in a dedicated plugin sandbox. Gradle downloads/caches the IDE,
-its runtime, and a compatible LSP4IJ. The task seeds `build/playground` with open
+its runtime, and a compatible LSP4IJ. Every launch refreshes `build/playground` from `dev/playground` with open
 Slang files, cross-file function calls, unused symbols, spelling mistakes, and
-formatting examples. See the playground's README for the manual checks.
+formatting examples.
 
 Put installed `slangd` on PATH or use the repository's existing `vcpkg_installed`
 tools. The playground defaults to the native formatter; select clang-format in
-Code Style if desired. Launching does not install native tools. Playground edits and
-settings persist; close the sandbox and delete `build/playground` to reset it.
+Code Style if desired. Launching does not install native tools. Template-owned files
+and generated executable settings are overwritten on each launch. Edit `dev/playground`
+to make lasting changes to the examples; additional files and dictionaries are retained.
 The Slang executable-directory setting accepts paths relative to the project root.
 The playground uses `../../vcpkg_installed/<host-triplet>/tools/shader-slang`.
 On each launch, appearance settings (including normal UI zoom, theme, and fonts)

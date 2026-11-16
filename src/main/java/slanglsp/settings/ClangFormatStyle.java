@@ -4,8 +4,9 @@ import com.intellij.psi.codeStyle.CodeStyleSettings;
 import slanglsp.language.SlangLanguage;
 
 /** clang-format defaults from shader-slang/slang v2026.22's .clang-format. */
-public final class SlangCodeStyle {
-    private SlangCodeStyle() {}
+public final class ClangFormatStyle {
+    private ClangFormatStyle() {
+    }
 
     private static final String BASE = """
             BasedOnStyle: LLVM, MaxEmptyLinesToKeep: 2,
@@ -23,8 +24,7 @@ public final class SlangCodeStyle {
     public static final String DEFAULT_STYLE = style(4, 4, 8, false, 100, true);
 
     public static String clangFormatStyle(CodeStyleSettings settings) {
-        var common = settings.getCommonSettings(SlangLanguage.INSTANCE);
-        var indent = common.getIndentOptions();
+        var indent = settings.getIndentOptions(slanglsp.language.SlangFileType.INSTANCE);
         var custom = settings.getCustomSettings(SlangCodeStyleSettings.class);
         return style(indent.INDENT_SIZE, indent.CONTINUATION_INDENT_SIZE, indent.TAB_SIZE,
                 indent.USE_TAB_CHARACTER, settings.getRightMargin(SlangLanguage.INSTANCE), custom.BRACES_ON_NEW_LINE);

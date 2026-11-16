@@ -13,7 +13,7 @@ import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class SlangFormatterSettingsTest {
+class FormatterSettingsTest {
     @Test
     void completeCodeStylePanelBuildsWithGeneralSelected() throws Exception {
         var fixture = IdeaTestFixtureFactory.getFixtureFactory().createLightFixtureBuilder("CodeStyleTabs").getFixture();
@@ -32,7 +32,7 @@ class SlangFormatterSettingsTest {
                     assertNotNull(tabs);
                     assertNotNull(tabs.getSelectedInfo());
                     assertEquals("General", tabs.getSelectedInfo().getText());
-                    assertEquals(7, tabs.getTabCount());
+                    assertEquals(8, tabs.getTabCount());
                 } finally {
                     configurable.disposeUIResources();
                 }
@@ -68,7 +68,7 @@ class SlangFormatterSettingsTest {
                 source.USE_CUSTOM_CLANG_FORMAT = true;
                 source.USE_BUNDLED_CLANG_FORMAT = false;
                 source.CLANG_FORMAT_PATH = "/tools with spaces/clang-format";
-                var panel = new SlangFormatterPanel(settings);
+                var panel = new FormatterPanel(settings);
                 try {
                     panel.reset(settings);
                     assertFalse(panel.isModified(settings));
@@ -107,7 +107,7 @@ class SlangFormatterSettingsTest {
 
     @Test
     void yamlLanguageSectionsOverrideDefaultsWithoutApplyingOtherLanguages() {
-        var values = SlangClangFormatSettings.parse("""
+        var values = ClangFormatSettingsImporter.parse("""
                 ---
                 IndentWidth: 3
                 UseTab: Never

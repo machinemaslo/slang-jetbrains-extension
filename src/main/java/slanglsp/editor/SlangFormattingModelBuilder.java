@@ -16,7 +16,7 @@ public final class SlangFormattingModelBuilder implements FormattingModelBuilder
                 file, new PsiBlock(file.getNode(), settings), settings);
     }
 
-    private static final class PsiBlock extends SlangFormattingBlock implements com.intellij.formatting.ASTBlock {
+    private static final class PsiBlock extends NativeFormattingBlock implements com.intellij.formatting.ASTBlock {
         private final com.intellij.lang.ASTNode node;
 
         PsiBlock(com.intellij.lang.ASTNode node, com.intellij.psi.codeStyle.CodeStyleSettings settings) {

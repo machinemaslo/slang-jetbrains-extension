@@ -219,10 +219,10 @@ class FormattingUndoTest {
                 .run(() -> fixture.getEditor().getDocument().setText(text));
     }
 
-    private SlangFormattingService.Result result(Document document) {
+    private UndoableFormattingService.Result result(Document document) {
         var file = fixture.getFile();
         var context = FormattingContext.create(file, CodeStyle.getSettings(file));
-        return new SlangFormattingService.Result(new Request(context, document.getText()), document);
+        return new UndoableFormattingService.Result(new Request(context, document.getText()), document);
     }
 
     private void undo() {

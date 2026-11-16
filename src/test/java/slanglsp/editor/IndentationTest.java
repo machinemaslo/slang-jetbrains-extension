@@ -10,12 +10,12 @@ import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import com.intellij.testFramework.fixtures.impl.TempDirTestFixtureImpl;
 import org.junit.jupiter.api.Test;
 
-class SlangIndentationTest {
+class IndentationTest {
     @Test
     void nativeBackspaceAndEnterUseSlangIndentation() throws Exception {
         var factory = IdeaTestFixtureFactory.getFixtureFactory();
         CodeInsightTestFixture fixture = factory.createCodeInsightFixture(
-                factory.createLightFixtureBuilder("SlangIndentationTest").getFixture(), new TempDirTestFixtureImpl());
+                factory.createLightFixtureBuilder("IndentationTest").getFixture(), new TempDirTestFixtureImpl());
         EdtTestUtil.runInEdtAndWait(fixture::setUp);
 
         try {

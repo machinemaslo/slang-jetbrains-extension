@@ -20,7 +20,7 @@ import java.util.Set;
  * The parser exposes token-level PSI. Virtual formatting blocks retain exact token ranges,
  * so formatting never rewrites strings, comments, directives, or the PSI structure.
  */
-class SlangFormattingBlock implements BlockEx {
+class NativeFormattingBlock implements BlockEx {
     private static final Set<String> CONTROL = Set.of("if", "for", "while", "switch", "catch");
     private static final Set<String> OPERATORS = Set.of(
             "==", "!=", "<=", ">=", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=",
@@ -32,7 +32,7 @@ class SlangFormattingBlock implements BlockEx {
     private final SlangCodeStyleSettings custom;
     private final Set<Integer> functionStarts = new java.util.HashSet<>();
 
-    SlangFormattingBlock(String source, CodeStyleSettings settings) {
+    NativeFormattingBlock(String source, CodeStyleSettings settings) {
         this.source = source;
         custom = settings.getCustomSettings(SlangCodeStyleSettings.class);
         common = settings.getCommonSettings(SlangLanguage.INSTANCE);
@@ -206,9 +206,19 @@ class SlangFormattingBlock implements BlockEx {
         if (right.labelColon) return spaces(0, false);
         if (a.equals("}")) {
             if (Set.of(";", ",", ")", "]", ".", "(", "::").contains(b)) return spaces(0, false);
-            if (b.equals("else")) return common.ELSE_ON_NEW_LINE ? line() : spaces(1, false);
-            if (b.equals("catch")) return common.CATCH_ON_NEW_LINE ? line() : spaces(1, false);
-            if (b.equals("while")) return common.WHILE_ON_NEW_LINE ? line() : spaces(1, false);
+            switch (b) {
+                case "else" -> {
+                    return common.ELSE_ON_NEW_LINE ? line() : spaces(1, false);
+                }
+                case "catch" -> {
+                    return common.CATCH_ON_NEW_LINE ? line() : spaces(1, false);
+                }
+                case "while" -> {
+                    return common.WHILE_ON_NEW_LINE ? line() : spaces(1, false);
+                }
+                default -> {
+                }
+            }
             if (left.braceKind == 1 && left.braces == 0)
                 return lines(common.BLANK_LINES_AROUND_METHOD + 1, common.KEEP_BLANK_LINES_IN_DECLARATIONS);
             return lines(1, keptBlankLines);
