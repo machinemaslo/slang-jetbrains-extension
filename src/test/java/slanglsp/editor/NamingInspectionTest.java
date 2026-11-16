@@ -80,11 +80,13 @@ class NamingInspectionTest {
             EdtTestUtil.runInEdtAndWait(() -> {
                 var holder = new AnnotationRecorder();
                 annotator.apply(files[0], result[0], holder.holder());
-                assertTrue(result[0].unusedOffsets().contains(source.indexOf("TestStruct")));
+                String unusedMessage = result[0].unusedMessages().get(source.indexOf("TestStruct"));
+                assertNotNull(unusedMessage);
                 var unusedNaming = holder.stream()
                         .filter(a -> a.getStartOffset() == source.indexOf("TestStruct")).findFirst().orElseThrow();
                 assertNull(unusedNaming.getMessage(), "Unused takes precedence only in hover text");
-                assertNull(unusedNaming.getTooltip());
+                assertNull(unusedNaming.getTooltip(), "Naming must not own the unused hover");
+                assertEquals(com.intellij.lang.annotation.HighlightSeverity.INFORMATION, unusedNaming.severity);
                 assertEquals(2, unusedNaming.getEndOffset() - unusedNaming.getStartOffset());
                 var unusedRename = unusedNaming.getQuickFixes().getFirst();
                 assertEquals("Rename to 'test_struct'", unusedRename.quickFix.getText());

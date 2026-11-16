@@ -33,7 +33,7 @@ dependencies {
         if (localIdePath != null) {
             local(localIdePath)
         } else {
-            intellijIdeaCommunity("2024.2.6")
+            intellijIdeaCommunity("2025.1")
         }
         pluginVerifier("1.410")
         zipSigner()
@@ -174,7 +174,7 @@ tasks {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "242.26775.15"
+            sinceBuild = "251"
             // Allow future IDE builds; verification still checks actual API compatibility.
             untilBuild = provider { null }
         }

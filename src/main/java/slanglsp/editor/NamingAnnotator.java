@@ -21,7 +21,7 @@ import java.util.*;
 public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Input, NamingAnnotator.Result> {
     public record Input(UnusedSymbolsAnnotator.Input source, List<NamingRule> rules, String abbreviations) {}
     public record Candidate(String name, NamingRule.Category category, TextRange range) {}
-    public record Result(Input input, List<Candidate> candidates, Set<Integer> unusedOffsets) {}
+    public record Result(Input input, List<Candidate> candidates, Map<Integer, String> unusedMessages) {}
 
     @Override
     public String getPairedBatchInspectionShortName() {
@@ -83,15 +83,16 @@ public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Inp
             }
             var unusedAnnotator = new UnusedSymbolsAnnotator();
             var unusedInput = ReadActions.compute(() -> unusedAnnotator.collectInformation(source.file()));
-            Set<Integer> unusedOffsets = new HashSet<>();
+            Map<Integer, String> unusedMessages = new HashMap<>();
             if (unusedInput != null && unusedInput.stamp() == source.stamp()
                     && unusedInput.projectStamp() == source.projectStamp()) {
                 var unused = unusedAnnotator.doAnnotate(unusedInput);
                 if (unused != null) {
-                    unused.unused().forEach(candidate -> unusedOffsets.add(candidate.range().getStartOffset()));
+                    unused.unused().forEach(candidate ->
+                            unusedMessages.put(candidate.range().getStartOffset(), candidate.message()));
                 }
             }
-            return new Result(input, candidates, Set.copyOf(unusedOffsets));
+            return new Result(input, candidates, Map.copyOf(unusedMessages));
         } catch (ProcessCanceledException canceled) {
             throw canceled;
         } catch (RuntimeException failure) {
@@ -215,9 +216,12 @@ public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Inp
             if (element == null || !element.getText().equals(candidate.name())) {
                 continue;
             }
-            // Keep the underline and Alt+Enter action, but let unused own the hover text.
-            var annotation = result.unusedOffsets().contains(candidate.range().getStartOffset())
-                    ? holder.newSilentAnnotation(severity)
+            // Informational styling must not compete with the unused warning for hover selection.
+            // Its fix remains available through Alt+Enter over the entire identifier.
+            String unusedMessage = result.unusedMessages().get(candidate.range().getStartOffset());
+            var annotation = unusedMessage != null
+                    ? holder.newSilentAnnotation(com.intellij.lang.annotation.HighlightSeverity.INFORMATION)
+                            .textAttributes(com.intellij.openapi.editor.colors.CodeInsightColors.WARNINGS_ATTRIBUTES)
                     : holder.newAnnotation(severity,
                             SlangBundle.message("naming.warning", candidate.name(), rule.name(), suggestion));
             annotation.range(TextRange.from(candidate.range().getStartOffset(), Math.min(2, candidate.name().length())))

@@ -25,6 +25,10 @@ class AngleBracketsTest {
                 factory.createLightFixtureBuilder("SlangAngles").getFixture(), new TempDirTestFixtureImpl());
         EdtTestUtil.runInEdtAndWait(() -> {
             fixture.setUp();
+            var definition = com.redhat.devtools.lsp4ij.LanguageServersRegistry.getInstance()
+                    .getServerDefinition("slanglsp.SlangLanguageServer");
+            org.junit.jupiter.api.Assertions.assertNotNull(definition);
+            definition.setEnabled(false, fixture.getProject());
             var settings = CodeInsightSettings.getInstance();
             oldPair = settings.AUTOINSERT_PAIR_BRACKET;
             oldTab = settings.TAB_EXITS_BRACKETS_AND_QUOTES;

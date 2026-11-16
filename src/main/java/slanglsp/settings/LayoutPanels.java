@@ -122,9 +122,33 @@ final class LayoutPanels {
         }
     }
 
-    static final class BlankLines extends com.intellij.application.options.codeStyle.CodeStyleBlankLinesPanel {
+    static final class BlankLines extends com.intellij.application.options.codeStyle.OptionTableWithPreviewPanel {
         BlankLines(CodeStyleSettings settings) {
             super(settings);
+            init();
+        }
+
+        @Override
+        public com.intellij.psi.codeStyle.LanguageCodeStyleSettingsProvider.SettingsType getSettingsType() {
+            return com.intellij.psi.codeStyle.LanguageCodeStyleSettingsProvider.SettingsType.BLANK_LINES_SETTINGS;
+        }
+
+        @Override
+        protected @NotNull String getTabTitle() {
+            return SlangBundle.message("settings.code.style.blank.lines.tab");
+        }
+
+        @Override
+        protected void initTables() {
+            String group = getTabTitle();
+            addOption("KEEP_BLANK_LINES_IN_CODE",
+                    SlangBundle.message("settings.code.style.blank.lines.code"), group, 0, 100, 0, null);
+            addOption("KEEP_BLANK_LINES_IN_DECLARATIONS",
+                    SlangBundle.message("settings.code.style.blank.lines.declarations"), group, 0, 100, 0, null);
+            addOption("KEEP_BLANK_LINES_BEFORE_RBRACE",
+                    SlangBundle.message("settings.code.style.blank.lines.before.brace"), group, 0, 100, 0, null);
+            addOption("BLANK_LINES_AROUND_METHOD",
+                    SlangBundle.message("settings.code.style.blank.lines.functions"), group, 0, 100, 0, null);
         }
 
         @Override

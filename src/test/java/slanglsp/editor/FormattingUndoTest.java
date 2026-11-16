@@ -56,7 +56,7 @@ class FormattingUndoTest {
     void tearDown() throws Exception {
         LanguageServerManager.getInstance(fixture.getProject())
                 .stop("slanglsp.SlangLanguageServer",
-                        new LanguageServerManager.StopOptions().setWillDisable(false));
+                        new LanguageServerManager.StopOptions().setWillDisable(true));
         EdtTestUtil.runInEdtAndWait(() -> {
             com.intellij.psi.codeStyle.CodeStyleSettingsManager.getInstance(fixture.getProject()).dropTemporarySettings();
             fixture.tearDown();

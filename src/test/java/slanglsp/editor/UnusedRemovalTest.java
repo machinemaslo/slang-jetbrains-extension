@@ -20,7 +20,8 @@ class UnusedRemovalTest {
                 function.substring(0, range.getStartOffset()) + function.substring(range.getEndOffset()));
         for (String declaration : new String[] {
                 "struct Unused { float value; };", "enum Unused { A, B };", "float Unused = 1.0;",
-                "static const float Unused = -2.0;"}) {
+                "static const float Unused = -2.0;",
+                "static const String Unused = \"Hello\\nmispellled shader\";"}) {
             String kind = declaration.startsWith("struct") ? "struct" : declaration.startsWith("enum") ? "enum" : "variable";
             String source = declaration + "\nfloat kept;\n";
             assertEquals(declaration + "\n", range(source, "Unused", kind).substring(source));
@@ -35,6 +36,7 @@ class UnusedRemovalTest {
     void rejectsSideEffectsSharedDeclarationsAndControlHeaders() {
         for (String source : new String[] {
                 "float unused = sideEffect();",
+                "String unused = \"hello\" + sideEffect();",
                 "float unused = buffer[0];",
                 "float unused = ++counter;",
                 "float unused, used;",

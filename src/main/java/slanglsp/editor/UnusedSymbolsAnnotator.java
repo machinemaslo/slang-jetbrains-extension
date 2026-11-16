@@ -223,7 +223,7 @@ public final class UnusedSymbolsAnnotator
         check(result.input);
 
         for (var candidate : result.unused) {
-            // Keep unused styling; overlapping naming annotations omit their hover text.
+            // This warning owns the hover; naming only contributes informational styling and a menu action.
             var annotation = holder.newAnnotation(HighlightSeverity.WEAK_WARNING,
                            candidate.message())
                     .range(candidate.range)

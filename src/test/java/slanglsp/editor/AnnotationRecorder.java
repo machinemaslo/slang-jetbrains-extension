@@ -25,10 +25,13 @@ final class AnnotationRecorder extends ArrayList<AnnotationRecorder.RecordedAnno
     static final class RecordedAnnotation {
         private TextRange range;
         private final String message;
+        private String tooltip;
+        com.intellij.lang.annotation.HighlightSeverity severity;
         private final List<Fix> fixes = new ArrayList<>();
 
         RecordedAnnotation(String message) {
             this.message = message;
+            this.tooltip = message;
         }
 
         int getStartOffset() {
@@ -44,7 +47,7 @@ final class AnnotationRecorder extends ArrayList<AnnotationRecorder.RecordedAnno
         }
 
         @Nullable String getTooltip() {
-            return message;
+            return tooltip;
         }
 
         @NotNull List<Fix> getQuickFixes() {
@@ -54,8 +57,11 @@ final class AnnotationRecorder extends ArrayList<AnnotationRecorder.RecordedAnno
 
     AnnotationHolder holder() {
         return proxy(AnnotationHolder.class, (object, method, args) -> switch (method.getName()) {
-            case "newAnnotation" -> builder(new RecordedAnnotation((String) args[1]));
-            case "newSilentAnnotation" -> builder(new RecordedAnnotation(null));
+            case "newAnnotation", "newSilentAnnotation" -> {
+                var annotation = new RecordedAnnotation(args.length > 1 ? (String) args[1] : null);
+                annotation.severity = (com.intellij.lang.annotation.HighlightSeverity) args[0];
+                yield builder(annotation);
+            }
             default -> throw new AssertionError("Unexpected annotation-holder call: " + method);
         });
     }
@@ -66,7 +72,11 @@ final class AnnotationRecorder extends ArrayList<AnnotationRecorder.RecordedAnno
                 annotation.range = (TextRange) args[0];
                 yield object;
             }
-            case "highlightType" -> object;
+            case "highlightType", "textAttributes" -> object;
+            case "tooltip" -> {
+                annotation.tooltip = (String) args[0];
+                yield object;
+            }
             case "newFix" -> {
                 var fix = new Fix((IntentionAction) args[0]);
                 yield proxy(AnnotationBuilder.FixBuilder.class, (fixObject, fixMethod, fixArgs) ->

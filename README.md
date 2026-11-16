@@ -3,7 +3,7 @@
 ---
 
 ### Example
-![Example](./images/example.gif)
+https://github.com/user-attachments/assets/f1ee4a74-58b1-4589-bf29-3fdd20842cc7
 
 ---
 
@@ -17,7 +17,7 @@ If you want any additional features, please open an issue on github and I will t
 ### To Build
 1. Install JDK 21–27 and optionally IntelliJ IDEA for development.
 2. Fetch code with `git clone --recursive https://github.com/machinemaslo/slang-jetbrains-extension.git`
-3. Builds use the Gradle-managed IDEA 2024.2.6 SDK by default. To build and test against a local IDE instead, pass `-PlocalIdePath=/path/to/intellij-idea` to Gradle. **Run Plugin** independently uses the latest IDEA.
+3. The plugin requires a JetBrains IDE 2025.1 or newer. Builds use the Gradle-managed IDEA 2025.1 SDK by default. To build and test against a local IDE instead, pass `-PlocalIdePath=/path/to/intellij-idea` to Gradle. **Run Plugin** independently uses the latest IDEA.
 4. Open the project in IDEA, select the Gradle wrapper and JDK 21–27 as the project/Gradle JVM, then run `test` and `buildPlugin` (or `./gradlew test buildPlugin` from the project directory). Tests require the native prerequisites below. Compilation targets Java 21.
 5. Install the plugin ZIP from `build/distributions/`
 

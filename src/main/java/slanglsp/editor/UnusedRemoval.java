@@ -10,7 +10,7 @@ import java.util.Set;
 
 /** Finds a complete declaration without crossing siblings or dropping initializer side effects. */
 final class UnusedRemoval {
-    private record Token(String text, int start, int end) {}
+    private record Token(String text, int start, int end, boolean stringLiteral) {}
 
     static TextRange range(String text, UnusedSymbolsAnnotator.Candidate candidate) {
         var lexer = new SlangLexer();
@@ -24,7 +24,7 @@ final class UnusedRemoval {
                     nameIndex = tokens.size();
                 }
                 tokens.add(new Token(text.substring(lexer.getTokenStart(), lexer.getTokenEnd()),
-                        lexer.getTokenStart(), lexer.getTokenEnd()));
+                        lexer.getTokenStart(), lexer.getTokenEnd(), type == SlangLexer.STRING));
             }
             lexer.advance();
         }
@@ -62,7 +62,8 @@ final class UnusedRemoval {
                 initializer = true;
                 continue;
             }
-            if (initializer && !word.matches("[0-9][A-Za-z0-9_.]*|true|false|[+\\-]")) {
+            if (initializer && !token.stringLiteral()
+                    && !word.matches("[0-9][A-Za-z0-9_.]*|true|false|[+\\-]")) {
                 return null; // Calls, reads, and overloaded expressions need a preserve-side-effects action.
             }
             switch (word) {

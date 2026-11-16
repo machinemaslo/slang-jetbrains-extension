@@ -3,7 +3,7 @@ package slanglsp.settings;
 import com.intellij.application.options.CodeStyleAbstractPanel;
 import com.intellij.openapi.editor.colors.EditorColorsScheme;
 import com.intellij.openapi.editor.highlighter.EditorHighlighter;
-import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
+import com.intellij.openapi.fileChooser.FileChooserDescriptor;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
@@ -48,7 +48,7 @@ final class FormatterPanel extends CodeStyleAbstractPanel {
         if (bundled.isVisible()) row(bundled, 26, 10);
         row(custom, 26, 8);
         executable.addBrowseFolderListener(new com.intellij.openapi.ui.TextBrowseFolderListener(
-                FileChooserDescriptorFactory.createSingleFileDescriptor()
+                new FileChooserDescriptor(true, false, false, false, false, false)
                         .withTitle(SlangBundle.message("settings.clang.format.executable"))));
         com.intellij.openapi.util.Disposer.register(this, executable);
         row(executable, 52, 6);
