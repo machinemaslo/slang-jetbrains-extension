@@ -77,7 +77,7 @@ final class RemoveUnusedFix implements IntentionAction {
                     });
                 }
                 if (input.file().isValid()) {
-                    com.intellij.codeInsight.daemon.DaemonCodeAnalyzer.getInstance(project).restart(input.file());
+                    com.intellij.codeInsight.daemon.DaemonCodeAnalyzer.getInstance(project).settingsChanged();
                 }
             }
         }.queue();

@@ -11,14 +11,7 @@ public final class CodeStyleChangeListener implements CodeStyleSettingsListener 
         ServerClient.notifySettingsChanged(event.getProject());
         var project = event.getProject();
         if (!project.isDisposed()) {
-            var analyzer = com.intellij.codeInsight.daemon.DaemonCodeAnalyzer.getInstance(project);
-            var psiManager = com.intellij.psi.PsiManager.getInstance(project);
-            for (var virtualFile : com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project).getOpenFiles()) {
-                var file = psiManager.findFile(virtualFile);
-                if (file != null && file.getLanguage().isKindOf(slanglsp.language.SlangLanguage.INSTANCE)) {
-                    analyzer.restart(file);
-                }
-            }
+            com.intellij.codeInsight.daemon.DaemonCodeAnalyzer.getInstance(project).settingsChanged();
         }
     }
 }
