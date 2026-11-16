@@ -20,10 +20,16 @@
         <![CDATA[
         <p><b>0.0.23</b></p>
         <ul>
-            <li>Find references fix for Windows</li>
-            <li>Smart indentation fix</li>
-            <li>Bracket and quote, generic bracket pairing</li>
-            <li>Comment continuation, and paste indentation</li>
+            <li>Native Slang formatter, optional <code>clang-format</code>, and <code>.clang-format</code> import</li>
+            <li>Eight Code Style tabs, live previews, and Slang preset</li>
+            <li>Configurable naming rules and rename quick fixes</li>
+            <li>Windows reference matching fix, undoable rename, and optional preview</li>
+            <li>Safe, undoable unused-symbol removal</li>
+            <li>Smart indentation, bracket and quote pairing, generic brackets, comment continuation, and paste indentation</li>
+            <li>Comment and string spellchecking with bundled Slang vocabulary</li>
+            <li>Development playground with automatically refreshed samples</li>
+            <li>Pinned vcpkg test dependencies and cross-platform CI</li>
+            <li>Minimum IDE version: 2025.1</li>
         </ul>
         <p><b>0.0.22</b></p>
         <ul>
@@ -54,14 +60,21 @@
             <li>Hover and Quick Documentation</li>
             <li>Find Usages</li>
             <li>Native usage navigation from declarations</li>
-            <li>Rename</li>
-            <li>Unused symbols check</li>
-            <li>Document and selection formatting through <code>clang-format</code>, with local smart editing</li>
+            <li>Reference-aware, undoable rename with optional previews and reliable Windows reference matching</li>
+            <li>Unused-symbol checks with safe, reference-checked, undoable removal actions</li>
+            <li>Native, IDE-integrated document and selection formatting without external tools, optional <code>clang-format</code> support, and supported <code>.clang-format</code> settings import</li>
+            <li>Eight Code Style tabs with live previews and a Slang preset</li>
+            <li>Configurable, ordered naming rules with upstream-derived defaults and reference-aware rename quick fixes</li>
+            <li>Smart bracket and quote pairing, context-aware generic brackets, indentation, Enter behavior, comment continuation, and paste indentation</li>
+            <li>Spellchecking for comments and strings using IDE dictionaries and bundled Slang vocabulary</li>
+            <li>Development sandbox with sample shaders refreshed automatically on launch</li>
+            <li>Pinned native test dependencies through vcpkg and automated Windows, macOS, and Linux builds and tests</li>
+            <li>Support for JetBrains IDEs 2025.1 and newer</li>
             <li>Automatic discovery of locally installed vcpkg <code>slangd</code> packages, plus an explicit server directory and PATH-based discovery</li>
             <li>Project settings for additional include/search paths, predefined macros, and searching workspace subdirectories</li>
         </ul>
         <p>The rename fallback covers project Slang files under the current server configuration. It cannot check inactive code, external references, or new-name conflicts. Built-in/external declarations and ambiguous or unverified targets are rejected; changes to project files during search or preview require a new search.</p>
-        <p>Requires LSP4IJ and a working <code>slangd</code> installation. Formatting additionally requires <code>clang-format</code>. Server-provided features depend on the installed Slang version.</p>
+        <p>Requires a JetBrains IDE 2025.1 or newer, LSP4IJ, and a working <code>slangd</code> installation for server-provided features. Native formatting does not require external tools; the optional Clang-Format formatter requires <code>clang-format</code>. Server-provided features depend on the installed Slang version.</p>
         ]]>
     </change-notes>
     <!-- Product and plugin compatibility requirements. -->
