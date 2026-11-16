@@ -14,7 +14,7 @@ public final class CodeStylePresets {
         common.RIGHT_MARGIN = 100;
         indent.INDENT_SIZE = 4;
         indent.CONTINUATION_INDENT_SIZE = 4;
-        indent.TAB_SIZE = 8;
+        indent.TAB_SIZE = 4;
         indent.USE_TAB_CHARACTER = false;
         var custom = settings.getCustomSettings(SlangCodeStyleSettings.class);
         custom.BRACES_ON_NEW_LINE = true;

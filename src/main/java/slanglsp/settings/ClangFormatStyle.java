@@ -21,7 +21,7 @@ public final class ClangFormatStyle {
             AlwaysBreakTemplateDeclarations: true, SortUsingDeclarations: false
             """.replace('\n', ' ').trim();
 
-    public static final String DEFAULT_STYLE = style(4, 4, 8, false, 100, true);
+    public static final String DEFAULT_STYLE = style(4, 4, 4, false, 100, true);
 
     public static String clangFormatStyle(CodeStyleSettings settings) {
         var indent = settings.getIndentOptions(slanglsp.language.SlangFileType.INSTANCE);

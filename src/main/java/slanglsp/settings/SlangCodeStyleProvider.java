@@ -3,7 +3,6 @@ package slanglsp.settings;
 import com.intellij.application.options.CodeStyleAbstractConfigurable;
 import com.intellij.application.options.CodeStyleAbstractPanel;
 import com.intellij.application.options.IndentOptionsEditor;
-import com.intellij.application.options.SmartIndentOptionsEditor;
 import com.intellij.application.options.TabbedLanguageCodeStylePanel;
 import com.intellij.lang.Language;
 import com.intellij.psi.codeStyle.*;
@@ -31,7 +30,7 @@ public final class SlangCodeStyleProvider extends LanguageCodeStyleSettingsProvi
         common.RIGHT_MARGIN = 100;
         indent.INDENT_SIZE = 4;
         indent.CONTINUATION_INDENT_SIZE = 4;
-        indent.TAB_SIZE = 8;
+        indent.TAB_SIZE = 4;
         indent.USE_TAB_CHARACTER = false;
         common.ELSE_ON_NEW_LINE = true;
         common.CATCH_ON_NEW_LINE = true;
@@ -48,7 +47,7 @@ public final class SlangCodeStyleProvider extends LanguageCodeStyleSettingsProvi
 
     @Override
     public IndentOptionsEditor getIndentOptionsEditor() {
-        return new SmartIndentOptionsEditor();
+        return new TabWidthIndentEditor();
     }
 
     @Override
@@ -149,7 +148,7 @@ public final class SlangCodeStyleProvider extends LanguageCodeStyleSettingsProvi
                     @Override
                      protected void initTabs(CodeStyleSettings settings) {
                         addTab(new FormatterPanel(settings));
-                        addTab(new MyIndentOptionsWrapper(settings, new SmartIndentOptionsEditor()) {
+                        addTab(new MyIndentOptionsWrapper(settings, new TabWidthIndentEditor()) {
                             @Override protected int getRightMargin() {
                                 return getSettings().getRightMargin(SlangLanguage.INSTANCE);
                             }
