@@ -34,9 +34,7 @@ public class SettingsPanel {
     private final JCheckBox checkUnusedSymbols = new JCheckBox(SlangBundle.message("settings.check.unused.symbols"));
     private final JCheckBox formatOnType =
             new JCheckBox(SlangBundle.message("settings.enable.formatting.while.typing"));
-    private final JTextField clangFormat = new JTextField(30);
-    private final JTextField formatStyle = new JTextField(30);
-    private final JTextField fallbackStyle = new JTextField(30);
+    private ProjectSettings.State initialState = new ProjectSettings.State();
     private final JCheckBox onTypeLineBreaks =
             new JCheckBox(SlangBundle.message("settings.allow.line.break.changes.while.formatting.on.type"));
     private final JCheckBox rangeLineBreaks =
@@ -79,18 +77,10 @@ public class SettingsPanel {
 
         JPanel formatting = formPanel();
         addField(formatting, null, formatOnType);
-        clangFormat.setToolTipText(
-                SlangBundle.message("settings.full.path.including.the.executable.name.leave.empty.to.search.path"));
-        addField(formatting, SlangBundle.message("settings.clang.format.executable"), clangFormat);
-        formatStyle.setToolTipText(
-                SlangBundle.message("settings.for.example.file.llvm.microsoft.or.file.path.to.clang.format"));
-        addField(formatting, SlangBundle.message("settings.style"), formatStyle);
-        fallbackStyle.setToolTipText(SlangBundle.message("settings.style.used.when.no.clang.format.file.is.found"));
-        addField(formatting, SlangBundle.message("settings.fallback.style"), fallbackStyle);
         addField(formatting, null, onTypeLineBreaks);
         addField(formatting, null, rangeLineBreaks);
         addField(formatting, null,
-                new JLabel(SlangBundle.message("settings.formatting.requires.clang.format.to.be.installed")));
+                new JLabel(SlangBundle.message("settings.formatter.settings.location")));
 
         JBTabbedPane tabs = new JBTabbedPane();
         tabs.addTab(SlangBundle.message("settings.general"), scrollable(general));
@@ -209,6 +199,7 @@ public class SettingsPanel {
 
     ProjectSettings.State deriveStateFromGUI() {
         var state = new ProjectSettings.State();
+        state.copyValues(initialState);
         state.additionalIncludePaths = readRows(includePaths);
         state.predefinedMacros = readRows(macros);
         state.explicitSlangdLocation = slangdDirectory.getText().trim();
@@ -219,9 +210,6 @@ public class SettingsPanel {
         state.enableSearchingSubDirectoriesOfWorkspace = searchWorkspace.isSelected();
         state.useSlangdUnusedDiagnosticsOnly = !checkUnusedSymbols.isSelected();
         state.enableFormatOnType = formatOnType.isSelected();
-        state.clangFormatLocation = clangFormat.getText().trim();
-        state.clangFormatStyle = formatStyle.getText().trim();
-        state.clangFormatFallbackStyle = fallbackStyle.getText().trim();
         state.allowLineBreakChangesInOnTypeFormatting = onTypeLineBreaks.isSelected();
         state.allowLineBreakChangesInRangeFormatting = rangeLineBreaks.isSelected();
 
@@ -229,6 +217,8 @@ public class SettingsPanel {
     }
 
     void setGUIStateWithState(ProjectSettings.State state) {
+        initialState = new ProjectSettings.State();
+        initialState.copyValues(state);
         setRows(includePaths, state.additionalIncludePaths);
         setRows(macros, state.predefinedMacros);
         slangdDirectory.setText(state.explicitSlangdLocation);
@@ -239,9 +229,6 @@ public class SettingsPanel {
         searchWorkspace.setSelected(state.enableSearchingSubDirectoriesOfWorkspace);
         checkUnusedSymbols.setSelected(!state.useSlangdUnusedDiagnosticsOnly);
         formatOnType.setSelected(state.enableFormatOnType);
-        clangFormat.setText(state.clangFormatLocation);
-        formatStyle.setText(state.clangFormatStyle);
-        fallbackStyle.setText(state.clangFormatFallbackStyle);
         onTypeLineBreaks.setSelected(state.allowLineBreakChangesInOnTypeFormatting);
         rangeLineBreaks.setSelected(state.allowLineBreakChangesInRangeFormatting);
     }

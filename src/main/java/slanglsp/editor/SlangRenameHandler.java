@@ -12,7 +12,6 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.ui.InputValidator;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.psi.*;
 import com.intellij.refactoring.rename.RenameHandler;
@@ -64,21 +63,12 @@ public final class SlangRenameHandler implements RenameHandler, TitledHandler {
         }
 
         String name = element.getText();
-        String replacement = Messages.showInputDialog(project, SlangBundle.message("rename.prompt", name),
-                SlangBundle.message("rename.rename.slang.symbol"), null, name, new InputValidator() {
-                    @Override
-                    public boolean checkInput(String input) {
-                        return RenamePlan.validName(input) && !name.equals(input);
-                    }
-
-                    @Override
-                    public boolean canClose(String input) {
-                        return checkInput(input);
-                    }
-                });
-
-        if (replacement == null)
+        var dialog = new RenameDialog(project, name);
+        if (!dialog.showAndGet()) {
             return;
+        }
+        String replacement = dialog.replacement();
+        boolean previewRequested = dialog.previewRequested();
         var pointer = SmartPointerManager.createPointer(element);
         new Task.Backgroundable(project, SlangBundle.message("rename.verifying.slang.rename"), true) {
             private RenamePlan plan;
@@ -98,7 +88,7 @@ public final class SlangRenameHandler implements RenameHandler, TitledHandler {
                     return;
 
                 try {
-                    showPreview(project, plan);
+                    finishRename(project, plan, previewRequested);
                 } catch (IllegalStateException failure) {
                     showError(project, failure.getMessage());
                 }
@@ -114,7 +104,15 @@ public final class SlangRenameHandler implements RenameHandler, TitledHandler {
         }.queue();
     }
 
-    static UsageView showPreview(Project project, RenamePlan plan) {
+    static void finishRename(Project project, RenamePlan plan, boolean previewRequested) {
+        if (previewRequested || plan.requiresPreview()) {
+            showPreview(project, plan);
+        } else {
+            plan.apply();
+        }
+    }
+
+    static void showPreview(Project project, RenamePlan plan) {
         var presentation = new UsageViewPresentation();
         presentation.setTabText(SlangBundle.message("rename.tab", plan.oldName));
         presentation.setTabName(SlangBundle.message("rename.command", plan.oldName, plan.newName));
@@ -145,7 +143,6 @@ public final class SlangRenameHandler implements RenameHandler, TitledHandler {
                 SlangBundle.message("rename.files.changed.run.rename.again"), SlangBundle.message("rename.action"),
                 false);
 
-        return view;
     }
 
     private static void showError(Project project, String message) {

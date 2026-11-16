@@ -23,10 +23,38 @@ import java.util.*;
 /** Network and index work runs outside the read action; stale results are never applied. */
 public final class UnusedSymbolsAnnotator
         extends ExternalAnnotator<UnusedSymbolsAnnotator.Input, UnusedSymbolsAnnotator.Result> {
+    private static final com.intellij.openapi.util.Key<Result> CACHE =
+            com.intellij.openapi.util.Key.create("slang.unused.analysis");
+
     public record Input(PsiFile file, Document document, long stamp, long projectStamp, String text) {
     }
 
     public record Candidate(String name, String kind, TextRange range) {
+        String message() {
+            return switch (kind) {
+                case "function" -> SlangBundle.message("unused.symbol.function", name);
+                case "method" -> SlangBundle.message("unused.symbol.method", name);
+                case "struct" -> SlangBundle.message("unused.symbol.struct", name);
+                case "class" -> SlangBundle.message("unused.symbol.class", name);
+                case "enum" -> SlangBundle.message("unused.symbol.enum", name);
+                case "field" -> SlangBundle.message("unused.symbol.field", name);
+                case "constant" -> SlangBundle.message("unused.symbol.constant", name);
+                default -> SlangBundle.message("unused.symbol.variable", name);
+            };
+        }
+
+        String removalText() {
+            return switch (kind) {
+                case "function" -> SlangBundle.message("unused.remove.function");
+                case "method" -> SlangBundle.message("unused.remove.method");
+                case "struct" -> SlangBundle.message("unused.remove.struct");
+                case "class" -> SlangBundle.message("unused.remove.class");
+                case "enum" -> SlangBundle.message("unused.remove.enum");
+                case "field" -> SlangBundle.message("unused.remove.field");
+                case "constant" -> SlangBundle.message("unused.remove.constant");
+                default -> SlangBundle.message("unused.remove.variable");
+            };
+        }
     }
 
     public record Result(Input input, List<Candidate> unused) {
@@ -56,6 +84,21 @@ public final class UnusedSymbolsAnnotator
 
     @Override
     public Result doAnnotate(Input input) {
+        var cached = input.file().getUserData(CACHE);
+        if (cached != null && cached.input.stamp == input.stamp && cached.input.projectStamp == input.projectStamp) {
+            return cached;
+        }
+        var result = analyze(input);
+        if (result != null) {
+            ReadActions.run(() -> {
+                check(input);
+                input.file().putUserData(CACHE, result);
+            });
+        }
+        return result;
+    }
+
+    private Result analyze(Input input) {
         var support = new LSPDocumentSymbolSupport(input.file);
 
         try {
@@ -74,7 +117,7 @@ public final class UnusedSymbolsAnnotator
                 check(input);
 
                 for (var symbol : symbols) {
-                    collect(input, symbol.getDocumentSymbol(), candidates, false);
+                    collect(input, symbol.getDocumentSymbol(), candidates, false, false);
                 }
             });
 
@@ -116,8 +159,9 @@ public final class UnusedSymbolsAnnotator
             throw new ProcessCanceledException();
     }
 
-    private static void collect(Input input, DocumentSymbol symbol, List<Candidate> result, boolean externallyUsed) {
-        if (symbol.getSelectionRange() == null || symbol.getRange() == null) {
+    private static void collect(Input input, DocumentSymbol symbol, List<Candidate> result,
+                                boolean externallyUsed, boolean member) {
+        if (symbol == null || symbol.getSelectionRange() == null || symbol.getRange() == null) {
             return;
         }
 
@@ -140,8 +184,13 @@ public final class UnusedSymbolsAnnotator
                            UnusedDeclarations.isExternal(symbol.getName(), prefix);
         String kind = switch (symbol.getKind()) {
             case Struct -> "struct";
-            case Function, Method -> "function";
-            case Variable, Constant, Field -> "variable";
+            case Class -> "class";
+            case Enum -> "enum";
+            case Function -> member ? "method" : "function";
+            case Method -> "method";
+            case Constant -> "constant";
+            case Field -> "field";
+            case Variable -> member ? "field" : "variable";
             default -> null;
         };
 
@@ -154,11 +203,14 @@ public final class UnusedSymbolsAnnotator
             result.addAll(UnusedDeclarations.locals(input.text, end, Math.min(bodyEnd, input.text.length())));
         }
 
-        if (symbol.getChildren() != null)
-
+        if (symbol.getChildren() != null) {
+            boolean type = symbol.getKind() == SymbolKind.Struct || symbol.getKind() == SymbolKind.Class;
+            int body = type ? input.text.indexOf('{', end) : -1;
+            boolean implementsInterface = body >= end && input.text.substring(end, body).contains(":");
             for (var child : symbol.getChildren()) {
-                collect(input, child, result, external);
+                collect(input, child, result, external || implementsInterface, type);
             }
+        }
     }
 
     @Override
@@ -171,12 +223,16 @@ public final class UnusedSymbolsAnnotator
         check(result.input);
 
         for (var candidate : result.unused) {
-            // A weak-warning layer takes precedence over LSP semantic token colors.
-            holder.newAnnotation(HighlightSeverity.WEAK_WARNING,
-                          SlangBundle.message("unused.symbol", candidate.kind, candidate.name))
+            // This warning owns the hover; naming only contributes informational styling and a menu action.
+            var annotation = holder.newAnnotation(HighlightSeverity.WEAK_WARNING,
+                           candidate.message())
                     .range(candidate.range)
-                    .highlightType(ProblemHighlightType.LIKE_UNUSED_SYMBOL)
-                    .create();
+                    .highlightType(ProblemHighlightType.LIKE_UNUSED_SYMBOL);
+            if (UnusedRemoval.range(result.input.text, candidate) != null) {
+                annotation = annotation.newFix(new RemoveUnusedFix(result.input, candidate))
+                        .range(candidate.range).registerFix();
+            }
+            annotation.create();
         }
     }
 }

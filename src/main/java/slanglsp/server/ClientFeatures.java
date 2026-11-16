@@ -21,6 +21,12 @@ final class ClientFeatures extends LSPClientFeatures {
         // otherwise rewrite an unfinished inline body after an unrelated keystroke.
         setFormattingFeature(new com.redhat.devtools.lsp4ij.client.features.LSPFormattingFeature() {
             @Override
+            public boolean isEnabled(@NotNull com.intellij.psi.PsiFile file) {
+                // Code Style selects the native model or our direct clang-format service.
+                return false;
+            }
+
+            @Override
             public boolean isOnTypeFormattingEnabled(@NotNull com.intellij.psi.PsiFile file) {
                 return false;
             }

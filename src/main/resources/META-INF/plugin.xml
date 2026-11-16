@@ -73,7 +73,21 @@
         <fileType name="Slang" implementationClass="slanglsp.language.SlangFileType" fieldName="INSTANCE" language="Slang" extensions="slang;slangh"/>
         
         <externalAnnotator language="Slang" implementationClass="slanglsp.editor.UnusedSymbolsAnnotator"/>
+        <externalAnnotator language="Slang" implementationClass="slanglsp.editor.NamingAnnotator"/>
+        <localInspection language="Slang" shortName="SlangInconsistentNaming"
+                         bundle="messages.SlangBundle" key="naming.inspection"
+                         groupBundle="messages.SlangBundle" groupKey="inspection.group.slang"
+                         enabledByDefault="true" level="WARNING"
+                         implementationClass="slanglsp.editor.InconsistentNamingInspection"/>
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
+        <lang.formatter language="Slang" implementationClass="slanglsp.editor.SlangFormattingModelBuilder"/>
+        <!-- Per-file .clang-format overrides require this experimental platform extension. -->
+        <!--suppress UnstableApiUsage -->
+        <codeStyleSettingsModifier implementation="slanglsp.settings.ClangFormatSettingsImporter"/>
+        <spellchecker.support language="Slang" implementationClass="slanglsp.editor.SlangSpellcheckingStrategy"/>
+        <spellchecker.bundledDictionaryProvider implementation="slanglsp.editor.SlangDictionaryProvider"/>
+        <langCodeStyleSettingsProvider implementation="slanglsp.settings.SlangCodeStyleProvider"/>
+        <predefinedCodeStyle implementation="slanglsp.settings.CodeStylePresets$Slang"/>
         <lineIndentProvider implementation="slanglsp.editor.SlangLineIndentProvider"/>
         <lang.braceMatcher language="Slang" implementationClass="slanglsp.editor.SlangBraceMatcher"/>
         <lang.quoteHandler language="Slang" implementationClass="slanglsp.editor.SlangQuoteHandler"/>
@@ -81,10 +95,12 @@
         <enterHandlerDelegate implementation="slanglsp.editor.SlangEnterHandler" order="first"/>
         <typedHandler implementation="slanglsp.editor.SlangTypedHandler"/>
         <backspaceHandlerDelegate implementation="slanglsp.editor.SlangAngleBackspaceHandler"/>
+        <!-- Native indentation and smart-key integration require this experimental platform extension. -->
+        <!--suppress UnstableApiUsage -->
         <typingActionsExtension implementation="slanglsp.editor.SlangTypingActions"/>
-        <formattingService
-                implementation="slanglsp.editor.SlangFormattingService"
-                order="first"/>
+        <formattingService id="SlangClangFormat"
+                           implementation="slanglsp.editor.ClangFormattingService"
+                           order="first"/>
         <lang.findUsagesProvider language="Slang" implementationClass="slanglsp.editor.SlangFindUsagesProvider"/>
         <targetElementEvaluator
                 language="Slang"
@@ -126,6 +142,16 @@
         <projectService 
                 serviceImplementation="slanglsp.settings.ProjectSettings"/>
     </extensions>
+
+    <applicationListeners>
+        <listener class="slanglsp.editor.ReformatNotifications"
+                  topic="com.intellij.openapi.actionSystem.ex.AnActionListener"/>
+    </applicationListeners>
+
+    <projectListeners>
+        <listener class="slanglsp.settings.CodeStyleChangeListener"
+                  topic="com.intellij.psi.codeStyle.CodeStyleSettingsListener"/>
+    </projectListeners>
 
     <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
         <!-- LSP4IJ annotates bundle keys as display text; translations supply capitalization. -->

@@ -8,14 +8,8 @@ import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.TextRange;
-import com.intellij.psi.PsiFile;
-import com.redhat.devtools.lsp4ij.LSPIJUtils;
-import com.redhat.devtools.lsp4ij.client.features.LSPFormattingFeature;
-import com.redhat.devtools.lsp4ij.features.formatting.LSPFormattingAndRangeBothService;
-import com.redhat.devtools.lsp4ij.features.formatting.LSPFormattingSupport;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import slanglsp.language.SlangLanguage;
 import slanglsp.SlangBundle;
 
 import java.io.File;
@@ -24,52 +18,10 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Explicit formatting owns an undo command, rather than an undo-transparent document update. */
-public final class SlangFormattingService extends LSPFormattingAndRangeBothService {
+final class UndoableFormattingService {
     private static final Key<Object> LATEST_REQUEST = Key.create("slang.formatting.latestRequest");
 
-    @Override
-    protected boolean canSupportFormatting(LSPFormattingFeature feature, PsiFile file) {
-        return file.getLanguage().isKindOf(SlangLanguage.INSTANCE)
-                && super.canSupportFormatting(feature, file);
-    }
-
-    @Override
-    @Nullable
-    protected FormattingTask createFormattingTask(@NotNull AsyncFormattingRequest request) {
-        PsiFile file = request.getContext().getContainingFile();
-        Document document = LSPIJUtils.getDocument(file);
-
-        if (document == null) {
-            return null;
-        }
-
-        var result = new Result(request, document);
-        var support = new LSPFormattingSupport(file);
-        var ranges = request.getFormattingRanges();
-        TextRange range = ranges.isEmpty() ? null : ranges.getFirst();
-        TextRange selection = range != null && range.getLength() != result.getDocumentText().length()
-                ? range : null;
-
-        return new FormattingTask() {
-            @Override
-            public void run() {
-                var editors = LSPIJUtils.editorsForFile(file.getVirtualFile(), file.getProject());
-                var editor = editors.length > 0 ? editors[0] : null;
-                support.format(document, file, editor, selection, result);
-            }
-
-            @Override
-            public boolean cancel() {
-                result.cancelled.set(true);
-                support.cancel();
-                return true;
-            }
-
-            @Override
-            public boolean isRunUnderProgress() {
-                return true;
-            }
-        };
+    private UndoableFormattingService() {
     }
 
     static final class Result implements AsyncFormattingRequest {
@@ -87,6 +39,10 @@ public final class SlangFormattingService extends LSPFormattingAndRangeBothServi
             stamp = document.getModificationStamp();
             originalText = document.getText();
             document.putUserData(LATEST_REQUEST, commandGroup);
+        }
+
+        void cancel() {
+            cancelled.set(true);
         }
 
         @Override

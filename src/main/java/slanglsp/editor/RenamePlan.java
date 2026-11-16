@@ -156,7 +156,9 @@ final class RenamePlan {
             throw invalidRename("rename.slangd.did.not.identify.a.matching.declaration");
         }
 
-        return new Declaration(source, symbol, offset, !targets.isEmpty());
+        boolean confirmed = !targets.isEmpty() || RenameDeclarations.contains(
+                source.file, source.document, source.text, name, offset, source::check);
+        return new Declaration(source, symbol, offset, confirmed);
     }
 
     private static int declarationOffset(Source source, SymbolLocation symbol, String name) {
@@ -241,6 +243,21 @@ final class RenamePlan {
         });
     }
 
+    boolean requiresPreview() {
+        var usages = usages();
+        return ReadActions.compute(() ->
+                com.intellij.usageView.UsageViewUtil.reportNonRegularUsages(usages, project)
+                        || com.intellij.usageView.UsageViewUtil.hasReadOnlyUsages(usages)
+                        || edits.stream().anyMatch(edit -> !edit.source.document.isWritable())
+                        || hasUnloadedModules());
+    }
+
+    /** The platform exposes unloaded-module detection only through this experimental API. */
+    @SuppressWarnings("UnstableApiUsage")
+    private boolean hasUnloadedModules() {
+        return !com.intellij.openapi.module.ModuleManager.getInstance(project).getUnloadedModuleDescriptions().isEmpty();
+    }
+
     private void validate() {
         Set<VirtualFile> original = new HashSet<>();
 
@@ -253,10 +270,6 @@ final class RenamePlan {
             throw new IllegalStateException(SlangBundle.message("rename.project.files.changed.run.rename.again"));
 
         for (Edit edit : edits) {
-            if (!edit.source.file.isWritable() || !edit.source.document.isWritable()) {
-                throw new IllegalStateException(SlangBundle.message("rename.read.only", edit.source.file.getName()));
-            }
-
             if (!edit.source.document.getText().regionMatches(edit.offset, oldName, 0, oldName.length())) {
                 throw new IllegalStateException(SlangBundle.message("rename.a.usage.changed.run.rename.again"));
             }
@@ -268,6 +281,12 @@ final class RenamePlan {
                 project, SlangBundle.message("rename.command", oldName, newName), null, () -> {
                     // Validate every file before the first edit; never apply a partial stale plan.
                     validate();
+                    for (Edit edit : edits) {
+                        if (!edit.source.file.isWritable() || !edit.source.document.isWritable()) {
+                            throw new IllegalStateException(
+                                    SlangBundle.message("rename.read.only", edit.source.file.getName()));
+                        }
+                    }
                     CommandProcessor.getInstance().markCurrentCommandAsGlobal(project);
                     edits.stream()
                             .sorted(Comparator.comparingInt(Edit::offset).reversed())

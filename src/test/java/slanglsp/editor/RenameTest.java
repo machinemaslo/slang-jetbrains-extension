@@ -59,7 +59,14 @@ class RenameTest {
                 settings.useLocalVcpkgSlangd = false;
                 files[0] = fixture.addFileToProject("main.slang", main);
                 files[1] = fixture.addFileToProject("usage.slang", "import main;\nfloat imported() { return 0; }\n");
-                files[2] = fixture.addFileToProject("other.slang", "float unrelated = 0;\n");
+                files[2] = fixture.addFileToProject("other.slang", """
+                        float unrelated = 0;
+                        struct UnusedType { float unusedField; };
+                        float unusedFunction(float unusedParameter) {
+                            float unusedLocal = 0;
+                            return 0;
+                        }
+                        """);
                 settings.additionalIncludePaths = List.of(files[0].getVirtualFile().getParent().getPath());
                 ProjectSettings.getInstance(fixture.getProject()).loadState(settings);
                 NativeServerSupport.enable(fixture.getProject());
@@ -97,11 +104,35 @@ class RenameTest {
                                 .getRenameHandlers(context)
                                 .stream()
                                 .anyMatch(SlangRenameHandler.class ::isInstance));
-                var preview = SlangRenameHandler.showPreview(fixture.getProject(), plan);
+                assertFalse(plan.requiresPreview(), "Cross-file code references alone do not require preview");
+                SlangRenameHandler.finishRename(fixture.getProject(), plan, true);
+                var preview = com.intellij.usages.UsageViewManager.getInstance(fixture.getProject()).getSelectedUsageView();
+                assertNotNull(preview);
                 assertEquals(3, preview.getUsagesCount());
                 preview.close();
+
+                var disposable = com.intellij.openapi.util.Disposer.newDisposable();
+                try {
+                    com.intellij.openapi.roots.GeneratedSourcesFilter.EP_NAME.getPoint().registerExtension(
+                            new com.intellij.openapi.roots.GeneratedSourcesFilter() {
+                                @Override
+                                public boolean isGeneratedSource(@org.jetbrains.annotations.NotNull com.intellij.openapi.vfs.VirtualFile file,
+                                                                 @org.jetbrains.annotations.NotNull com.intellij.openapi.project.Project project) {
+                                    return file.equals(files[1].getVirtualFile());
+                                }
+                            }, disposable);
+                    assertTrue(plan.requiresPreview(), "Generated references require review");
+                    SlangRenameHandler.finishRename(fixture.getProject(), plan, false);
+                    var generatedPreview = com.intellij.usages.UsageViewManager.getInstance(fixture.getProject())
+                            .getSelectedUsageView();
+                    assertNotNull(generatedPreview);
+                    assertEquals(main, docs[0].getText());
+                    generatedPreview.close();
+                } finally {
+                    com.intellij.openapi.util.Disposer.dispose(disposable);
+                }
             });
-            EdtTestUtil.runInEdtAndWait(plan::apply);
+            EdtTestUtil.runInEdtAndWait(() -> SlangRenameHandler.finishRename(fixture.getProject(), plan, false));
             assertEquals(main.replace("public float sharedValue", "public float renamedValue")
                                  .replace("return sharedValue +", "return renamedValue +"),
                     docs[0].getText());
@@ -129,6 +160,12 @@ class RenameTest {
                 docs[1].setReadOnly(true);
 
                 try {
+                    assertTrue(readOnly.requiresPreview());
+                    SlangRenameHandler.finishRename(fixture.getProject(), readOnly, false);
+                    var preview = com.intellij.usages.UsageViewManager.getInstance(fixture.getProject())
+                            .getSelectedUsageView();
+                    assertNotNull(preview);
+                    preview.close();
                     assertThrows(IllegalStateException.class, readOnly::apply);
                 } finally {
                     docs[1].setReadOnly(false);
@@ -136,13 +173,22 @@ class RenameTest {
             });
             assertEquals(main, docs[0].getText());
             assertThrows(IllegalArgumentException.class, () -> collect(files[0], main.indexOf("sin("), "mySin"));
-            assertThrows(IllegalArgumentException.class,
-                    () -> collect(files[2], docs[2].getText().indexOf("unrelated"), "renamed"));
+            var unused = collect(files[2], docs[2].getText().indexOf("unrelated"), "renamed");
+            assertEquals(1, unused.usages().length, "An unused declaration needs no back-reference to be renamed");
+            EdtTestUtil.runInEdtAndWait(unused::apply);
+            assertTrue(docs[2].getText().contains("float renamed = 0;"));
+            for (String name : List.of("UnusedType", "unusedField", "unusedFunction", "unusedParameter", "unusedLocal")) {
+                var unusedSymbol = collect(files[2], docs[2].getText().indexOf(name), name + "Renamed");
+                assertEquals(1, unusedSymbol.usages().length, name);
+                EdtTestUtil.runInEdtAndWait(unusedSymbol::apply);
+                assertTrue(docs[2].getText().contains(name + "Renamed"));
+            }
         } finally {
-            com.redhat.devtools.lsp4ij.LanguageServerManager.getInstance(fixture.getProject())
-                    .stop("slanglsp.SlangLanguageServer",
-                            new com.redhat.devtools.lsp4ij.LanguageServerManager.StopOptions().setWillDisable(false));
-            EdtTestUtil.runInEdtAndWait(fixture::tearDown);
+            try {
+                NativeServerSupport.stop(fixture.getProject());
+            } finally {
+                EdtTestUtil.runInEdtAndWait(fixture::tearDown);
+            }
         }
     }
 

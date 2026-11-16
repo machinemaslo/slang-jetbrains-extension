@@ -196,10 +196,11 @@ class NavigationTest {
             assertFalse(suppliedDocs.contains("read-only structured buffer"),
                     "Do not duplicate newer server documentation");
         } finally {
-            com.redhat.devtools.lsp4ij.LanguageServerManager.getInstance(fixture.getProject())
-                    .stop("slanglsp.SlangLanguageServer",
-                            new com.redhat.devtools.lsp4ij.LanguageServerManager.StopOptions().setWillDisable(false));
-            EdtTestUtil.runInEdtAndWait(fixture::tearDown);
+            try {
+                NativeServerSupport.stop(fixture.getProject());
+            } finally {
+                EdtTestUtil.runInEdtAndWait(fixture::tearDown);
+            }
         }
     }
 }

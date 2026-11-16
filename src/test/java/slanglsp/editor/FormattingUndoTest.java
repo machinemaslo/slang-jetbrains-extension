@@ -9,8 +9,6 @@ import com.intellij.openapi.command.undo.UndoManager;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.impl.text.TextEditorProvider;
-import com.intellij.openapi.progress.util.ProgressIndicatorUtils;
-import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.roots.ModuleRootModificationUtil;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiFile;
@@ -19,17 +17,13 @@ import com.intellij.testFramework.fixtures.CodeInsightTestFixture;
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import com.intellij.testFramework.fixtures.impl.TempDirTestFixtureImpl;
 import com.intellij.util.ui.UIUtil;
-import com.redhat.devtools.lsp4ij.LanguageServerManager;
-import com.redhat.devtools.lsp4ij.features.formatting.LSPFormattingSupport;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import slanglsp.settings.ProjectSettings;
 
 import java.io.File;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 
@@ -45,22 +39,18 @@ class FormattingUndoTest {
                 factory.createLightFixtureBuilder("SlangFormattingUndo").getFixture(), new TempDirTestFixtureImpl());
         EdtTestUtil.runInEdtAndWait(() -> {
             fixture.setUp();
-            // Light fixtures reuse a project. Pending editor requests from an earlier test can
-            // start Slang while undo tests drain the event queue, even for a plain-text file.
-            var settings = ProjectSettings.getInstance(fixture.getProject()).getState();
-            settings.explicitSlangdLocation = Path.of(slanglsp.TestDependencies.slangd()).getParent().toString();
-            settings.useLocalVcpkgSlangd = false;
-            ProjectSettings.getInstance(fixture.getProject()).loadState(settings);
-            NativeServerSupport.enable(fixture.getProject());
+            // Undo and direct clang-format formatting do not use slangd. Keep pending editor
+            // requests from starting a server whose asynchronous shutdown can outlive this fixture.
+            NativeServerSupport.disable(fixture.getProject());
         });
     }
 
     @AfterEach
     void tearDown() throws Exception {
-        LanguageServerManager.getInstance(fixture.getProject())
-                .stop("slanglsp.SlangLanguageServer",
-                        new LanguageServerManager.StopOptions().setWillDisable(false));
-        EdtTestUtil.runInEdtAndWait(fixture::tearDown);
+        EdtTestUtil.runInEdtAndWait(() -> {
+            com.intellij.psi.codeStyle.CodeStyleSettingsManager.getInstance(fixture.getProject()).dropTemporarySettings();
+            fixture.tearDown();
+        });
     }
 
     @Test
@@ -137,7 +127,6 @@ class FormattingUndoTest {
     @Test
     @Timeout(90)
     void nativeFormattingHasSeparateUndoAndRedoSteps() {
-        String executable = slanglsp.TestDependencies.slangd();
         String clangFormat = slanglsp.TestDependencies.clangFormat();
 
         String original = """
@@ -151,27 +140,25 @@ class FormattingUndoTest {
 
         EdtTestUtil.runInEdtAndWait(() -> {
             ModuleRootModificationUtil.addContentRoot(fixture.getModule(), fixture.getTempDirPath());
-            var settings = ProjectSettings.getInstance(fixture.getProject()).getState();
-            settings.explicitSlangdLocation = Path.of(executable).getParent().toString();
-            settings.useLocalVcpkgSlangd = false;
-            settings.enableFormatOnType = false;
-            settings.clangFormatLocation = clangFormat;
-            settings.clangFormatStyle = "LLVM";
-            ProjectSettings.getInstance(fixture.getProject()).loadState(settings);
+            var styles = com.intellij.psi.codeStyle.CodeStyleSettingsManager.getInstance(fixture.getProject());
+            var scheme = styles.createSettings();
+            var formatter = scheme.getCustomSettings(slanglsp.settings.SlangCodeStyleSettings.class);
+            formatter.USE_CLANG_FORMAT = true;
+            formatter.USE_CUSTOM_CLANG_FORMAT = true;
+            formatter.CLANG_FORMAT_PATH = clangFormat;
+            styles.setTemporarySettings(scheme);
 
             open("format.slang", original);
         });
 
-        DumbService.getInstance(fixture.getProject()).waitForSmartMode();
-        var source = ReadActions.compute(fixture::getFile);
-        new FormattingServerSupport(source).awaitReady();
-
         EdtTestUtil.runInEdtAndWait(() -> {
             Document document = fixture.getEditor().getDocument();
+            document.putUserData(
+                    com.intellij.formatting.service.AsyncDocumentFormattingService.FORMAT_DOCUMENT_SYNCHRONOUSLY, true);
             edit(edited);
             var file = fixture.getFile();
             var context = FormattingContext.create(file, CodeStyle.getSettings(file));
-            var service = new SlangFormattingService();
+            var service = new ClangFormattingService();
 
             String before = document.getText();
             var ranges = List.of(new TextRange(0, document.getTextLength()));
@@ -181,7 +168,7 @@ class FormattingUndoTest {
             UIUtil.dispatchAllInvocationEvents();
             assertTrue(document.getText().contains("float value = 2;"), document.getText());
 
-            assertSame(SlangFormattingService.class, FormattingService.EP_NAME.getExtensionList().stream()
+            assertSame(ClangFormattingService.class, FormattingService.EP_NAME.getExtensionList().stream()
                     .filter(candidate -> candidate.canFormat(file))
                     .findFirst().orElseThrow().getClass());
 
@@ -214,10 +201,10 @@ class FormattingUndoTest {
                 .run(() -> fixture.getEditor().getDocument().setText(text));
     }
 
-    private SlangFormattingService.Result result(Document document) {
+    private UndoableFormattingService.Result result(Document document) {
         var file = fixture.getFile();
         var context = FormattingContext.create(file, CodeStyle.getSettings(file));
-        return new SlangFormattingService.Result(new Request(context, document.getText()), document);
+        return new UndoableFormattingService.Result(new Request(context, document.getText()), document);
     }
 
     private void undo() {
@@ -232,22 +219,6 @@ class FormattingUndoTest {
         var undo = UndoManager.getInstance(fixture.getProject());
         assertTrue(undo.isRedoAvailable(editor));
         undo.redo(editor);
-    }
-
-    private static final class FormattingServerSupport extends LSPFormattingSupport {
-        FormattingServerSupport(PsiFile file) {
-            super(file);
-        }
-
-        void awaitReady() {
-            var file = getFile();
-            var servers = ReadActions.compute(() -> getLanguageServers(
-                    file,
-                    features -> features.getFormattingFeature().isEnabled(file),
-                    features -> features.getFormattingFeature().isFormattingSupported(file)));
-
-            assertFalse(ProgressIndicatorUtils.awaitWithCheckCanceled(servers).isEmpty());
-        }
     }
 
     private record Request(FormattingContext context, String text) implements AsyncFormattingRequest {

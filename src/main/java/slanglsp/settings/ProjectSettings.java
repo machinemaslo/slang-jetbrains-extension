@@ -30,7 +30,8 @@ public class ProjectSettings implements PersistentStateComponent<ProjectSettings
         public boolean enableFormatOnType = true;
         public String clangFormatLocation = "";
         public String clangFormatStyle = "file";
-        public String clangFormatFallbackStyle = "{BasedOnStyle: Microsoft, BreakBeforeBraces: Allman, ColumnLimit: 0}";
+        // Empty means the Slang code-style scheme; non-empty values remain explicit overrides.
+        public String clangFormatFallbackStyle = "";
         public boolean allowLineBreakChangesInOnTypeFormatting = false;
         public boolean allowLineBreakChangesInRangeFormatting = false;
 
@@ -81,7 +82,8 @@ public class ProjectSettings implements PersistentStateComponent<ProjectSettings
             settings.put("slang.format.enableFormatOnType", enableFormatOnType);
             settings.put("slang.format.clangFormatLocation", clangFormatLocation);
             settings.put("slang.format.clangFormatStyle", clangFormatStyle);
-            settings.put("slang.format.clangFormatFallbackStyle", clangFormatFallbackStyle);
+            settings.put("slang.format.clangFormatFallbackStyle",
+                    clangFormatFallbackStyle.isBlank() ? ClangFormatStyle.DEFAULT_STYLE : clangFormatFallbackStyle);
             settings.put(
                     "slang.format.allowLineBreakChangesInOnTypeFormatting", allowLineBreakChangesInOnTypeFormatting);
             settings.put("slang.format.allowLineBreakChangesInRangeFormatting", allowLineBreakChangesInRangeFormatting);
