@@ -73,8 +73,12 @@ class NativeFormattingBlock implements BlockEx {
             if (type == SlangLexer.OPERATOR && !angle) {
                 // Keep actual multi-character operators atomic, but never merge spaced tokens.
                 for (int length = 3; length >= 2; length--) {
-                    if (start + length <= source.length() && OPERATORS.contains(source.substring(start, start + length))) {
-                        text = source.substring(start, start + length);
+                    if (start + length > source.length()) {
+                        continue;
+                    }
+                    String operator = source.substring(start, start + length);
+                    if (OPERATORS.contains(operator)) {
+                        text = operator;
                         end = start + length;
                         break;
                     }

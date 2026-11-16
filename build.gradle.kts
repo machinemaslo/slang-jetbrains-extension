@@ -111,6 +111,8 @@ val preparePlayground = tasks.register<PreparePlayground>("preparePlayground") {
 }
 
 val syncSandboxAppearance = tasks.register<SyncSandboxAppearance>("syncSandboxAppearance") {
+    description = "Copy the user's IDE appearance settings into the development sandbox."
+    group = "intellij platform"
     val home = providers.systemProperty("user.home").get()
     val configRoot = when (hostOs) {
         "windows" -> providers.environmentVariable("APPDATA").getOrElse("$home/AppData/Roaming")
@@ -127,6 +129,7 @@ val runPlugin = intellijPlatformTesting.runIde.register("runPlugin") {
         compatiblePlugin("com.redhat.devtools.lsp4ij")
     }
     task {
+        description = "Launch the latest IDEA with the Slang plugin and refreshed playground."
         dependsOn(preparePlayground, syncSandboxAppearance)
         args(layout.buildDirectory.dir("playground").get().asFile.absolutePath)
     }

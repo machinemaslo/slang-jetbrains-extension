@@ -110,7 +110,7 @@ class ClangFormattingTest {
         try {
             Path source = root.resolve("nested/sample.slang");
             Files.createDirectories(source.getParent());
-            var options = new ClangFormat.Options(TestDependencies.clangFormat(), source, "file", ClangFormatStyle.DEFAULT_STYLE);
+            var options = new ClangFormat.Options(TestDependencies.clangFormat(), source, ClangFormatStyle.DEFAULT_STYLE);
             String body = "float f(){return 0;}\n";
             assertTrue(ClangFormat.format(options, body, List.of(), handler -> {}).contains("f()\n{"));
             Files.writeString(root.resolve(".clang-format"), "BasedOnStyle: LLVM\nBreakBeforeBraces: Attach\n");

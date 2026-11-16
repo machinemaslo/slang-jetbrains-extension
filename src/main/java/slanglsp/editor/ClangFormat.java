@@ -23,7 +23,7 @@ import java.util.function.Consumer;
 
 /** Shared, direct clang-format invocation for explicit formatting and live checks. */
 final class ClangFormat {
-    record Options(String executable, Path file, String style, String fallback) {}
+    record Options(String executable, Path file, String fallback) {}
 
     static Options options(PsiFile file) {
         var virtualFile = file.getVirtualFile();
@@ -33,14 +33,13 @@ final class ClangFormat {
         String executable = state.USE_CUSTOM_CLANG_FORMAT ? state.CLANG_FORMAT_PATH.trim()
                 : state.USE_BUNDLED_CLANG_FORMAT ? BundledClangFormat.executable() : null;
         if (executable == null || executable.isBlank()) {
-            executable = executable("");
+            executable = executableOnPath();
             if (executable == null) executable = SystemInfo.isWindows ? "clang-format.exe" : "clang-format";
         }
-        return new Options(executable, virtualFile.toNioPath(), "file", "LLVM");
+        return new Options(executable, virtualFile.toNioPath(), "LLVM");
     }
 
-    private static String executable(String configured) {
-        if (!configured.isBlank()) return usable(configured.trim());
+    private static String executableOnPath() {
         String path = System.getenv("PATH");
         if (path == null) return null;
         for (String directory : path.split(java.io.File.pathSeparator)) {
@@ -66,7 +65,6 @@ final class ClangFormat {
     }
 
     static String style(Options options) {
-        if (!options.style.equals("file")) return options.style;
         for (Path directory = options.file.getParent(); directory != null; directory = directory.getParent()) {
             if (Files.isRegularFile(directory.resolve(".clang-format"))
                     || Files.isRegularFile(directory.resolve("_clang-format"))) return "file";

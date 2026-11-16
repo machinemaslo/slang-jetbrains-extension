@@ -120,43 +120,16 @@ public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Inp
         }
         String prefix = input.text().substring(boundary, start);
         boolean external = UnusedDeclarations.isExternal(symbol.getName(), prefix);
-        NamingRule.Category category = switch (symbol.getKind()) {
-            case Struct, Class -> NamingRule.Category.TYPES;
-            case Interface -> NamingRule.Category.INTERFACES;
-            case Enum -> NamingRule.Category.ENUMS;
-            case EnumMember -> NamingRule.Category.ENUM_MEMBERS;
-            case Namespace -> NamingRule.Category.NAMESPACES;
-            case Function, Method -> parent == SymbolKind.Struct || parent == SymbolKind.Class
-                    ? NamingRule.Category.METHODS : NamingRule.Category.FUNCTIONS;
-            case Field, Property -> NamingRule.Category.FIELDS;
-            case Constant, Variable -> parent == SymbolKind.Function || parent == SymbolKind.Method
-                    ? NamingRule.Category.LOCALS
-                    : parent == SymbolKind.Struct || parent == SymbolKind.Class
-                            ? NamingRule.Category.FIELDS : NamingRule.Category.GLOBALS;
-            default -> null;
-        };
-        if (prefix.matches("(?s).*\\bstatic\\b.*") && prefix.matches("(?s).*\\bconst\\b.*")
-                && (category == NamingRule.Category.GLOBALS || category == NamingRule.Category.FIELDS
-                || category == NamingRule.Category.LOCALS)) {
-            category = NamingRule.Category.CONSTANTS;
-        }
+        NamingRule.Category category = category(symbol.getKind(), parent, prefix);
         if (!external && category != null && parent != SymbolKind.Interface && !symbol.getName().startsWith("__")) {
             result.putIfAbsent(start, new Candidate(symbol.getName(), category, new TextRange(start, end)));
         }
         if (symbol.getKind() == SymbolKind.Function || symbol.getKind() == SymbolKind.Method) {
             int bodyEnd = Math.min(input.text().length(), LSPIJUtils.toOffset(symbol.getRange().getEnd(), input.document()));
             for (var local : UnusedDeclarations.locals(input.text(), end, bodyEnd)) {
-                int localStart = local.range().getStartOffset();
-                int localBoundary = localStart;
-                while (localBoundary > end && ";{}".indexOf(input.text().charAt(localBoundary - 1)) < 0) {
-                    localBoundary--;
-                }
-                String localPrefix = input.text().substring(localBoundary, localStart);
-                var localCategory = localPrefix.matches("(?s).*\\bstatic\\b.*")
-                        && localPrefix.matches("(?s).*\\bconst\\b.*")
-                        ? NamingRule.Category.CONSTANTS : NamingRule.Category.LOCALS;
                 result.put(local.range().getStartOffset(),
-                        new Candidate(local.name(), localCategory, local.range()));
+                        new Candidate(local.name(),
+                                localCategory(input.text(), end, local.range().getStartOffset()), local.range()));
             }
             NamingParameters.collect(input.text(), end, bodyEnd, result);
         } else if (symbol.getKind() == SymbolKind.Struct || symbol.getKind() == SymbolKind.Class
@@ -177,6 +150,43 @@ public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Inp
                 collect(input, child, childParent, result);
             }
         }
+    }
+
+    private static NamingRule.Category category(SymbolKind kind, SymbolKind parent, String prefix) {
+        NamingRule.Category category = switch (kind) {
+            case Struct, Class -> NamingRule.Category.TYPES;
+            case Interface -> NamingRule.Category.INTERFACES;
+            case Enum -> NamingRule.Category.ENUMS;
+            case EnumMember -> NamingRule.Category.ENUM_MEMBERS;
+            case Namespace -> NamingRule.Category.NAMESPACES;
+            case Function, Method -> parent == SymbolKind.Struct || parent == SymbolKind.Class
+                    ? NamingRule.Category.METHODS : NamingRule.Category.FUNCTIONS;
+            case Field, Property -> NamingRule.Category.FIELDS;
+            case Constant, Variable -> parent == SymbolKind.Function || parent == SymbolKind.Method
+                    ? NamingRule.Category.LOCALS
+                    : parent == SymbolKind.Struct || parent == SymbolKind.Class
+                            ? NamingRule.Category.FIELDS : NamingRule.Category.GLOBALS;
+            default -> null;
+        };
+        if (isStaticConstant(prefix)
+                && (category == NamingRule.Category.GLOBALS || category == NamingRule.Category.FIELDS
+                || category == NamingRule.Category.LOCALS)) {
+            return NamingRule.Category.CONSTANTS;
+        }
+        return category;
+    }
+
+    private static NamingRule.Category localCategory(String text, int bodyStart, int start) {
+        int boundary = start;
+        while (boundary > bodyStart && ";{}".indexOf(text.charAt(boundary - 1)) < 0) {
+            boundary--;
+        }
+        return isStaticConstant(text.substring(boundary, start))
+                ? NamingRule.Category.CONSTANTS : NamingRule.Category.LOCALS;
+    }
+
+    private static boolean isStaticConstant(String prefix) {
+        return prefix.matches("(?s).*\\bstatic\\b.*") && prefix.matches("(?s).*\\bconst\\b.*");
     }
 
     static NamingRule rule(Input input, Candidate candidate) {

@@ -23,38 +23,68 @@ final class NativeFormatting {
         return model.document.getText();
     }
 
-    private static final class SnapshotModel implements FormattingModel, FormattingDocumentModel {
-        private final Document document;
-        private final Block root;
-
+    private record SnapshotModel(Document document, Block root) implements FormattingModel, FormattingDocumentModel {
         SnapshotModel(String text, Block root) {
             // This document has no PSI, editor, listeners, or undo history and is owned by this invocation.
-            document = new DocumentImpl(text, true);
-            this.root = root;
+            this(new DocumentImpl(text, true), root);
         }
 
-        @Override public @NotNull Block getRootBlock() { return root; }
-        @Override public @NotNull FormattingDocumentModel getDocumentModel() { return this; }
-        @Override public @NotNull Document getDocument() { return document; }
-        @Override public int getLineNumber(int offset) { return document.getLineNumber(offset); }
-        @Override public int getLineStartOffset(int line) { return document.getLineStartOffset(line); }
-        @Override public CharSequence getText(TextRange range) { return document.getText(range); }
-        @Override public int getTextLength() { return document.getTextLength(); }
-        @Override public boolean containsWhiteSpaceSymbolsOnly(int start, int end) {
+        @Override
+        public @NotNull Block getRootBlock() {
+            return root;
+        }
+
+        @Override
+        public @NotNull FormattingDocumentModel getDocumentModel() {
+            return this;
+        }
+
+        @Override
+        public @NotNull Document getDocument() {
+            return document;
+        }
+
+        @Override
+        public int getLineNumber(int offset) {
+            return document.getLineNumber(offset);
+        }
+
+        @Override
+        public int getLineStartOffset(int line) {
+            return document.getLineStartOffset(line);
+        }
+
+        @Override
+        public CharSequence getText(TextRange range) {
+            return document.getText(range);
+        }
+
+        @Override
+        public int getTextLength() {
+            return document.getTextLength();
+        }
+
+        @Override
+        public boolean containsWhiteSpaceSymbolsOnly(int start, int end) {
             return document.getText(new TextRange(start, end)).chars().allMatch(Character::isWhitespace);
         }
-        @Override public @NotNull CharSequence adjustWhiteSpaceIfNecessary(
+        @Override
+        public @NotNull CharSequence adjustWhiteSpaceIfNecessary(
                 @NotNull CharSequence text, int start, int end, @Nullable ASTNode node, boolean changed) {
             return text;
         }
-        @Override public TextRange replaceWhiteSpace(TextRange range, String whitespace) {
+        @Override
+        public TextRange replaceWhiteSpace(TextRange range, String whitespace) {
             document.replaceString(range.getStartOffset(), range.getEndOffset(), whitespace);
             return new TextRange(range.getStartOffset(), range.getStartOffset() + whitespace.length());
         }
-        @Override public TextRange shiftIndentInsideRange(ASTNode node, TextRange range, int indent) {
+        @Override
+        public TextRange shiftIndentInsideRange(ASTNode node, TextRange range, int indent) {
             // Multiline tokens (strings, comments, directives) are deliberately opaque.
             return range;
         }
-        @Override public void commitChanges() {}
+        @Override
+        public void commitChanges() {
+        }
     }
 }

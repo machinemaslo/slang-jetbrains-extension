@@ -46,8 +46,9 @@ public abstract class PreparePlayground extends DefaultTask {
     }
 
     private String slangdDirectory(Path project, String executable) {
-        Path directory = Path.of(executable).toAbsolutePath().normalize().getParent();
-        if (Path.of(executable).equals(Path.of(getSlangdCandidate().get()))) {
+        Path executablePath = Path.of(executable);
+        Path directory = executablePath.toAbsolutePath().normalize().getParent();
+        if (executablePath.equals(Path.of(getSlangdCandidate().get()))) {
             return project.toAbsolutePath().normalize().relativize(directory).toString().replace('\\', '/');
         }
         return directory.toString();

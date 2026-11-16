@@ -58,9 +58,14 @@ final class LayoutPanels {
             String[] choices = {SlangBundle.message("settings.code.style.braces.inherit"),
                     SlangBundle.message("settings.code.style.braces.same.line"),
                     SlangBundle.message("settings.code.style.braces.next.line")};
-            for (String option : new String[] {"FUNCTION_BRACES", "TYPE_BRACES", "CONTROL_BRACES"}) {
-                showCustomOption(SlangCodeStyleSettings.class, option,
-                        SlangBundle.message("settings.code.style." + option.toLowerCase(java.util.Locale.ROOT)),
+            String[] options = {"FUNCTION_BRACES", "TYPE_BRACES", "CONTROL_BRACES"};
+            String[] labels = {
+                    SlangBundle.message("settings.code.style.function_braces"),
+                    SlangBundle.message("settings.code.style.type_braces"),
+                    SlangBundle.message("settings.code.style.control_braces")
+            };
+            for (int i = 0; i < options.length; i++) {
+                showCustomOption(SlangCodeStyleSettings.class, options[i], labels[i],
                         SlangBundle.message("settings.code.style.braces"), choices, new int[] {0, 1, 2});
             }
         }

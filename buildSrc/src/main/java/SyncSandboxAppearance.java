@@ -37,6 +37,8 @@ public abstract class SyncSandboxAppearance extends DefaultTask {
             if (!Files.isRegularFile(input)) continue;
             Path output = target.resolve("options").resolve(file);
             var factory = DocumentBuilderFactory.newInstance();
+            // This is the parser's exact feature identifier, not a fetched URL; HTTPS is not an alias.
+            //noinspection HttpUrlsUsage
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
             var builder = factory.newDocumentBuilder();
             var from = builder.parse(input.toFile());

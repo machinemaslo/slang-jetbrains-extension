@@ -81,6 +81,8 @@
                          implementationClass="slanglsp.editor.InconsistentNamingInspection"/>
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
         <lang.formatter language="Slang" implementationClass="slanglsp.editor.SlangFormattingModelBuilder"/>
+        <!-- Per-file .clang-format overrides require this experimental platform extension. -->
+        <!--suppress UnstableApiUsage -->
         <codeStyleSettingsModifier implementation="slanglsp.settings.ClangFormatSettingsImporter"/>
         <spellchecker.support language="Slang" implementationClass="slanglsp.editor.SlangSpellcheckingStrategy"/>
         <spellchecker.bundledDictionaryProvider implementation="slanglsp.editor.SlangDictionaryProvider"/>
@@ -93,6 +95,8 @@
         <enterHandlerDelegate implementation="slanglsp.editor.SlangEnterHandler" order="first"/>
         <typedHandler implementation="slanglsp.editor.SlangTypedHandler"/>
         <backspaceHandlerDelegate implementation="slanglsp.editor.SlangAngleBackspaceHandler"/>
+        <!-- Native indentation and smart-key integration require this experimental platform extension. -->
+        <!--suppress UnstableApiUsage -->
         <typingActionsExtension implementation="slanglsp.editor.SlangTypingActions"/>
         <formattingService id="SlangClangFormat"
                            implementation="slanglsp.editor.ClangFormattingService"
