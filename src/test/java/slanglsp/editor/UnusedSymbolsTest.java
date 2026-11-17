@@ -30,6 +30,7 @@ class UnusedSymbolsTest {
         try {
             com.intellij.psi.PsiFile[] file = new com.intellij.psi.PsiFile[1];
             EdtTestUtil.runInEdtAndWait(() -> {
+                fixture.enableInspections(new UnusedSymbolsInspection(), new InconsistentNamingInspection());
                 ModuleRootModificationUtil.addContentRoot(fixture.getModule(), fixture.getTempDirPath());
                 var settings = ProjectSettings.getInstance(fixture.getProject()).getState();
                 settings.explicitSlangdLocation = Path.of(executable).getParent().toString();
@@ -82,6 +83,7 @@ class UnusedSymbolsTest {
             ProgressManager.getInstance().runProcess(() -> {
                 var result = annotator.doAnnotate(input);
                 assertNotNull(result);
+                assertNull(result.failure(), "Batch analysis must work before the file is opened");
                 var names = result.unused().stream().map(UnusedSymbolsAnnotator.Candidate::name).toList();
                 assertTrue(names.containsAll(List.of("PrimaryHitGpu", "unusedGlobal", "unusedFunction", "unusedLocal",
                                     "unusedPublicGlobal", "unusedPublicFunction", "unusedCounter", "unusedEntryCounter")),
@@ -107,7 +109,7 @@ class UnusedSymbolsTest {
                 assertEquals(com.intellij.openapi.editor.colors.CodeInsightColors.NOT_USED_ELEMENT_ATTRIBUTES,
                         struct.forcedTextAttributesKey);
             });
-            var removalInput = ReadActions.compute(() -> annotator.collectInformation(file[0]));
+            var removalInput = ReadActions.compute(() -> annotator.collectForEditor(file[0]));
             UnusedSymbolsAnnotator.Result[] removal = new UnusedSymbolsAnnotator.Result[1];
             ProgressManager.getInstance().runProcess(() -> removal[0] = annotator.doAnnotate(removalInput),
                     new EmptyProgressIndicator());
@@ -134,7 +136,11 @@ class UnusedSymbolsTest {
                         "A stale removal fix must not mutate a changed document");
             });
         } finally {
-            EdtTestUtil.runInEdtAndWait(fixture::tearDown);
+            try {
+                NativeServerSupport.stop(fixture.getProject());
+            } finally {
+                EdtTestUtil.runInEdtAndWait(fixture::tearDown);
+            }
         }
     }
 }

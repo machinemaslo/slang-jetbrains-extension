@@ -95,8 +95,12 @@ class NativeProtocolTest {
             }
         };
         Process process = new ProcessBuilder(executable).redirectError(ProcessBuilder.Redirect.DISCARD).start();
-        var launcher = LSPLauncher.createClientLauncher(
-                client, new ResponseInputStream(process.getInputStream()), process.getOutputStream());
+        var launcher = new ClientFeatures().<org.eclipse.lsp4j.services.LanguageServer>createLauncherBuilder()
+                .setLocalService(client)
+                .setRemoteInterface(org.eclipse.lsp4j.services.LanguageServer.class)
+                .setInput(process.getInputStream())
+                .setOutput(process.getOutputStream())
+                .create();
         var listening = launcher.startListening();
         var server = launcher.getRemoteProxy();
 

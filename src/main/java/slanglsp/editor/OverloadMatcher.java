@@ -2,7 +2,6 @@ package slanglsp.editor;
 
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.progress.util.ProgressIndicatorUtils;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.TokenType;
@@ -217,7 +216,7 @@ final class OverloadMatcher {
             }
 
             try {
-                var servers = ProgressIndicatorUtils.awaitWithCheckCanceled(getLanguageServers(file,
+                var servers = AnalysisDeadline.await(getLanguageServers(file,
                         features -> features.getHoverFeature().isEnabled(file),
                         features -> features.getHoverFeature().isSupported(file)));
 
@@ -231,7 +230,7 @@ final class OverloadMatcher {
                     var request = server.getTextDocumentService().hover(new HoverParams(identifier, position));
 
                     try {
-                        var hover = ProgressIndicatorUtils.awaitWithCheckCanceled(request);
+                        var hover = AnalysisDeadline.await(request);
 
                         if (hover == null) {
                             return null;

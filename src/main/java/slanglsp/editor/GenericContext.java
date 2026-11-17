@@ -258,18 +258,19 @@ final class GenericContext {
         return name;
     }
 
-    boolean declaresGeneric(String name, String owner) {
-        Integer scope = owner == null ? Integer.valueOf(-1) : typeScopes.get(owner);
-        if (scope == null) {
-            return false;
-        }
+    Set<String> genericDeclarations() {
+        var owners = new HashMap<Integer, String>();
+        typeScopes.forEach((name, scope) -> owners.put(scope, name));
+        var result = new java.util.HashSet<String>();
         for (int i = 1; i < tokens.size(); i++) {
-            if (word(i).equals(name) && enclosingScope(i) == scope && isDeclarationName(i)
-                    && (word(i + 1).equals("<") || hasGenericModifier(i))) {
-                return true;
+            if (isDeclarationName(i) && (word(i + 1).equals("<") || hasGenericModifier(i))) {
+                int scope = enclosingScope(i);
+                if (scope == -1 || owners.containsKey(scope)) {
+                    result.add(GenericDeclarationsIndex.symbol(owners.get(scope), word(i)));
+                }
             }
         }
-        return false;
+        return result;
     }
 
     Set<String> imports() {

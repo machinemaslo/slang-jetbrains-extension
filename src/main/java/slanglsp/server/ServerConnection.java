@@ -16,28 +16,9 @@ import com.redhat.devtools.lsp4ij.LanguageServerManager;
 import com.redhat.devtools.lsp4ij.server.ProcessStreamConnectionProvider;
 import java.util.List;
 import java.util.Objects;
-import java.io.InputStream;
 import java.nio.file.Path;
 
 class ServerConnection extends ProcessStreamConnectionProvider {
-    private InputStream responseSource;
-    private InputStream responses;
-
-    @Override
-    public synchronized InputStream getInputStream() {
-        InputStream source = super.getInputStream();
-
-        if (source == null)
-            return null;
-
-        if (source != responseSource) {
-            responseSource = source;
-            responses = new ResponseInputStream(source);
-        }
-
-        return responses;
-    }
-
     final Project project;
     @Override
     public void start() throws com.redhat.devtools.lsp4ij.server.CannotStartProcessException {

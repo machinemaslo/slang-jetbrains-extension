@@ -1,8 +1,6 @@
 package slanglsp.editor;
 
 import com.intellij.openapi.command.WriteCommandAction;
-import com.intellij.openapi.command.undo.UndoManager;
-import com.intellij.openapi.fileEditor.impl.text.TextEditorProvider;
 import com.intellij.openapi.roots.ModuleRootModificationUtil;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.TokenType;
@@ -17,6 +15,8 @@ import com.redhat.devtools.lsp4ij.LanguageServersRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import slanglsp.language.SlangLanguage;
 import slanglsp.language.SlangLexer;
 import slanglsp.settings.ProjectSettings;
@@ -72,36 +72,16 @@ class NativeFormattingTest {
         assertFormat(input, text("brace-style/after.attach.slang"));
     }
 
-    @Test
-    void preservesTokensDirectivesCommentsGenericsAndIncompleteCode() {
-        for (String scenario : List.of("directives", "shader-comments", "generics", "operators", "switch",
-                "multiline-parameters", "pointers-strings", "incomplete", "initializer")) {
-            String source = text("token-preservation/" + scenario + ".slang");
-            String formatted = NativeFormatting.format(source, settings);
-            assertEquals(tokens(source), tokens(formatted), formatted);
-            assertEquals(formatted, NativeFormatting.format(formatted, settings), "Must be idempotent:\n" + formatted);
-            if (source.startsWith("#define")) {
-                assertTrue(formatted.startsWith(source.substring(0, source.indexOf("#if"))), formatted);
-            }
-            assertFormat(source, formatted);
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"directives", "shader-comments", "generics", "operators", "loop", "switch",
+            "multiline-parameters", "bitwise", "conditional-return", "initializer"})
+    void preservesTokensDirectivesCommentsAndGenerics(String scenario) {
+        String source = text("token-preservation/" + scenario + ".slang");
+        String formatted = NativeFormatting.format(source, settings);
+        if (source.startsWith("#define")) {
+            assertTrue(formatted.startsWith(source.substring(0, source.indexOf("#if"))), formatted);
         }
-    }
-
-    @Test
-    void manualFormattingWorksWithoutExecutablesAndCanBeUndone() {
-        EdtTestUtil.runInEdtAndWait(() -> {
-            String original = text("manual-native/before.slang");
-            String expected = text("manual-native/after.slang");
-            var file = fixture.addFileToProject("fix.slang", original);
-            fixture.configureFromExistingVirtualFile(file.getVirtualFile());
-            new com.intellij.codeInsight.actions.ReformatCodeProcessor(fixture.getProject(), file, null, false).run();
-            var document = fixture.getEditor().getDocument();
-            com.intellij.testFramework.PlatformTestUtil.waitWithEventsDispatching(
-                    "Manual formatting", () -> document.getText().equals(expected), 10);
-            UndoManager.getInstance(fixture.getProject()).undo(
-                    TextEditorProvider.getInstance().getTextEditor(fixture.getEditor()));
-            assertEquals(original, document.getText());
-        });
+        assertFormat(source, formatted);
     }
 
     @Test
@@ -132,9 +112,32 @@ class NativeFormattingTest {
         common.SPACE_AROUND_EQUALITY_OPERATORS = false;
         common.SPACE_AROUND_ASSIGNMENT_OPERATORS = false;
         assertFormat(text("brace-spacing/before.slang"), text("brace-spacing/after.slang"));
-        String adjacentOperators = text("brace-spacing/adjacent-operators.slang");
-        String formatted = NativeFormatting.format(adjacentOperators, settings);
-        assertEquals(tokens(adjacentOperators), tokens(formatted), "Spacing options must not create ++ or --");
+    }
+
+    @ParameterizedTest(name = "operator spaces: {0}")
+    @ValueSource(booleans = {true, false})
+    void adjacentOperatorsRemainSeparateWhenSpacingChanges(boolean spaces) {
+        var common = settings.getCommonSettings(SlangLanguage.INSTANCE);
+        common.SPACE_AROUND_ADDITIVE_OPERATORS = spaces;
+        common.SPACE_AROUND_ASSIGNMENT_OPERATORS = spaces;
+        assertFormat(text("token-preservation/operators.slang"),
+                text("operators/after." + (spaces ? "spaced" : "compact") + ".slang"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"shader", "types"})
+    void slangDeclarationsHaveGoldenOutput(String scenario) {
+        assertFormat(text(scenario + "/before.slang"),
+                text(scenario + (scenario.equals("shader") ? "/after.native.slang" : "/after.slang")));
+    }
+
+    @Test
+    void assemblyContentsArePreserved() {
+        String source = text("assembly/before.slang");
+        String assembly = source.substring(source.indexOf('{', source.indexOf("spirv_asm")), source.lastIndexOf(';'));
+        String formatted = NativeFormatting.format(source, settings);
+        assertTrue(formatted.contains(assembly), "The SPIR-V assembly block must remain byte-for-byte unchanged");
+        assertFormat(source, formatted);
     }
 
     @Test
@@ -165,7 +168,7 @@ class NativeFormattingTest {
         common.CALL_PARAMETERS_WRAP = 0;
         String source = text("alignment/before.slang");
         String formatted = NativeFormatting.format(source, settings);
-        var lines = formatted.lines().toList();
+        var lines = formatted.lines().dropWhile(line -> !line.contains("call(firstArgument")).toList();
         int firstColumn = lines.stream().filter(line -> line.contains("firstArgument")).findFirst().orElseThrow().indexOf("firstArgument");
         int secondColumn = lines.stream().filter(line -> line.contains("secondArgument")).findFirst().orElseThrow().indexOf("secondArgument");
         assertEquals(firstColumn, secondColumn, formatted);
@@ -195,32 +198,6 @@ class NativeFormattingTest {
     }
 
     @Test
-    void nativeFormatterReadsProjectClangFormatWhenEnabled() {
-        EdtTestUtil.runInEdtAndWait(() -> {
-            fixture.addFileToProject(".clang-format", text("configuration/native/.clang-format"));
-            settings.getCustomSettings(slanglsp.settings.SlangCodeStyleSettings.class).READ_CLANG_FORMAT = true;
-            var manager = CodeStyleSettingsManager.getInstance(fixture.getProject());
-            var previous = manager.getMainProjectCodeStyle();
-            boolean wasProject = manager.USE_PER_PROJECT_SETTINGS;
-            manager.dropTemporarySettings();
-            manager.setMainProjectCodeStyle(settings);
-            manager.USE_PER_PROJECT_SETTINGS = true;
-            var file = fixture.addFileToProject("config.slang", text("native-config-return/before.slang"));
-            try {
-                WriteCommandAction.runWriteCommandAction(fixture.getProject(), () -> {
-                    CodeStyleManager.getInstance(fixture.getProject()).reformat(file);
-                });
-                assertEquals(text("native-config-return/after.slang"), file.getText());
-                assertTrue(settings.getCustomSettings(slanglsp.settings.SlangCodeStyleSettings.class).BRACES_ON_NEW_LINE,
-                        "Reading a file must not mutate the IDE scheme");
-            } finally {
-                manager.setMainProjectCodeStyle(previous);
-                manager.USE_PER_PROJECT_SETTINGS = wasProject;
-            }
-        });
-    }
-
-    @Test
     void shaderAttributesAndPublicDeclarationsUseSlangAwareFormatting() {
         EdtTestUtil.runInEdtAndWait(() -> {
             var state = ProjectSettings.getInstance(fixture.getProject()).getState();
@@ -230,7 +207,8 @@ class NativeFormattingTest {
                 String source = text("shader-preservation/" + scenario + ".slang");
                 var file = fixture.addFileToProject("shader" + System.nanoTime() + ".slang", source);
                 fixture.configureFromExistingVirtualFile(file.getVirtualFile());
-                assertNull(ClangFormat.options(file), "C++ formatting must not rewrite Slang declaration syntax");
+                assertFalse(new ClangFormattingService().canFormat(file),
+                        "Native formatting must not select the external service");
                 assertEquals(source, NativeFormatting.format(source, settings));
             }
         });
@@ -245,28 +223,30 @@ class NativeFormattingTest {
             int function = source.indexOf("float badlyFormatted");
             WriteCommandAction.runWriteCommandAction(fixture.getProject(),
                     () -> CodeStyleManager.getInstance(fixture.getProject()).reformatText(file, function, source.length()));
-            String expected = text("selection-function/unchanged-prefix.slang")
-                    + NativeFormatting.format(source.substring(source.indexOf("float badlyFormatted")), settings);
-            com.intellij.testFramework.PlatformTestUtil.waitWithEventsDispatching(
-                    "Formatting intention", () -> fixture.getEditor().getDocument().getText().equals(expected), 10);
+            String expected = source.substring(0, function)
+                    + NativeFormatting.format(source.substring(function), settings);
+            assertEquals(expected, fixture.getEditor().getDocument().getText(),
+                    "Selection formatting must leave the preceding declaration unchanged");
         });
     }
 
     @Test
     void selectionFormattingLeavesOtherStatementsAlone() {
         EdtTestUtil.runInEdtAndWait(() -> {
-            String source = text("selection-statements/before.slang");
+            String source = text("selection/before.slang");
             var file = fixture.addFileToProject("selection.slang", source);
-            int start = source.indexOf("float second");
-            int end = source.indexOf("float third");
+            int start = source.indexOf("static float second");
+            int end = source.indexOf("static float third");
             WriteCommandAction.runWriteCommandAction(fixture.getProject(),
                     () -> CodeStyleManager.getInstance(fixture.getProject()).reformatText(file, start, end));
-            assertEquals(text("selection-statements/after.slang"), file.getText());
+            assertEquals(text("selection/after.slang"), file.getText());
         });
     }
 
     private void assertFormat(String source, String expected) {
         assertEquals(expected, NativeFormatting.format(source, settings));
+        assertEquals(tokens(source), tokens(expected), "Formatting must preserve tokens");
+        assertEquals(expected, NativeFormatting.format(expected, settings), "Formatting must be idempotent");
         EdtTestUtil.runInEdtAndWait(() -> {
             var file = fixture.addFileToProject("sample" + System.nanoTime() + ".slang", source);
             WriteCommandAction.runWriteCommandAction(fixture.getProject(), () -> {

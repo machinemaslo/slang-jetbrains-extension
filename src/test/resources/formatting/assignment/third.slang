@@ -1,1 +1,0 @@
-float value=3;

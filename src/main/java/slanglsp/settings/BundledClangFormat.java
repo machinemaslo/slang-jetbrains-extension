@@ -20,7 +20,7 @@ public final class BundledClangFormat {
 
     static String locate(Path home) {
         String name = SystemInfo.isWindows ? "clang-format.exe" : "clang-format";
-        String os = SystemInfo.isWindows ? "win" : SystemInfo.isMac ? "macos" : "linux";
+        String os = SystemInfo.isWindows ? "windows" : SystemInfo.isMac ? "macos" : "linux";
         String arch = System.getProperty("os.arch").matches("aarch64|arm64") ? "arm64" : "x64";
         for (String root : new String[] {"plugins/clion-radler/DotFiles", "lib/ReSharperHost",
                 "plugins/rider/lib/ReSharperHost", "bin"}) {

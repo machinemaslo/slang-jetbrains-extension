@@ -1,1 +1,1 @@
-void f(){for(int i=0;i<10;i++){a[i]+=i;} a = b + ++c; a = b + +c; a = b - -c;}
+void f(int b,int c){int a = b + ++c; a = b + +c; a = b - -c;}

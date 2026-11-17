@@ -5,7 +5,6 @@ import slanglsp.language.SlangLanguage;
 import com.intellij.lang.documentation.AbstractDocumentationProvider;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import com.intellij.openapi.progress.util.ProgressIndicatorUtils;
 import com.intellij.openapi.project.DumbService;
 import com.redhat.devtools.lsp4ij.LSPIJUtils;
 import com.redhat.devtools.lsp4ij.features.documentation.LSPDocumentationHelper;
@@ -54,7 +53,16 @@ public class SlangDocumentationProvider extends AbstractDocumentationProvider {
         if (file.getProject().isDisposed() || DumbService.isDumb(file.getProject()))
             return List.of();
 
-        return new HoverRequest(file).documentationAt(offset);
+        // Legacy Ctrl-hover callbacks can hold a platform read lock. They must yield
+        // promptly; the platform's normal LSP documentation target remains available.
+        try (var deadline = AnalysisDeadline.open(java.time.Duration.ofMillis(500))) {
+            return new HoverRequest(file).documentationAt(offset);
+        } catch (com.intellij.openapi.progress.ProcessCanceledException cancelled) {
+            throw cancelled;
+        } catch (java.util.concurrent.CompletionException unavailable) {
+            com.intellij.openapi.diagnostic.Logger.getInstance(getClass()).debug("Hover unavailable", unavailable);
+            return List.of();
+        }
     }
 
     /** The document feature API connects the file and synchronizes unsaved edits before a request. */
@@ -77,7 +85,7 @@ public class SlangDocumentationProvider extends AbstractDocumentationProvider {
 
             if (position == null)
                 return List.of();
-            var servers = ProgressIndicatorUtils.awaitWithCheckCanceled(getLanguageServers(file,
+            var servers = AnalysisDeadline.await(getLanguageServers(file,
                     features
                     -> features.getHoverFeature().isEnabled(file),
                     features -> features.getHoverFeature().isSupported(file)));
@@ -89,7 +97,7 @@ public class SlangDocumentationProvider extends AbstractDocumentationProvider {
                 var request = server.getTextDocumentService().hover(new HoverParams(identifier, position));
 
                 try {
-                    var hover = ProgressIndicatorUtils.awaitWithCheckCanceled(request);
+                    var hover = AnalysisDeadline.await(request);
 
                     if (hover != null) {
                         String html = LSPDocumentationHelper.convertToHtml(

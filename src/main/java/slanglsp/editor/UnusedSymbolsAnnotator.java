@@ -5,7 +5,6 @@ import com.intellij.lang.annotation.*;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.progress.util.ProgressIndicatorUtils;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.roots.ProjectFileIndex;
 import com.intellij.openapi.util.TextRange;
@@ -26,7 +25,10 @@ public final class UnusedSymbolsAnnotator
     private static final com.intellij.openapi.util.Key<Result> CACHE =
             com.intellij.openapi.util.Key.create("slang.unused.analysis");
 
-    public record Input(PsiFile file, Document document, long stamp, long projectStamp, String text) {
+    public record Input(PsiFile file, Document document, long stamp, long projectStamp, String text, boolean batchOnly) {
+        public Input(PsiFile file, Document document, long stamp, long projectStamp, String text) {
+            this(file, document, stamp, projectStamp, text, false);
+        }
     }
 
     public record Candidate(String name, String kind, TextRange range) {
@@ -57,20 +59,34 @@ public final class UnusedSymbolsAnnotator
         }
     }
 
-    public record Result(Input input, List<Candidate> unused) {
+    public record Result(Input input, List<Candidate> unused, String failure) {
+        public Result(Input input, List<Candidate> unused) {
+            this(input, unused, null);
+        }
+    }
+
+    @Override
+    public String getPairedBatchInspectionShortName() {
+        return UnusedSymbolsInspection.ID;
     }
 
     @Override
     public Input collectInformation(
             @NotNull PsiFile file, @NotNull com.intellij.openapi.editor.Editor editor, boolean hasErrors) {
-        return hasErrors ? null : collectInformation(file);
+        return hasErrors ? null : collectForEditor(file);
     }
 
     @Override
     public Input collectInformation(@NotNull PsiFile file) {
+        Input input = collectForEditor(file);
+        return input == null ? null : new Input(input.file(), input.document(), input.stamp(),
+                input.projectStamp(), input.text(), true);
+    }
+
+    Input collectForEditor(@NotNull PsiFile file) {
         var project = file.getProject();
 
-        if (ProjectSettings.getInstance(project).getState().useSlangdUnusedDiagnosticsOnly ||
+        if (disabled(file) || ProjectSettings.getInstance(project).getState().useSlangdUnusedDiagnosticsOnly ||
                 DumbService.isDumb(project) || file.getVirtualFile() == null ||
                 !ProjectFileIndex.getInstance(project).isInContent(file.getVirtualFile()))
             return null;
@@ -84,12 +100,23 @@ public final class UnusedSymbolsAnnotator
 
     @Override
     public Result doAnnotate(Input input) {
+        try (var timing = AnalysisTiming.start(input.batchOnly() ? "batch unused symbols" : "editor unused symbols",
+                input.file().getName())) {
+            return annotate(input);
+        }
+    }
+
+    private Result annotate(Input input) {
         var cached = input.file().getUserData(CACHE);
-        if (cached != null && cached.input.stamp == input.stamp && cached.input.projectStamp == input.projectStamp) {
+        if (!input.batchOnly() && cached != null && cached.input.stamp == input.stamp
+                && cached.input.projectStamp == input.projectStamp) {
             return cached;
         }
-        var result = analyze(input);
-        if (result != null) {
+        Result result;
+        try (var deadline = AnalysisDeadline.open()) {
+            result = analyze(input);
+        }
+        if (result != null && !input.batchOnly()) {
             ReadActions.run(() -> {
                 check(input);
                 input.file().putUserData(CACHE, result);
@@ -106,9 +133,15 @@ public final class UnusedSymbolsAnnotator
                     ()
                             -> support.getDocumentSymbols(new DocumentSymbolParams(new TextDocumentIdentifier(
                                     UsageSearch.fileUri(input.file.getVirtualFile()).toString()))));
-            var symbols = ProgressIndicatorUtils.awaitWithCheckCanceled(future);
+            var symbols = AnalysisDeadline.await(future);
+            if (input.batchOnly()) {
+                NamingAnnotator.requireServer(input.file());
+            }
 
             if (symbols == null) {
+                if (input.batchOnly()) {
+                    throw new IllegalStateException(SlangBundle.message("analysis.server.unavailable"));
+                }
                 return null;
             }
 
@@ -144,7 +177,9 @@ public final class UnusedSymbolsAnnotator
             com.intellij.openapi.diagnostic.Logger.getInstance(getClass())
                     .debug("Unused symbol analysis unavailable", failure);
 
-            return null;
+            return input.batchOnly()
+                    ? new Result(input, List.of(), SlangBundle.message("analysis.batch.failed", "Unused symbols", failure.getMessage()))
+                    : null;
         } finally {
             support.cancel();
         }
@@ -215,12 +250,16 @@ public final class UnusedSymbolsAnnotator
 
     @Override
     public void apply(@NotNull PsiFile file, Result result, @NotNull AnnotationHolder holder) {
-        if (result == null ||
+        if (result == null || disabled(file) ||
                 ProjectSettings.getInstance(file.getProject()).getState().useSlangdUnusedDiagnosticsOnly) {
             return;
         }
 
         check(result.input);
+        if (result.failure() != null) {
+            holder.newAnnotation(HighlightSeverity.WARNING, result.failure()).fileLevel().create();
+            return;
+        }
 
         for (var candidate : result.unused) {
             // This warning owns the hover; naming only contributes informational styling and a menu action.
@@ -234,5 +273,11 @@ public final class UnusedSymbolsAnnotator
             }
             annotation.create();
         }
+    }
+
+    private static boolean disabled(PsiFile file) {
+        var key = com.intellij.codeInsight.daemon.HighlightDisplayKey.find(UnusedSymbolsInspection.ID);
+        return key != null && !com.intellij.profile.codeInspection.InspectionProfileManager.getInstance(file.getProject())
+                .getCurrentProfile().isToolEnabled(key, file);
     }
 }

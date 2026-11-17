@@ -8,7 +8,6 @@ import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.progress.util.ProgressIndicatorUtils;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
@@ -30,7 +29,7 @@ import java.net.URI;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
-/** Indexed candidates, verified with bounded concurrent requests; no network wait holds a read action. */
+/** Indexed candidates verified with bounded requests. Legacy callers may hold an outer read lock. */
 final class UsageSearch {
     private record Source(PsiFile file, Document document, long stamp, int offset, String name) {
         void checkUnchanged() {
@@ -325,7 +324,7 @@ final class UsageSearch {
         });
 
         try {
-            return ProgressIndicatorUtils.awaitWithCheckCanceled(future);
+            return AnalysisDeadline.await(future);
         } finally {
             if (!future.isDone()) {
                 support.cancel();
@@ -348,7 +347,7 @@ final class UsageSearch {
         }
 
         List<LocationData> await() {
-            var result = ProgressIndicatorUtils.awaitWithCheckCanceled(future);
+            var result = AnalysisDeadline.await(future);
 
             return result == null ? List.of() : DefinitionLocations.normalize(file, offset, name, result);
         }

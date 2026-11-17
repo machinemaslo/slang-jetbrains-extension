@@ -86,6 +86,24 @@ class NativeFormattingBlock implements BlockEx {
             }
             Leaf previous = children.isEmpty() ? null : (Leaf) children.getLast();
             String before = previous == null ? "" : previous.text;
+            if (text.equals("{") && before.equals("spirv_asm")) {
+                // Embedded SPIR-V has its own grammar. Keep the whole body as one leaf.
+                int depth = 1;
+                while (depth > 0) {
+                    lexer.advance();
+                    if (lexer.getTokenType() == null) {
+                        end = source.length();
+                        break;
+                    }
+                    if (lexer.getTokenType() == SlangLexer.LBRACE) {
+                        depth++;
+                    } else if (lexer.getTokenType() == SlangLexer.RBRACE) {
+                        depth--;
+                    }
+                    end = lexer.getTokenEnd();
+                }
+                text = source.substring(start, end);
+            }
             boolean closesControl = false;
             int braceKind = 0; // 1: function, 2: type/namespace, 3: control/initializer
             if (Set.of("struct", "class", "interface", "enum", "namespace", "cbuffer", "extension").contains(text)) {
@@ -243,9 +261,9 @@ class NativeFormattingBlock implements BlockEx {
         if (left.angle && a.equals(">")) return spaces(b.equals(">") ? 0 : 1, true);
         if (left.prefix) return spaces(right.type == SlangLexer.OPERATOR ? 1 : 0, false);
         if (Set.of("++", "--").contains(b) && !right.prefix) return spaces(0, false);
-        // Pointer declarations, dereferences, and unknown generic names need semantic information.
+        // Pointer declarations and dereferences need semantic information.
         // Preserve ambiguous gaps rather than inventing a different token sequence.
-        if (Set.of("*", "&", "<", ">").contains(a) || Set.of("*", "&", "<", ">").contains(b))
+        if (Set.of("*", "&").contains(a) || Set.of("*", "&").contains(b))
             return Spacing.getReadOnlySpacing();
         if (left.type == SlangLexer.OPERATOR || right.type == SlangLexer.OPERATOR) {
             boolean space = operatorSpace(left.type == SlangLexer.OPERATOR ? a : b);
@@ -278,6 +296,7 @@ class NativeFormattingBlock implements BlockEx {
             case "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=" -> common.SPACE_AROUND_ASSIGNMENT_OPERATORS;
             case "&&", "||" -> common.SPACE_AROUND_LOGICAL_OPERATORS;
             case "==", "!=" -> common.SPACE_AROUND_EQUALITY_OPERATORS;
+            case "<", ">", "<=", ">=" -> common.SPACE_AROUND_RELATIONAL_OPERATORS;
             case "+", "-" -> common.SPACE_AROUND_ADDITIVE_OPERATORS;
             case "<<", ">>" -> common.SPACE_AROUND_SHIFT_OPERATORS;
             default -> true;

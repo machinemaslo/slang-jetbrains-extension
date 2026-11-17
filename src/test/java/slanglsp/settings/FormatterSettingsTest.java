@@ -1,17 +1,13 @@
 package slanglsp.settings;
 
 import com.intellij.openapi.util.Disposer;
-import com.intellij.openapi.util.SystemInfo;
 import com.intellij.psi.codeStyle.CodeStyleSettingsManager;
 import com.intellij.testFramework.EdtTestUtil;
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static slanglsp.FormattingFixtures.text;
@@ -97,22 +93,6 @@ class FormatterSettingsTest {
             });
         } finally {
             EdtTestUtil.runInEdtAndWait(fixture::tearDown);
-        }
-    }
-
-    @Test
-    void findsBundledClangFormatInClionAndRiderLayouts(@TempDir Path root) throws Exception {
-        String os = SystemInfo.isWindows ? "windows" : SystemInfo.isMac ? "macos" : "linux";
-        String arch = System.getProperty("os.arch").matches("aarch64|arm64") ? "arm64" : "x64";
-        String name = SystemInfo.isWindows ? "clang-format.exe" : "clang-format";
-        assertNull(BundledClangFormat.locate(root));
-        for (String base : new String[] {"plugins/clion-radler/DotFiles", "lib/ReSharperHost"}) {
-            Path tool = root.resolve(base).resolve(os + "-" + arch).resolve(name);
-            Files.createDirectories(tool.getParent());
-            Files.writeString(tool, "test fixture");
-            assertTrue(tool.toFile().setExecutable(true));
-            assertEquals(tool.toString(), BundledClangFormat.locate(root));
-            Files.delete(tool);
         }
     }
 

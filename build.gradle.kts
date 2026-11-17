@@ -39,6 +39,7 @@ dependencies {
         zipSigner()
 
         plugin("com.redhat.devtools.lsp4ij:${providers.gradleProperty("lsp4ijVersion").getOrElse("0.21.0")}")
+        bundledModule("intellij.platform.vcs.impl") // Exercise the real pre-commit analysis service in tests.
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
     // Use the IDE's Gson; do not bundle a separate copy across plugin classloaders.

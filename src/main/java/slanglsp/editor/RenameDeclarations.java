@@ -1,7 +1,6 @@
 package slanglsp.editor;
 
 import com.intellij.openapi.editor.Document;
-import com.intellij.openapi.progress.util.ProgressIndicatorUtils;
 import com.intellij.psi.PsiFile;
 import com.redhat.devtools.lsp4ij.LSPIJUtils;
 import com.redhat.devtools.lsp4ij.features.documentSymbol.LSPDocumentSymbolSupport;
@@ -19,7 +18,7 @@ final class RenameDeclarations {
                 return support.getDocumentSymbols(new DocumentSymbolParams(
                         new TextDocumentIdentifier(UsageSearch.fileUri(file.getVirtualFile()).toString())));
             });
-            var symbols = ProgressIndicatorUtils.awaitWithCheckCanceled(future);
+            var symbols = AnalysisDeadline.await(future);
             return ReadActions.compute(() -> {
                 check.run();
                 return symbols != null && symbols.stream().anyMatch(symbol ->

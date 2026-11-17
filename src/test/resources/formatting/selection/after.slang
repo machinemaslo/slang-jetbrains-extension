@@ -1,4 +1,4 @@
 // é🙂
-float first=1;
-float second = 2;
-float third=3;
+static float first=1;
+static float second = 2;
+static float third=3;

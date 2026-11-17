@@ -16,10 +16,12 @@ import java.nio.charset.StandardCharsets;
  */
 final class ResponseInputStream extends InputStream {
     private final InputStream source;
+    private final java.util.function.Function<String, String> method;
     private ByteArrayInputStream frame = new ByteArrayInputStream(new byte[0]);
 
-    ResponseInputStream(InputStream source) {
+    ResponseInputStream(InputStream source, java.util.function.Function<String, String> method) {
         this.source = source;
+        this.method = method;
     }
 
     @Override
@@ -102,7 +104,7 @@ final class ResponseInputStream extends InputStream {
         return false;
     }
 
-    private static byte[] normalize(byte[] body) {
+    private byte[] normalize(byte[] body) {
         try {
             var element = JsonParser.parseString(new String(body, StandardCharsets.UTF_8));
 
@@ -110,7 +112,8 @@ final class ResponseInputStream extends InputStream {
                 var message = element.getAsJsonObject();
                 var result = message.get("result");
                 if (message.has("id") && !message.has("method") && !message.has("error") && result != null &&
-                        result.isJsonObject() && result.getAsJsonObject().isEmpty()) {
+                        result.isJsonObject() && result.getAsJsonObject().isEmpty()
+                        && "textDocument/definition".equals(method.apply(message.get("id").getAsString()))) {
                     message.add("result", com.google.gson.JsonNull.INSTANCE);
 
                     return message.toString().getBytes(StandardCharsets.UTF_8);

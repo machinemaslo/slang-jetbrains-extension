@@ -1,1 +1,1 @@
-float value=2;
+static float value=2;

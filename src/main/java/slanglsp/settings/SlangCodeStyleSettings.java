@@ -72,6 +72,16 @@ public final class SlangCodeStyleSettings extends CustomCodeStyleSettings {
     public boolean USE_BUNDLED_CLANG_FORMAT = true;
     public String CLANG_FORMAT_PATH = "";
 
+    public String clangFormatExecutable() {
+        if (USE_CUSTOM_CLANG_FORMAT) {
+            return CLANG_FORMAT_PATH.trim();
+        }
+        if (USE_BUNDLED_CLANG_FORMAT) {
+            return BundledClangFormat.executable();
+        }
+        return "clang-format";
+    }
+
     public SlangCodeStyleSettings(CodeStyleSettings container) {
         super("SlangCodeStyleSettings", container);
     }

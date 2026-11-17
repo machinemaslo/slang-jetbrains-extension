@@ -29,7 +29,14 @@ public class SlangGotoDeclarationHandler implements GotoDeclarationHandler {
             return null;
         // slangd resolves a dotted import at its final component.
         int position = module ? source.getTextRange().getEndOffset() - 1 : offset;
-        PsiElement[] targets = definitions(source, position);
+        PsiElement[] targets;
+        // The legacy navigation callback can run under a platform-owned read lock.
+        try (var deadline = AnalysisDeadline.open(java.time.Duration.ofMillis(500))) {
+            targets = definitions(source, position);
+        } catch (java.util.concurrent.CompletionException unavailable) {
+            com.intellij.openapi.diagnostic.Logger.getInstance(getClass()).debug("Definition unavailable", unavailable);
+            return PsiElement.EMPTY_ARRAY;
+        }
 
         if (module) {
             return Arrays.stream(targets)

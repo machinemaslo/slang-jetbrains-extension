@@ -25,6 +25,8 @@ class AngleBracketsTest {
                 factory.createLightFixtureBuilder("SlangAngles").getFixture(), new TempDirTestFixtureImpl());
         EdtTestUtil.runInEdtAndWait(() -> {
             fixture.setUp();
+            com.intellij.openapi.roots.ModuleRootModificationUtil.addContentRoot(
+                    fixture.getModule(), fixture.getTempDirPath());
             var definition = com.redhat.devtools.lsp4ij.LanguageServersRegistry.getInstance()
                     .getServerDefinition("slanglsp.SlangLanguageServer");
             org.junit.jupiter.api.Assertions.assertNotNull(definition);
@@ -183,6 +185,26 @@ class AngleBracketsTest {
             type("box<caret>", "<", "box<<caret>");
             type("import library;\nint box;\nbox<caret>", "<", "import library;\nint box;\nbox<<caret>");
             type("import library;\nunknown.get<caret>", "<", "import library;\nunknown.get<<caret>");
+        });
+    }
+
+    @Test
+    void importedGenericIndexTracksDeclarationEdits() {
+        EdtTestUtil.runInEdtAndWait(() -> {
+            var library = fixture.addFileToProject("changing.slang", "struct box<T> {}");
+            assertEquals(java.util.Set.of(":box"), new GenericContext(library.getText()).genericDeclarations());
+            org.junit.jupiter.api.Assertions.assertFalse(
+                    com.intellij.util.indexing.FileBasedIndex.getInstance().getContainingFiles(
+                            GenericDeclarationsIndex.NAME, "changing::box",
+                            com.intellij.psi.search.GlobalSearchScope.allScope(fixture.getProject())).isEmpty());
+            type("import changing;\nbox<caret>", "<", "import changing;\nbox<<caret>>");
+            var manager = com.intellij.psi.PsiDocumentManager.getInstance(fixture.getProject());
+            var document = manager.getDocument(library);
+            org.junit.jupiter.api.Assertions.assertNotNull(document);
+            com.intellij.openapi.command.WriteCommandAction.runWriteCommandAction(fixture.getProject(),
+                    () -> document.setText("struct box {}"));
+            manager.commitAllDocuments();
+            type("import changing;\nbox<caret>", "<", "import changing;\nbox<<caret>");
         });
     }
 

@@ -109,7 +109,8 @@ class NativeFormattingConfigurationTest {
             CodeStyleSettingsManager.getInstance(fixture.getProject()).notifyCodeStyleSettingsChanged();
             scenario.files().forEach(fixture::addFileToProject);
             var file = fixture.addFileToProject("nested/deeper/sample.slang", text("simple-function/before.slang"));
-            assertNull(ClangFormat.options(file), "The native mode must never select the external service");
+            assertFalse(new ClangFormattingService().canFormat(file),
+                    "The native mode must never select the external service");
             WriteCommandAction.runWriteCommandAction(fixture.getProject(), () -> {
                 CodeStyleManager.getInstance(fixture.getProject()).reformat(file);
             });
