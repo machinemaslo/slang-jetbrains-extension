@@ -42,6 +42,13 @@ final class DocumentSynchronization {
                 var item = open.getTextDocument();
                 Document document = documents.apply(item.getUri());
                 if (document != null) {
+                    State existing = opened.get(item.getUri());
+                    if (existing != null && existing.document() == document) {
+                        // A batch connection may complete didOpen while the original
+                        // editor continuation is still queued. Never open the URI twice.
+                        synchronize(item.getUri(), next);
+                        return;
+                    }
                     item.setText(document.getImmutableCharSequence().toString());
                     opened.put(item.getUri(), new State(document, item.getText(), item.getVersion()));
                 }

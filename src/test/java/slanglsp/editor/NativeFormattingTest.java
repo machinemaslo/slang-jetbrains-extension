@@ -114,6 +114,40 @@ class NativeFormattingTest {
         assertFormat(text("brace-spacing/before.slang"), text("brace-spacing/after.slang"));
     }
 
+    @Test
+    void specializedBraceOptionsOverrideTheirInheritedPlacement() {
+        var custom = settings.getCustomSettings(slanglsp.settings.SlangCodeStyleSettings.class);
+        custom.TYPE_BRACES = 2;
+        custom.NAMESPACE_BRACES = 1;
+        custom.BUFFER_BRACES = 3;
+        custom.CONTROL_BRACES = 2;
+        custom.SWITCH_BRACES = 1;
+        custom.CASE_BRACES = 3;
+        custom.INITIALIZER_BRACES = 1;
+
+        String source = """
+                namespace Lighting {
+                struct Material { float roughness; };
+                cbuffer Scene { float exposure; }
+                float intensity(int mode) {
+                float values[2] = {1.0, 2.0};
+                switch (mode) {
+                case 0: { return values[0]; }
+                default: return exposure;
+                }
+                }
+                }
+                """;
+        String formatted = NativeFormatting.format(source, settings);
+        assertTrue(formatted.startsWith("namespace Lighting {\n"), formatted);
+        assertTrue(formatted.contains("struct Material\n    {"), formatted);
+        assertTrue(formatted.contains("cbuffer Scene{"), formatted);
+        assertTrue(formatted.contains("switch (mode) {"), formatted);
+        assertTrue(formatted.contains("case 0:{"), formatted);
+        assertTrue(formatted.contains("values[2] = {"), formatted);
+        assertFormat(source, formatted);
+    }
+
     @ParameterizedTest(name = "operator spaces: {0}")
     @ValueSource(booleans = {true, false})
     void adjacentOperatorsRemainSeparateWhenSpacingChanges(boolean spaces) {

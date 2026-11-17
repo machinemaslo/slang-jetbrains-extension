@@ -113,7 +113,8 @@ public final class UnusedSymbolsAnnotator
             return cached;
         }
         Result result;
-        try (var deadline = AnalysisDeadline.open()) {
+        try (var deadline = AnalysisDeadline.open();
+             var batch = BatchAnalysisService.enter(input.batchOnly())) {
             result = analyze(input);
         }
         if (result != null && !input.batchOnly()) {
@@ -129,7 +130,10 @@ public final class UnusedSymbolsAnnotator
         var support = new LSPDocumentSymbolSupport(input.file);
 
         try {
-            var future = ReadActions.compute(
+            var future = input.batchOnly()
+                    ? input.file().getProject().getService(BatchAnalysisService.class)
+                            .symbols(input.file(), input.document())
+                    : ReadActions.compute(
                     ()
                             -> support.getDocumentSymbols(new DocumentSymbolParams(new TextDocumentIdentifier(
                                     UsageSearch.fileUri(input.file.getVirtualFile()).toString()))));

@@ -72,8 +72,12 @@ public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Inp
     private Result annotate(Input input) {
         var source = input.source();
         var support = new LSPDocumentSymbolSupport(source.file());
-        try (var deadline = AnalysisDeadline.open()) {
-            var future = ReadActions.compute(() -> support.getDocumentSymbols(new DocumentSymbolParams(
+        try (var deadline = AnalysisDeadline.open();
+             var batch = BatchAnalysisService.enter(input.batchOnly())) {
+            var future = input.batchOnly()
+                    ? source.file().getProject().getService(BatchAnalysisService.class)
+                            .symbols(source.file(), source.document())
+                    : ReadActions.compute(() -> support.getDocumentSymbols(new DocumentSymbolParams(
                     new TextDocumentIdentifier(UsageSearch.fileUri(source.file().getVirtualFile()).toString()))));
             var symbols = AnalysisDeadline.await(future);
             if (input.batchOnly()) {
@@ -217,8 +221,7 @@ public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Inp
     }
 
     static NamingRule rule(Input input, Candidate candidate) {
-        return input.rules().stream().filter(rule -> rule.category() == candidate.category()
-                || rule.category() == NamingRule.Category.ALL).findFirst().orElse(null);
+        return input.rules().stream().filter(rule -> rule.matches(candidate.category())).findFirst().orElse(null);
     }
 
     @Override

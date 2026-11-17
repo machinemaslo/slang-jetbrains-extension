@@ -60,6 +60,66 @@ class NativeFormattingConfigurationTest {
         });
     }
 
+    @Test
+    void inheritedConfigAppliesCustomBracesSpacingAndBlankLineLimits() {
+        EdtTestUtil.runInEdtAndWait(() -> {
+            settings.getCustomSettings(SlangCodeStyleSettings.class).READ_CLANG_FORMAT = true;
+            CodeStyleSettingsManager.getInstance(fixture.getProject()).notifyCodeStyleSettingsChanged();
+            fixture.addFileToProject(".clang-format", """
+                    IndentWidth: 2
+                    BreakBeforeBraces: Custom
+                    BraceWrapping:
+                      AfterNamespace: true
+                      AfterStruct: true
+                      AfterFunction: true
+                      AfterControlStatement: Always
+                      BeforeElse: false
+                    SpaceBeforeParens: Never
+                    SpaceBeforeAssignmentOperators: false
+                    SpacesInSquareBrackets: true
+                    IndentCaseLabels: false
+                    MaxEmptyLinesToKeep: 0
+                    """);
+            fixture.addFileToProject("nested/.clang-format", """
+                    BasedOnStyle: InheritParentConfig
+                    BraceWrapping:
+                      AfterFunction: false
+                    """);
+            var file = fixture.addFileToProject("nested/example.slang", """
+                    namespace N {
+                    struct S { int field; };
+                    class C { int field; };
+                    int f(int x) {
+                    int values[2] = {1, 2};
+
+
+                    if (x) { return values[0]; } else { return 0; }
+                    switch (x) { case 0: return 1; default: return 2; }
+                    }
+                    }
+                    """);
+            reformat(file);
+            String formatted = file.getText();
+            assertTrue(formatted.startsWith("namespace N\n{\n  struct S\n  {"), formatted);
+            assertTrue(formatted.contains("class C {"), formatted);
+            assertTrue(formatted.contains("int f(int x) {"), formatted);
+            assertTrue(formatted.contains("int values[ 2 ]= {"), formatted);
+            assertTrue(formatted.contains("if(x)\n    {"), formatted);
+            assertTrue(formatted.contains("} else\n    {"), formatted);
+            assertTrue(formatted.contains("switch(x)\n    {\n    case 0:"), formatted);
+            assertFalse(formatted.contains("\n\n"), formatted);
+            reformat(file);
+            assertEquals(formatted, file.getText());
+            assertEquals(-1, settings.getCustomSettings(SlangCodeStyleSettings.class).SPACE_BEFORE_ASSIGNMENT);
+        });
+    }
+
+    private void reformat(com.intellij.psi.PsiFile file) {
+        WriteCommandAction.runWriteCommandAction(fixture.getProject(), () -> {
+            CodeStyleManager.getInstance(fixture.getProject()).reformat(file);
+        });
+    }
+
     @AfterEach
     void tearDown() throws Exception {
         EdtTestUtil.runInEdtAndWait(() -> {
@@ -136,6 +196,61 @@ class NativeFormattingConfigurationTest {
                 CodeStyleManager.getInstance(fixture.getProject()).reformat(file);
             });
             assertEquals(text("simple-function/after.attach-three.slang"), file.getText());
+        });
+    }
+
+    @Test
+    void importsNamespaceIndentationGenericSpacingAndLogicalNot() {
+        EdtTestUtil.runInEdtAndWait(() -> {
+            settings.getCustomSettings(SlangCodeStyleSettings.class).READ_CLANG_FORMAT = true;
+            CodeStyleSettingsManager.getInstance(fixture.getProject()).notifyCodeStyleSettingsChanged();
+            fixture.addFileToProject(".clang-format", """
+                    NamespaceIndentation: Inner
+                    SpaceAfterLogicalNot: true
+                    SpacesInAngles: Always
+                    KeepEmptyLines:
+                      AtStartOfBlock: false
+                    """);
+            var file = fixture.addFileToProject("nested.slang", """
+                    namespace Outer {
+                    namespace Inner {
+
+                    struct Box<T> { T value; };
+                    bool check(bool value) { return !value; }
+                    }
+                    }
+                    """);
+            reformat(file);
+            String formatted = file.getText();
+            assertTrue(formatted.startsWith("namespace Outer\n{\nnamespace Inner\n{\n    struct Box< T >"), formatted);
+            assertTrue(formatted.contains("return ! value;"), formatted);
+            reformat(file);
+            assertEquals(formatted, file.getText());
+        });
+    }
+
+    @Test
+    void respectsDisableFormatAndClangFormatComments() {
+        EdtTestUtil.runInEdtAndWait(() -> {
+            settings.getCustomSettings(SlangCodeStyleSettings.class).READ_CLANG_FORMAT = true;
+            CodeStyleSettingsManager.getInstance(fixture.getProject()).notifyCodeStyleSettingsChanged();
+            String source = """
+                    int f( int x ){
+                      // clang-format off: intentional layout
+                    int y  =    x;
+                      /* clang-format on */
+                    return  y;
+                    }
+                    """;
+            fixture.addFileToProject("disabled/.clang-format", "DisableFormat: true\n");
+            var disabled = fixture.addFileToProject("disabled/sample.slang", source);
+            reformat(disabled);
+            assertEquals(source, disabled.getText());
+
+            var enabled = fixture.addFileToProject("sample.slang", source);
+            reformat(enabled);
+            assertTrue(enabled.getText().contains("\nint y  =    x;\n  /* clang-format on */"), enabled.getText());
+            assertTrue(enabled.getText().contains("\n    return y;"), enabled.getText());
         });
     }
 }

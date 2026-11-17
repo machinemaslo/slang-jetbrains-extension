@@ -160,20 +160,21 @@ class FormattingContractTest {
     }
 
     @Test
-    void bundledSelectionDoesNotSilentlyUseCustomOrPathExecutable() {
+    void bundledSelectionDoesNotSearchPathWhenNoBundledExecutableIsAvailable() {
         select(Engine.SLANGD);
         EdtTestUtil.runInEdtAndWait(() -> {
             var custom = settings.getCustomSettings(SlangCodeStyleSettings.class);
             custom.USE_CUSTOM_CLANG_FORMAT = false;
-            custom.USE_BUNDLED_CLANG_FORMAT = true;
-            custom.CLANG_FORMAT_PATH = fixture.getTempDirPath() + "/must-not-use-custom";
-            open(text("simple-function/before.slang"));
+            custom.CLANG_FORMAT_PATH = "clang-format";
         });
-        if (slanglsp.settings.BundledClangFormat.executable() == null) {
-            assertFormattingFailsWithoutChangingText("clang");
-        } else {
+        String bundledExecutable = slanglsp.settings.BundledClangFormat.executable();
+        assertEquals(bundledExecutable, settings.getCustomSettings(SlangCodeStyleSettings.class).clangFormatExecutable());
+        open(text("simple-function/before.slang"));
+        if (bundledExecutable != null) {
             configuration(".clang-format", text("configuration/external/.clang-format"));
             reformat(text("simple-function/after.attach-two.slang"), false);
+        } else {
+            assertFormattingFailsWithoutChangingText("clang-format");
         }
     }
 
@@ -286,7 +287,6 @@ class FormattingContractTest {
             var custom = settings.getCustomSettings(SlangCodeStyleSettings.class);
             custom.USE_CLANG_FORMAT = engine == Engine.SLANGD;
             custom.USE_CUSTOM_CLANG_FORMAT = engine == Engine.SLANGD;
-            custom.USE_BUNDLED_CLANG_FORMAT = false;
             custom.CLANG_FORMAT_PATH = engine == Engine.SLANGD
                     ? TestDependencies.clangFormat() : fixture.getTempDirPath() + "/no-executable";
             var state = ProjectSettings.getInstance(fixture.getProject()).getState();

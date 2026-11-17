@@ -314,6 +314,17 @@ final class UsageSearch {
     }
 
     private static List<LocationData> references(Source source) {
+        if (BatchAnalysisService.isBatch()) {
+            var future = source.file.getProject().getService(BatchAnalysisService.class)
+                    .references(source.file, source.document, source.offset);
+            try {
+                return AnalysisDeadline.await(future);
+            } finally {
+                if (!future.isDone()) {
+                    future.cancel(true);
+                }
+            }
+        }
         var support = new LSPReferenceSupport(source.file);
         CompletableFuture<List<LocationData>> future = ReadActions.compute(() -> {
             var params = new LSPReferenceParams(
@@ -342,7 +353,11 @@ final class UsageSearch {
         @Override
         public void close() {
             if (!future.isDone()) {
-                support.cancel();
+                if (support == null) {
+                    future.cancel(true);
+                } else {
+                    support.cancel();
+                }
             }
         }
 
@@ -354,6 +369,15 @@ final class UsageSearch {
     }
 
     private static DefinitionRequest requestDefinition(PsiFile file, Document document, int offset) {
+        if (BatchAnalysisService.isBatch()) {
+            String name = ReadActions.compute(() -> {
+                var leaf = file.findElementAt(offset);
+                return SlangFindUsagesProvider.isIdentifier(leaf) ? leaf.getText() : null;
+            });
+            return new DefinitionRequest(null,
+                    file.getProject().getService(BatchAnalysisService.class).definitions(file, document, offset),
+                    file, offset, name);
+        }
         var support = new LSPDefinitionSupport(file);
 
         try {

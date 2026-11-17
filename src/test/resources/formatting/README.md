@@ -24,33 +24,14 @@ configuration/
   explicit/custom-format.yaml
 ```
 
-The same small source may be reused deliberately across tests, for example
-`simple-function/before.slang` with different style/configuration expectations.
-`token-preservation/` contains the independent inputs for the token-preservation
-matrix; those tests still check tokens and idempotence, not generated golden output.
-The operators input also has explicit golden expectations under `operators/` for enabled/disabled spacing.
-All `.slang` resource fixtures must be self-contained valid Slang, including golden output.
-Source diagnostics are tested through the plugin's batch inspections, including malformed input and correction.
-Expected assembly fragments are extracted from the valid source rather than stored as standalone `.slang` files.
-Shader attributes provide Slang string-token coverage; `bitwise.slang` covers shift and bitwise operators.
+Keep test fixtures small and valid Slang, including expected output, test source errors through batch inspections.
 
-Native configuration tests cover supported imported options and predictable handling of unsupported or
-malformed configuration; the native engine does not implement every clang-format option.
-Keep default-setting coverage and targeted setting interactions (spacing/operator boundaries,
-wrapping/tabs, alignment, brace overrides). Exact output, token preservation, and idempotence
-are complementary assertions.
+Cover default settings, supported options, key setting combinations, and invalid configurations. The native engine supports only some clang-format options.
+Check exact output, unchanged tokens, and that formatting twice gives the same result.
 
-`BundledClangFormatTest` owns installation-layout discovery, including issue #9's `windows-x64`
-directory. The build workflow runs the full suite on Windows, Linux, and macOS; host-specific discovery
-tests therefore exercise actual host filesystem behavior.
+`BundledClangFormatTest` checks bundled tool locations, CI runs all tests on Windows, Linux, and macOS.
 
-Use `FormattingFixtures.text("scenario/file.slang")` to read exact UTF-8 text.
-Do not trim, dedent, normalize line endings, or reformat these files.
-Git pins the fixture tree to LF so Windows checkout settings do not change test input.
-Tests specifically exercising a missing final newline use
-`FormattingFixtures.withoutFinalNewline(...)`; this removes exactly one final line
-ending and no other whitespace. Fixture files themselves retain their final newline.
-
+Read fixtures with `FormattingFixtures.text("scenario/file.slang")`. Preserve all whitespace and line endings. Fixtures use LF and end with a newline. For tests that need no final newline, use `FormattingFixtures.withoutFinalNewline(...)`.
 ## Running tests
 
 Run without installing native tools when dependencies are already present:
@@ -64,10 +45,6 @@ Run without installing native tools when dependencies are already present:
   --tests '*FormatterSettingsTest'
 ```
 
-This is a tests-first specification. Failures in the new contracts remain enabled
-until the production implementation supports the agreed behavior; do not mark them
+This is a tests-first specification, failures in the new contracts remain enabled
+until the production implementation supports the agreed behavior, do not mark them
 ignored or replace their expected output with the current broken output.
-
-Selection acceptance tests require neighboring declarations to remain unchanged.
-External formatting uses JetBrains' standard save/undo lifecycle; formatting contracts
-cover no-op behavior and synchronous undo/redo through the public IDE entry point.

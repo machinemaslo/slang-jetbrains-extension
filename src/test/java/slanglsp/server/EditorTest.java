@@ -137,6 +137,18 @@ class EditorTest {
                                     new org.eclipse.lsp4j.Position(0, 12)), "stale edit"))));
             synchronization.consume(delayed, messages::add);
             assertEquals(3, messages.size());
+
+            // Batch readiness and a delayed editor continuation share one wire-level open.
+            synchronization.consume(open, messages::add);
+            assertEquals(3, messages.size(), "A queued editor didOpen must not reopen an already connected document");
+
+            var close = new org.eclipse.lsp4j.jsonrpc.messages.NotificationMessage();
+            close.setMethod("textDocument/didClose");
+            close.setParams(new org.eclipse.lsp4j.DidCloseTextDocumentParams(
+                    new org.eclipse.lsp4j.TextDocumentIdentifier(uri)));
+            synchronization.consume(close, messages::add);
+            synchronization.consume(open, messages::add);
+            assertEquals(5, messages.size(), "An actual close/reopen must still be transmitted");
         });
     }
 }

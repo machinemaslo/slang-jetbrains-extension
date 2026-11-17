@@ -6,8 +6,6 @@ import com.intellij.openapi.editor.colors.EditorColorsScheme;
 import com.intellij.openapi.editor.highlighter.EditorHighlighter;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.ui.DialogWrapper;
-import com.intellij.openapi.ui.ValidationInfo;
 import com.intellij.profile.codeInspection.InspectionProfileManager;
 import com.intellij.psi.codeStyle.CodeStyleSettings;
 import com.intellij.ui.ToolbarDecorator;
@@ -69,12 +67,6 @@ final class NamingPanel extends CodeStyleAbstractPanel {
                 com.intellij.util.ui.UIUtil.ComponentStyle.SMALL,
                 com.intellij.util.ui.UIUtil.FontColor.BRIGHTER), BorderLayout.SOUTH);
         panel.add(bottom, BorderLayout.SOUTH);
-        abbreviations.getDocument().addDocumentListener(new com.intellij.ui.DocumentAdapter() {
-            @Override
-            protected void textChanged(@NotNull javax.swing.event.DocumentEvent event) {
-                model.fireTableDataChanged();
-            }
-        });
         addPanelToWatch(panel);
     }
 
@@ -119,7 +111,7 @@ final class NamingPanel extends CodeStyleAbstractPanel {
         if (row < -1 || row >= rules.size()) {
             return;
         }
-        var dialog = new RuleDialog(row < 0
+        var dialog = new NamingRuleDialog(project(), row < 0
                 ? new NamingRule(message("naming.new.rule"), NamingRule.Category.ALL, NamingRule.Style.SNAKE_CASE, "", "")
                 : rules.get(row));
         if (dialog.showAndGet()) {
@@ -186,79 +178,9 @@ final class NamingPanel extends CodeStyleAbstractPanel {
         @Override
         public Object getValueAt(int row, int column) {
             var rule = rules.get(row);
-            return column == 0 ? rule.name() : rule.suggest(NamingRule.example(rule.category()), abbreviations.getText());
-        }
-    }
-
-    private final class RuleDialog extends DialogWrapper {
-        private final JTextField name = new JBTextField();
-        private final com.intellij.openapi.ui.ComboBox<NamingRule.Category> category =
-                new com.intellij.openapi.ui.ComboBox<>(NamingRule.Category.values());
-        private final com.intellij.openapi.ui.ComboBox<NamingRule.Style> style =
-                new com.intellij.openapi.ui.ComboBox<>(NamingRule.Style.values());
-        private final JTextField prefix = new JBTextField();
-        private final JTextField suffix = new JBTextField();
-        private final JPanel content = new JPanel(new GridLayout(0, 2, JBUI.scale(12), JBUI.scale(8)));
-
-        RuleDialog(NamingRule rule) {
-            super(NamingPanel.this.project());
-            setTitle(message("naming.edit"));
-            name.setText(rule.name());
-            prefix.setText(rule.prefix());
-            suffix.setText(rule.suffix());
-            category.setSelectedItem(rule.category());
-            style.setSelectedItem(rule.style());
-            category.setRenderer(new DefaultListCellRenderer() {
-                @Override
-                public Component getListCellRendererComponent(JList<?> list, Object value, int index,
-                                                              boolean selected, boolean focus) {
-                    return super.getListCellRendererComponent(list, NamingRule.label((NamingRule.Category) value),
-                            index, selected, focus);
-                }
-            });
-            style.setRenderer(new DefaultListCellRenderer() {
-                @Override
-                public Component getListCellRendererComponent(JList<?> list, Object value, int index,
-                                                              boolean selected, boolean focus) {
-                    return super.getListCellRendererComponent(list,
-                            NamingRule.label((NamingRule.Style) value),
-                            index, selected, focus);
-                }
-            });
-            row("naming.rule.name", name);
-            row("naming.category", category);
-            row("naming.style", style);
-            row("naming.prefix", prefix);
-            row("naming.suffix", suffix);
-            init();
-        }
-
-        private void row(@org.jetbrains.annotations.PropertyKey(resourceBundle = "messages.SlangBundle") String key,
-                         JComponent field) {
-            content.add(new JBLabel(message(key)));
-            content.add(field);
-        }
-
-        NamingRule rule() {
-            return new NamingRule(name.getText().trim(), (NamingRule.Category) category.getSelectedItem(),
-                    (NamingRule.Style) style.getSelectedItem(), prefix.getText(), suffix.getText());
-        }
-
-        @Override
-        protected ValidationInfo doValidate() {
-            if (name.getText().isBlank()) {
-                return new ValidationInfo(message("naming.name.required"), name);
-            }
-            if (!prefix.getText().matches("[A-Za-z_][A-Za-z_0-9]*|")
-                    || !suffix.getText().matches("[A-Za-z_0-9]*")) {
-                return new ValidationInfo(message("naming.affix.invalid"), prefix);
-            }
-            return null;
-        }
-
-        @Override
-        protected JComponent createCenterPanel() {
-            return content;
+            return column == 0 ? rule.name() : rule.variants().stream()
+                    .map(variant -> NamingRule.label(variant.style())).distinct()
+                    .collect(java.util.stream.Collectors.joining(", "));
         }
     }
 
