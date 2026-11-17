@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static slanglsp.FormattingFixtures.withoutFinalNewline;
 
 class CodeStyleTest {
     @Test
@@ -46,7 +47,7 @@ class CodeStyleTest {
                 }
                 new CodeStylePresets.Slang().apply(styles[0]);
             });
-            String source = "float evaluate(float value){if(value>0){return value;}return 0;}";
+            String source = withoutFinalNewline("preset/before.slang");
             String slang = format(ClangFormatStyle.clangFormatStyle(styles[0]), source);
             String java = format(ClangFormatStyle.clangFormatStyle(styles[1]), source);
             assertTrue(slang.contains("evaluate(float value)\n{"), slang);

@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static slanglsp.FormattingFixtures.text;
 
 class ClangFormattingTest {
     @Test
@@ -50,7 +51,7 @@ class ClangFormattingTest {
                 formatter.USE_CUSTOM_CLANG_FORMAT = true;
                 formatter.CLANG_FORMAT_PATH = TestDependencies.clangFormat();
                 styles.setTemporarySettings(scheme);
-                var file = fixture.addFileToProject("sample.slang", "float value=1;\n");
+                var file = fixture.addFileToProject("sample.slang", text("assignment/before.slang"));
                 fixture.configureFromExistingVirtualFile(file.getVirtualFile());
             });
             EdtTestUtil.runInEdtAndWait(() -> {
@@ -58,7 +59,8 @@ class ClangFormattingTest {
                 var document = fixture.getEditor().getDocument();
                 assertInstanceOf(ClangFormattingService.class, FormattingService.EP_NAME.getExtensionList().stream()
                         .filter(service -> service.canFormat(file)).findFirst().orElseThrow());
-                WriteCommandAction.runWriteCommandAction(fixture.getProject(), () -> document.setText("float value=2;\n"));
+                WriteCommandAction.runWriteCommandAction(fixture.getProject(),
+                        () -> document.setText(text("assignment/edited.slang")));
             });
             EdtTestUtil.runInEdtAndWait(() -> {
                 var document = fixture.getEditor().getDocument();
@@ -68,24 +70,25 @@ class ClangFormattingTest {
                         List.of(new TextRange(0, document.getTextLength())),
                         FormattingContext.create(fixture.getFile(), CodeStyle.getSettings(fixture.getFile())), false, false));
                 UIUtil.dispatchAllInvocationEvents();
-                assertEquals("float value = 2;\n", document.getText());
+                assertEquals(text("assignment/edited.after.slang"), document.getText());
                 var undo = UndoManager.getInstance(fixture.getProject());
                 undo.undo(TextEditorProvider.getInstance().getTextEditor(fixture.getEditor()));
-                assertEquals("float value=2;\n", document.getText());
+                assertEquals(text("assignment/edited.slang"), document.getText());
                 undo.redo(TextEditorProvider.getInstance().getTextEditor(fixture.getEditor()));
-                assertEquals("float value = 2;\n", document.getText());
+                assertEquals(text("assignment/edited.after.slang"), document.getText());
             });
             EdtTestUtil.runInEdtAndWait(() -> {
                 var document = fixture.getEditor().getDocument();
-                WriteCommandAction.runWriteCommandAction(fixture.getProject(), () -> document.setText("float value=3;\n"));
+                WriteCommandAction.runWriteCommandAction(fixture.getProject(),
+                        () -> document.setText(text("assignment/third.slang")));
                 com.intellij.psi.PsiDocumentManager.getInstance(fixture.getProject()).commitAllDocuments();
                 new com.intellij.codeInsight.actions.ReformatCodeProcessor(
                         fixture.getProject(), fixture.getFile(), null, false).run();
                 com.intellij.testFramework.PlatformTestUtil.waitWithEventsDispatching(
-                        "Manual formatting", () -> document.getText().equals("float value = 3;\n"), 10);
+                        "Manual formatting", () -> document.getText().equals(text("assignment/third.after.slang")), 10);
                 UndoManager.getInstance(fixture.getProject()).undo(
                         TextEditorProvider.getInstance().getTextEditor(fixture.getEditor()));
-                assertEquals("float value=3;\n", document.getText());
+                assertEquals(text("assignment/third.slang"), document.getText());
                 var state = ProjectSettings.getInstance(fixture.getProject()).getState();
                 state.clangFormatLocation = fixture.getTempDirPath() + "/missing-clang-format";
                 ProjectSettings.getInstance(fixture.getProject()).loadState(state);
@@ -111,16 +114,16 @@ class ClangFormattingTest {
             Path source = root.resolve("nested/sample.slang");
             Files.createDirectories(source.getParent());
             var options = new ClangFormat.Options(TestDependencies.clangFormat(), source, ClangFormatStyle.DEFAULT_STYLE);
-            String body = "float f(){return 0;}\n";
+            String body = text("direct-fallback/before.slang");
             assertTrue(ClangFormat.format(options, body, List.of(), handler -> {}).contains("f()\n{"));
-            Files.writeString(root.resolve(".clang-format"), "BasedOnStyle: LLVM\nBreakBeforeBraces: Attach\n");
+            Files.writeString(root.resolve(".clang-format"), text("configuration/direct/.clang-format"));
             assertTrue(ClangFormat.format(options, body, List.of(), handler -> {}).contains("f() {"));
-            String text = "// é🙂\nfloat first=1;\nfloat second=2;\n";
+            String text = text("direct-selection/before.slang");
             int start = text.indexOf("float second");
             String output = ClangFormat.format(options, text, List.of(new TextRange(start, text.length())), handler -> {});
             assertTrue(output.contains("float first=1;"), output);
             assertTrue(output.contains("float second = 2;"), output);
-            Files.writeString(root.resolve(".clang-format"), "NotAClangFormatOption: true\n");
+            Files.writeString(root.resolve(".clang-format"), text("configuration/invalid/.clang-format"));
             assertThrows(java.io.IOException.class, () -> ClangFormat.format(options, body, List.of(), handler -> {}));
         } finally {
             EdtTestUtil.runInEdtAndWait(fixture::tearDown);

@@ -7,11 +7,14 @@ import com.intellij.testFramework.EdtTestUtil;
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static slanglsp.FormattingFixtures.text;
 
 class FormatterSettingsTest {
     @Test
@@ -53,8 +56,16 @@ class FormatterSettingsTest {
         return null;
     }
 
-    @Test
-    void generalTabRoundTripsEngineAndExecutableSelection() throws Exception {
+    @ParameterizedTest(name = "external={0}, import={1}, custom={2}, bundled={3}")
+    @CsvSource({
+            "false, false, false, true",
+            "false, true, false, true",
+            "true, false, true, false",
+            "true, false, false, true",
+            "true, false, false, false"
+    })
+    void generalTabRoundTripsEngineAndExecutableSelection(
+            boolean external, boolean readConfig, boolean custom, boolean bundled) throws Exception {
         var fixture = IdeaTestFixtureFactory.getFixtureFactory().createLightFixtureBuilder("FormatterSettings").getFixture();
         EdtTestUtil.runInEdtAndWait(fixture::setUp);
         try {
@@ -63,10 +74,10 @@ class FormatterSettingsTest {
                 var settings = manager.createSettings();
                 var source = settings.getCustomSettings(SlangCodeStyleSettings.class);
                 assertFalse(source.USE_CLANG_FORMAT);
-                source.USE_CLANG_FORMAT = true;
-                source.READ_CLANG_FORMAT = true;
-                source.USE_CUSTOM_CLANG_FORMAT = true;
-                source.USE_BUNDLED_CLANG_FORMAT = false;
+                source.USE_CLANG_FORMAT = external;
+                source.READ_CLANG_FORMAT = readConfig;
+                source.USE_CUSTOM_CLANG_FORMAT = custom;
+                source.USE_BUNDLED_CLANG_FORMAT = bundled;
                 source.CLANG_FORMAT_PATH = "/tools with spaces/clang-format";
                 var panel = new FormatterPanel(settings);
                 try {
@@ -75,10 +86,10 @@ class FormatterSettingsTest {
                     var saved = manager.createSettings();
                     panel.apply(saved);
                     var result = saved.getCustomSettings(SlangCodeStyleSettings.class);
-                    assertTrue(result.USE_CLANG_FORMAT);
-                    assertTrue(result.READ_CLANG_FORMAT);
-                    assertTrue(result.USE_CUSTOM_CLANG_FORMAT);
-                    assertFalse(result.USE_BUNDLED_CLANG_FORMAT);
+                    assertEquals(external, result.USE_CLANG_FORMAT);
+                    assertEquals(readConfig, result.READ_CLANG_FORMAT);
+                    assertEquals(custom, result.USE_CUSTOM_CLANG_FORMAT);
+                    assertEquals(bundled, result.USE_BUNDLED_CLANG_FORMAT);
                     assertEquals(source.CLANG_FORMAT_PATH, result.CLANG_FORMAT_PATH);
                 } finally {
                     Disposer.dispose(panel);
@@ -91,7 +102,7 @@ class FormatterSettingsTest {
 
     @Test
     void findsBundledClangFormatInClionAndRiderLayouts(@TempDir Path root) throws Exception {
-        String os = SystemInfo.isWindows ? "win" : SystemInfo.isMac ? "macos" : "linux";
+        String os = SystemInfo.isWindows ? "windows" : SystemInfo.isMac ? "macos" : "linux";
         String arch = System.getProperty("os.arch").matches("aarch64|arm64") ? "arm64" : "x64";
         String name = SystemInfo.isWindows ? "clang-format.exe" : "clang-format";
         assertNull(BundledClangFormat.locate(root));
@@ -107,17 +118,7 @@ class FormatterSettingsTest {
 
     @Test
     void yamlLanguageSectionsOverrideDefaultsWithoutApplyingOtherLanguages() {
-        var values = ClangFormatSettingsImporter.parse("""
-                ---
-                IndentWidth: 3
-                UseTab: Never
-                ---
-                Language: JavaScript
-                IndentWidth: 8
-                ---
-                Language: Cpp
-                IndentWidth: 2
-                """);
+        var values = ClangFormatSettingsImporter.parse(text("configuration/languages-parser/.clang-format"));
         assertEquals(2, values.get("IndentWidth"));
         assertEquals("Never", values.get("UseTab"));
     }

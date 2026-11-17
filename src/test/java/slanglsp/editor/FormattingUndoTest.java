@@ -28,8 +28,15 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static slanglsp.FormattingFixtures.text;
+import static slanglsp.FormattingFixtures.withoutFinalNewline;
 
 class FormattingUndoTest {
+    private static final String ORIGINAL = withoutFinalNewline("assignment/before.slang");
+    private static final String EDITED = withoutFinalNewline("assignment/edited.slang");
+    private static final String FORMATTED = text("assignment/edited.after.slang");
+    private static final String FORMATTED_UNTERMINATED = withoutFinalNewline("assignment/edited.after.slang");
+
     private CodeInsightTestFixture fixture;
 
     @BeforeEach
@@ -57,31 +64,31 @@ class FormattingUndoTest {
     void formattingHasItsOwnUndoAndRedoStep() {
         EdtTestUtil.runInEdtAndWait(() -> {
             Document document = open();
-            edit("float value=2;");
+            edit(EDITED);
 
             var result = result(document);
-            result.onTextReady("float value = 2;\n");
-            assertEquals("float value=2;", document.getText(), "Applying the result must leave the current action first");
+            result.onTextReady(FORMATTED);
+            assertEquals(EDITED, document.getText(), "Applying the result must leave the current action first");
             UIUtil.dispatchAllInvocationEvents();
-            assertEquals("float value = 2;\n", document.getText());
+            assertEquals(FORMATTED, document.getText());
 
-            result(document).onTextReady("float value = 2;");
+            result(document).onTextReady(FORMATTED_UNTERMINATED);
             UIUtil.dispatchAllInvocationEvents();
-            assertEquals("float value = 2;", document.getText());
+            assertEquals(FORMATTED_UNTERMINATED, document.getText());
 
             undo();
-            assertEquals("float value = 2;\n", document.getText(), "Consecutive formats must remain separate");
+            assertEquals(FORMATTED, document.getText(), "Consecutive formats must remain separate");
             undo();
-            assertEquals("float value=2;", document.getText(), "Undo format must preserve the preceding edit");
+            assertEquals(EDITED, document.getText(), "Undo format must preserve the preceding edit");
             undo();
-            assertEquals("float value=1;", document.getText());
+            assertEquals(ORIGINAL, document.getText());
 
             redo();
-            assertEquals("float value=2;", document.getText());
+            assertEquals(EDITED, document.getText());
             redo();
-            assertEquals("float value = 2;\n", document.getText());
+            assertEquals(FORMATTED, document.getText());
             redo();
-            assertEquals("float value = 2;", document.getText());
+            assertEquals(FORMATTED_UNTERMINATED, document.getText());
         });
     }
 
@@ -89,14 +96,14 @@ class FormattingUndoTest {
     void unchangedAndEmptyResultsDoNotAddUndoSteps() {
         EdtTestUtil.runInEdtAndWait(() -> {
             Document document = open();
-            edit("float value=2;");
+            edit(EDITED);
 
             result(document).onTextReady(document.getText());
             result(document).onTextReady(null);
             UIUtil.dispatchAllInvocationEvents();
 
             undo();
-            assertEquals("float value=1;", document.getText());
+            assertEquals(ORIGINAL, document.getText());
         });
     }
 
@@ -105,22 +112,45 @@ class FormattingUndoTest {
         EdtTestUtil.runInEdtAndWait(() -> {
             Document document = open();
             var stale = result(document);
-            edit("float value=2;");
-            stale.onTextReady("float value = 1;");
+            edit(EDITED);
+            stale.onTextReady(withoutFinalNewline("assignment/after.slang"));
             UIUtil.dispatchAllInvocationEvents();
-            assertEquals("float value=2;", document.getText());
+            assertEquals(EDITED, document.getText());
 
             var older = result(document);
             var newer = result(document);
-            older.onTextReady("float value = 2;");
-            newer.onTextReady("float value = 2;\n");
+            older.onTextReady(FORMATTED_UNTERMINATED);
+            newer.onTextReady(FORMATTED);
             UIUtil.dispatchAllInvocationEvents();
-            assertEquals("float value = 2;\n", document.getText());
+            assertEquals(FORMATTED, document.getText());
 
             undo();
-            assertEquals("float value=2;", document.getText());
+            assertEquals(EDITED, document.getText());
             undo();
-            assertEquals("float value=1;", document.getText());
+            assertEquals(ORIGINAL, document.getText());
+        });
+    }
+
+    @Test
+    void cancellationBeforeOrAfterTheResponseDoesNotChangeTextOrAddUndoSteps() {
+        EdtTestUtil.runInEdtAndWait(() -> {
+            Document document = open();
+            edit(EDITED);
+
+            var cancelledBeforeResponse = result(document);
+            cancelledBeforeResponse.cancel();
+            cancelledBeforeResponse.onTextReady(FORMATTED);
+            UIUtil.dispatchAllInvocationEvents();
+            assertEquals(EDITED, document.getText());
+
+            var cancelledBeforeApply = result(document);
+            cancelledBeforeApply.onTextReady(FORMATTED);
+            cancelledBeforeApply.cancel();
+            UIUtil.dispatchAllInvocationEvents();
+            assertEquals(EDITED, document.getText());
+
+            undo();
+            assertEquals(ORIGINAL, document.getText(), "Cancellation must not create an undo command");
         });
     }
 
@@ -129,14 +159,8 @@ class FormattingUndoTest {
     void nativeFormattingHasSeparateUndoAndRedoSteps() {
         String clangFormat = slanglsp.TestDependencies.clangFormat();
 
-        String original = """
-                float value=1;
-                float other=3;
-                """;
-        String edited = """
-                float value=2;
-                float other=3;
-                """;
+        String original = text("undo/before.slang");
+        String edited = text("undo/edited.slang");
 
         EdtTestUtil.runInEdtAndWait(() -> {
             ModuleRootModificationUtil.addContentRoot(fixture.getModule(), fixture.getTempDirPath());
@@ -184,7 +208,7 @@ class FormattingUndoTest {
     }
 
     private Document open() {
-        return open("format.txt", "float value=1;");
+        return open("format.txt", ORIGINAL);
     }
 
     private Document open(String name, String text) {
