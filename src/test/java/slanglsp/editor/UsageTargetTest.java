@@ -14,9 +14,7 @@ class UsageTargetTest {
     void caretTargetFindsCrossFileCallsWithNativeServer() throws Exception {
         String executable = slanglsp.TestDependencies.slangd();
 
-        var factory = IdeaTestFixtureFactory.getFixtureFactory();
-        var fixture = factory.createCodeInsightFixture(
-                factory.createLightFixtureBuilder("SlangUsageSearch").getFixture(), new TempDirTestFixtureImpl());
+        var fixture = NativeServerSupport.isolatedFixture("SlangUsageSearch");
         EdtTestUtil.runInEdtAndWait(fixture::setUp);
 
         try {
@@ -124,7 +122,11 @@ class UsageTargetTest {
                 assertFalse(unused.contains("intersect_box"), unused.toString());
             }, new com.intellij.openapi.progress.EmptyProgressIndicator());
         } finally {
-            EdtTestUtil.runInEdtAndWait(fixture::tearDown);
+            try {
+                NativeServerSupport.stop(fixture.getProject());
+            } finally {
+                EdtTestUtil.runInEdtAndWait(fixture::tearDown);
+            }
         }
     }
 

@@ -5,8 +5,6 @@ import com.intellij.openapi.progress.EmptyProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.roots.ModuleRootModificationUtil;
 import com.intellij.testFramework.EdtTestUtil;
-import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
-import com.intellij.testFramework.fixtures.impl.TempDirTestFixtureImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import slanglsp.settings.ProjectSettings;
@@ -22,9 +20,7 @@ class UnusedSymbolsTest {
     @Timeout(90)
     void findsUnusedDeclarationsUsingNativeServer() throws Exception {
         String executable = slanglsp.TestDependencies.slangd();
-        var factory = IdeaTestFixtureFactory.getFixtureFactory();
-        var fixture = factory.createCodeInsightFixture(
-                factory.createLightFixtureBuilder("UnusedSymbols").getFixture(), new TempDirTestFixtureImpl());
+        var fixture = NativeServerSupport.isolatedFixture("UnusedSymbols");
         EdtTestUtil.runInEdtAndWait(fixture::setUp);
 
         try {

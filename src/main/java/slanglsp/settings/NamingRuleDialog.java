@@ -28,6 +28,7 @@ import java.awt.GridLayout;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.function.Function;
 
 import static slanglsp.SlangBundle.message;
 
@@ -49,8 +50,8 @@ final class NamingRuleDialog extends DialogWrapper {
         enabled.setSelected(rule.enabled());
         model.addAll(rule.variants());
         styles.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        styles.setCellRenderer(SimpleListCellRenderer.create("", (Variant variant) -> NamingRule.label(variant.style())));
-        style.setRenderer(SimpleListCellRenderer.create("", NamingRule::label));
+        styles.setCellRenderer(textRenderer(variant -> NamingRule.label(variant.style())));
+        style.setRenderer(textRenderer(NamingRule::label));
         categories = categoryTree(rule);
         styles.addListSelectionListener(event -> loadStyle());
         style.addActionListener(event -> saveStyle());
@@ -64,6 +65,15 @@ final class NamingRuleDialog extends DialogWrapper {
         suffix.getDocument().addDocumentListener(listener);
         styles.setSelectedIndex(0);
         init();
+    }
+
+    private static <T> SimpleListCellRenderer<T> textRenderer(Function<T, String> text) {
+        return new SimpleListCellRenderer<>() {
+            @Override
+            public void customize(@NotNull JList<? extends T> list, T value, int index, boolean selected, boolean hasFocus) {
+                setText(value == null ? "" : text.apply(value));
+            }
+        };
     }
 
     private static CheckboxTree categoryTree(NamingRule rule) {
@@ -87,7 +97,7 @@ final class NamingRuleDialog extends DialogWrapper {
                     getTextRenderer().append(item instanceof Category category ? NamingRule.label(category) : item.toString());
                 }
             }
-        }, root);
+        }, root, new CheckboxTree.CheckPolicy(true, true, false, true, false));
         tree.setRootVisible(false);
         for (int row = 0; row < tree.getRowCount(); row++) {
             tree.expandRow(row);

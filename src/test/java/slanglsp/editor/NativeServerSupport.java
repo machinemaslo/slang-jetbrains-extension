@@ -1,10 +1,23 @@
 package slanglsp.editor;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.testFramework.LightProjectDescriptor;
+import com.intellij.testFramework.fixtures.CodeInsightTestFixture;
+import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
+import com.intellij.testFramework.fixtures.impl.TempDirTestFixtureImpl;
 import com.redhat.devtools.lsp4ij.LanguageServersRegistry;
 
 final class NativeServerSupport {
-    private NativeServerSupport() {}
+    private NativeServerSupport() {
+    }
+
+    static CodeInsightTestFixture isolatedFixture(String name) {
+        var factory = IdeaTestFixtureFactory.getFixtureFactory();
+        // A fresh descriptor prevents reuse of the light project and its stopped LSP4IJ wrappers.
+        return factory.createCodeInsightFixture(
+                factory.createLightFixtureBuilder(new LightProjectDescriptor(), name).getFixture(),
+                new TempDirTestFixtureImpl());
+    }
 
     static void enable(Project project) {
         // Light fixtures share LSP4IJ state. An earlier editor-only test may have

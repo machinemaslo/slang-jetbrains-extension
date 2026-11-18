@@ -11,6 +11,7 @@ import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.wm.IdeFrame;
 import com.intellij.openapi.wm.StatusBar;
 import com.intellij.testFramework.EdtTestUtil;
+import com.intellij.testFramework.LightProjectDescriptor;
 import com.intellij.testFramework.PlatformTestUtil;
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import com.intellij.ui.BalloonLayout;
@@ -28,7 +29,6 @@ import slanglsp.settings.ProjectSettings;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import java.awt.Rectangle;
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 
@@ -43,7 +43,8 @@ class ServerRecoveryTest {
     @ParameterizedTest
     @EnumSource(Trigger.class)
     void startsAfterMissingExecutableWithoutRestartingTheIde(Trigger trigger, @TempDir Path temporary) throws Exception {
-        var fixture = IdeaTestFixtureFactory.getFixtureFactory().createLightFixtureBuilder("ServerRecovery").getFixture();
+        var fixture = IdeaTestFixtureFactory.getFixtureFactory()
+                .createLightFixtureBuilder(new LightProjectDescriptor(), "ServerRecovery").getFixture();
         EdtTestUtil.runInEdtAndWait(fixture::setUp);
         try {
             var project = fixture.getProject();
@@ -59,7 +60,7 @@ class ServerRecoveryTest {
                 assumeTrue(ServerConnection.findExecutable(project).isEmpty(), "Requires no unrelated slangd on PATH or in Vulkan SDK");
                 var manager = LanguageServerManager.getInstance(project);
                 EdtTestUtil.runInEdtAndWait(() -> manager.start(BatchConnection.SERVER_ID,
-                        new LanguageServerManager.StartOptions().setForceStart(true)));
+                        new LanguageServerManager.StartOptions().setForceStart(true).setForceRestart(false)));
                 EdtTestUtil.runInEdtAndWait(() -> {
                     PlatformTestUtil.waitWithEventsDispatching("missing slangd startup stops",
                             () -> manager.getServerStatus(BatchConnection.SERVER_ID) == ServerStatus.stopped
