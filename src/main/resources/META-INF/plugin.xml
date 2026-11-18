@@ -81,6 +81,7 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.lang</depends>
     <depends>com.redhat.devtools.lsp4ij</depends>
+    <depends optional="true" config-file="slang-mcp.xml">com.intellij.mcpServer</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <fileType name="Slang" implementationClass="slanglsp.language.SlangFileType" fieldName="INSTANCE" language="Slang" extensions="slang;slangh"/>
