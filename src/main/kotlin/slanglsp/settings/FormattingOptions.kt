@@ -6,96 +6,96 @@ import com.intellij.psi.codeStyle.CommonCodeStyleSettings
 import slanglsp.SlangBundle.message
 import slanglsp.language.SlangLanguage
 import javax.swing.JCheckBox
-import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JSpinner
 import javax.swing.SpinnerNumberModel
+import kotlin.reflect.KMutableProperty1
 
-internal class FormattingOption(
-    fieldName: String,
+internal sealed class FormattingOption(
     val label: String,
     val sample: String,
-    private val owner: OptionOwner = OptionOwner.COMMON,
-    private val choices: List<Pair<String, Any>> = emptyList(),
-    private val range: IntRange = 0..100,
-    val group: String = message("settings.code.style.group.options"),
+    val group: String,
     val description: String? = null,
-    private val inheritedValue: ((CodeStyleSettings) -> Any)? = null,
 ) {
-    private val field = owner.type.getField(fieldName)
+    abstract fun bind(): Binding
 
-    fun bind(): Binding = Binding()
+    interface Binding {
+        val definition: FormattingOption
+        val followsParent: Boolean
+        val control: JComponent
 
-    inner class Binding {
-        val definition get() = this@FormattingOption
-        val followsParent get() = inherited
-        private var inherited = false
-        val control = createControl()
-        private val display by lazy { createControl() }
+        fun renderValue(): JComponent
+        fun commitEditor()
+        fun reset(settings: CodeStyleSettings)
+        fun refreshInherited(settings: CodeStyleSettings)
+        fun apply(settings: CodeStyleSettings)
+        fun isModified(settings: CodeStyleSettings): Boolean
+        fun onChanged(accept: () -> Boolean, action: () -> Unit)
+    }
+}
 
-        private fun createControl(): JComponent = when {
-            choices.isNotEmpty() -> ComboBox(choices.map { it.first }.toTypedArray())
-            field.type == Boolean::class.javaPrimitiveType -> JCheckBox()
-            else -> JSpinner(SpinnerNumberModel(range.first, range.first, range.last, 1))
+private class Setting<T>(val read: (CodeStyleSettings) -> T, val write: (CodeStyleSettings, T) -> Unit)
+
+private fun <S, T> KMutableProperty1<S, T>.inSettings(owner: (CodeStyleSettings) -> S) =
+    Setting({ get(owner(it)) }, { settings, value -> set(owner(settings), value) })
+
+private class OptionEditor<T>(
+    val component: JComponent,
+    val read: () -> T,
+    val write: (T) -> Unit,
+    val listen: (() -> Unit) -> Unit,
+    val commit: () -> Unit = {},
+)
+
+private class InheritedValue<T>(val stored: T, val resolve: (CodeStyleSettings) -> T)
+
+private class ValueOption<T>(
+    label: String,
+    sample: String,
+    group: String,
+    description: String?,
+    private val setting: Setting<T>,
+    private val editor: () -> OptionEditor<T>,
+    private val inheritance: InheritedValue<T>? = null,
+) : FormattingOption(label, sample, group, description) {
+    override fun bind(): Binding = object : Binding {
+        override val definition = this@ValueOption
+        private val input = editor()
+        private val display by lazy(editor)
+        private var inherited: InheritedValue<T>? = null
+
+        override val control get() = input.component
+        override val followsParent get() = inherited != null
+
+        override fun renderValue(): JComponent {
+            display.write(input.read())
+            return display.component
         }
 
-        fun renderValue(): JComponent = display.apply {
-            when (this) {
-                is JCheckBox -> isSelected = (control as JCheckBox).isSelected
-                is JComboBox<*> -> selectedIndex = (control as JComboBox<*>).selectedIndex
-                is JSpinner -> value = (control as JSpinner).value
-            }
+        override fun commitEditor() = input.commit()
+
+        private fun value(): T = inherited?.stored ?: input.read()
+
+        override fun reset(settings: CodeStyleSettings) {
+            val stored = setting.read(settings)
+            inherited = inheritance?.takeIf { it.stored == stored }
+            input.write(inherited?.resolve?.invoke(settings) ?: stored)
         }
 
-        fun commitEditor() {
-            (control as? JSpinner)?.commitEdit()
+        override fun refreshInherited(settings: CodeStyleSettings) {
+            inherited?.let { input.write(it.resolve(settings)) }
         }
 
-        private fun value(): Any = if (inherited) 0 else when (control) {
-            is JCheckBox -> control.isSelected
-            is JComboBox<*> -> choices[control.selectedIndex].second
-            is JSpinner -> control.value
-            else -> error("Unsupported formatting control")
-        }
+        override fun apply(settings: CodeStyleSettings) = setting.write(settings, value())
 
-        fun reset(settings: CodeStyleSettings) {
-            val value = field.get(owner.target(settings))
-            inherited = value == 0 && inheritedValue != null
-            when (control) {
-                is JCheckBox -> control.isSelected = value as Boolean
-                is JComboBox<*> -> selectValue(if (inherited) inheritedValue?.invoke(settings) else value)
-                is JSpinner -> control.value = value
-            }
-        }
+        override fun isModified(settings: CodeStyleSettings) = setting.read(settings) != value()
 
-        fun refreshInherited(settings: CodeStyleSettings) {
-            if (inherited) {
-                selectValue(inheritedValue?.invoke(settings))
-            }
-        }
-
-        private fun selectValue(value: Any?) {
-            val combo = control as JComboBox<*>
-            combo.selectedIndex = choices.indexOfFirst { it.second == value }.coerceAtLeast(0)
-        }
-
-        fun apply(settings: CodeStyleSettings) {
-            field.set(owner.target(settings), value())
-        }
-
-        fun isModified(settings: CodeStyleSettings) = field.get(owner.target(settings)) != value()
-
-        fun onChanged(accept: () -> Boolean, action: () -> Unit) {
-            val change = {
+        override fun onChanged(accept: () -> Boolean, action: () -> Unit) {
+            input.listen {
                 if (accept()) {
-                    inherited = false
+                    inherited = null
                     action()
                 }
-            }
-            when (control) {
-                is JCheckBox -> control.addActionListener { change() }
-                is JComboBox<*> -> control.addActionListener { change() }
-                is JSpinner -> control.addChangeListener { change() }
             }
         }
 
@@ -103,19 +103,92 @@ internal class FormattingOption(
     }
 }
 
-internal enum class OptionOwner(val type: Class<*>) {
-    COMMON(CommonCodeStyleSettings::class.java),
-    INDENT(CommonCodeStyleSettings.IndentOptions::class.java),
-    SLANG(SlangCodeStyleSettings::class.java);
-
-    fun target(settings: CodeStyleSettings): Any = when (this) {
-        COMMON -> settings.getCommonSettings(SlangLanguage.INSTANCE)
-        INDENT -> settings.getCommonSettings(SlangLanguage.INSTANCE).initIndentOptions()
-        SLANG -> settings.getCustomSettings(SlangCodeStyleSettings::class.java)
-    }
+private fun checkboxEditor(): OptionEditor<Boolean> {
+    val checkbox = JCheckBox()
+    return OptionEditor(
+        checkbox,
+        read = { checkbox.isSelected },
+        write = { checkbox.isSelected = it },
+        listen = { onChange -> checkbox.addActionListener { onChange() } },
+    )
 }
 
+private fun spinnerEditor(range: IntRange): OptionEditor<Int> {
+    val model = SpinnerNumberModel(range.first, range.first, range.last, 1)
+    val spinner = JSpinner(model)
+    return OptionEditor(
+        spinner,
+        read = { model.number.toInt() },
+        write = { model.value = it },
+        listen = { onChange -> spinner.addChangeListener { onChange() } },
+        commit = spinner::commitEdit,
+    )
+}
+
+private fun <T> choiceEditor(choices: List<Pair<String, T>>): OptionEditor<T> {
+    val combo = ComboBox(choices.map { it.first }.toTypedArray())
+    return OptionEditor(
+        combo,
+        read = { choices[combo.selectedIndex].second },
+        write = { value -> combo.selectedIndex = choices.indexOfFirst { it.second == value }.coerceAtLeast(0) },
+        listen = { onChange -> combo.addActionListener { onChange() } },
+    )
+}
+
+private fun checkbox(
+    setting: Setting<Boolean>,
+    title: String,
+    sample: String,
+    group: String,
+    help: String? = null,
+): FormattingOption = ValueOption(title, sample, group, help, setting, ::checkboxEditor)
+
+private fun number(
+    setting: Setting<Int>,
+    title: String,
+    sample: String,
+    group: String,
+    range: IntRange = 0..100,
+): FormattingOption = ValueOption(title, sample, group, null, setting, { spinnerEditor(range) })
+
+private fun <T> choice(
+    setting: Setting<T>,
+    title: String,
+    sample: String,
+    group: String,
+    choices: List<Pair<String, T>>,
+    inherited: InheritedValue<T>? = null,
+): FormattingOption = ValueOption(title, sample, group, null, setting, { choiceEditor(choices) }, inherited)
+
+private fun commonSettings(settings: CodeStyleSettings) = settings.getCommonSettings(SlangLanguage.INSTANCE)
+private fun indentSettings(settings: CodeStyleSettings) =
+    commonSettings(settings).run { indentOptions ?: initIndentOptions() }
+private fun slangSettings(settings: CodeStyleSettings) = settings.getCustomSettings(SlangCodeStyleSettings::class.java)
+
+private fun <T> KMutableProperty1<CommonCodeStyleSettings, T>.common() = inSettings(::commonSettings)
+private fun <T> KMutableProperty1<CommonCodeStyleSettings.IndentOptions, T>.indent() = inSettings(::indentSettings)
+private fun <T> KMutableProperty1<SlangCodeStyleSettings, T>.slang() = inSettings(::slangSettings)
+
+private fun group(key: String): String = message("settings.code.style.group.$key")
+
+private typealias Common = CommonCodeStyleSettings
+private typealias Indent = CommonCodeStyleSettings.IndentOptions
+private typealias SlangStyle = SlangCodeStyleSettings
+
 internal object FormattingOptions {
+    private enum class BraceParent {
+        DEFAULT, TYPE, CONTROL;
+
+        fun resolve(settings: SlangCodeStyleSettings): Int {
+            val style = when (this) {
+                DEFAULT -> 0
+                TYPE -> settings.TYPE_BRACES
+                CONTROL -> settings.CONTROL_BRACES
+            }
+            return if (style != 0) style else if (settings.BRACES_ON_NEW_LINE) 2 else 1
+        }
+    }
+
     private const val FUNCTION = "float shade(float x)\n{\nreturn x;\n}"
     private const val CALL = "float shade()\n{\nreturn evaluate(firstSample, secondSample, thirdSample);\n}"
     private const val MULTILINE_CALL = "float shade()\n{\nreturn evaluate(firstSample,\nsecondSample,\nthirdSample);\n}"
@@ -130,143 +203,201 @@ internal object FormattingOptions {
         message("settings.code.style.braces.no.space") to 3,
     )
 
-    fun indents(settings: CodeStyleSettings) = OptionPreviewPanel(settings, "indents",
-        message("settings.code.style.indents.tab"), listOf(
-            indent("USE_TAB_CHARACTER", message("settings.code.style.use.tabs"),
-                message("settings.code.style.describe.use.tabs")),
-            indent("INDENT_SIZE", message("settings.code.style.indent.size")),
-            indent("CONTINUATION_INDENT_SIZE", message("settings.code.style.continuation.indent")),
-            FormattingOption("TAB_SIZE", message("settings.code.style.tab.width"), INDENT,
-                OptionOwner.INDENT, range = 1..32, group = message("settings.code.style.group.indents")),
+    fun indents(settings: CodeStyleSettings) = OptionPreviewPanel(
+        settings, "indents", message("settings.code.style.indents.tab"), listOf(
+            checkbox(
+                Indent::USE_TAB_CHARACTER.indent(), message("settings.code.style.use.tabs"), INDENT,
+                group("indents"), message("settings.code.style.describe.use.tabs"),
+            ),
+            number(Indent::INDENT_SIZE.indent(), message("settings.code.style.indent.size"), INDENT, group("indents"), 0..32),
+            number(
+                Indent::CONTINUATION_INDENT_SIZE.indent(), message("settings.code.style.continuation.indent"),
+                INDENT, group("indents"), 0..32,
+            ),
+            number(Indent::TAB_SIZE.indent(), message("settings.code.style.tab.width"), INDENT, group("indents"), 1..32),
         ),
     )
 
-    private fun indent(field: String, title: String, help: String? = null) =
-        FormattingOption(field, title, INDENT, OptionOwner.INDENT, range = 0..32,
-            group = message("settings.code.style.group.indents"), description = help)
-
     fun braces(settings: CodeStyleSettings): OptionPreviewPanel {
         val options = listOf(
-            FormattingOption("BRACES_ON_NEW_LINE", message("settings.code.style.braces.new.line"), FUNCTION, OptionOwner.SLANG,
-                listOf("Allman" to true, "K&R" to false), group = message("settings.code.style.group.braces")),
-            brace("NAMESPACE", message("settings.code.style.namespace_braces"), "namespace Lighting\n{\nfloat exposure;\n}"),
-            brace("TYPE", message("settings.code.style.type_braces"), "interface IShade\n{\nfloat shade();\n}"),
-            brace("STRUCT", message("settings.code.style.struct_braces"), "struct Material\n{\nfloat roughness;\n};"),
-            brace("CLASS", message("settings.code.style.class_braces"), "class Scene\n{\nfloat exposure;\n}"),
-            brace("ENUM", message("settings.code.style.enum_braces"), "enum Mode\n{\nFast,\nAccurate\n}"),
-            brace("BUFFER", message("settings.code.style.buffer_braces"), "cbuffer Scene\n{\nfloat exposure;\n}"),
-            brace("FUNCTION", message("settings.code.style.function_braces"), FUNCTION),
-            brace("SWITCH", message("settings.code.style.switch_braces"), SWITCH),
-            brace("CASE", message("settings.code.style.case_braces"),
-                "void shade(int mode)\n{\nswitch (mode)\n{\ncase 0:\n{\nupdate();\nbreak;\n}\n}\n}"),
-            brace("INITIALIZER", message("settings.code.style.initializer_braces"), "float weights[2] =\n{\n0.5, 1.0\n};"),
-            brace("CONTROL", message("settings.code.style.control_braces"), CONDITIONAL),
-            common("ELSE_ON_NEW_LINE", message("settings.code.style.else"), CONDITIONAL,
-                message("settings.code.style.describe.else")),
-            common("CATCH_ON_NEW_LINE", message("settings.code.style.catch"),
-                "void shade()\n{\ntry { update(); }\ncatch { clear(); }\n}", message("settings.code.style.describe.catch")),
-            common("WHILE_ON_NEW_LINE", message("settings.code.style.while"),
-                "void shade()\n{\ndo { update(); }\nwhile (active);\n}", message("settings.code.style.describe.while")),
-            FormattingOption("KEEP_BLANK_LINES_AFTER_LBRACE", message("settings.code.style.keep.blank.lines.after.brace"),
-                "float shade()\n{\n\n\nreturn 1.0;\n}", OptionOwner.SLANG, group = message("settings.code.style.group.blank.keep")),
+            choice(
+                SlangStyle::BRACES_ON_NEW_LINE.slang(), message("settings.code.style.braces.new.line"), FUNCTION,
+                group("braces"), listOf("Allman" to true, "K&R" to false),
+            ),
+            brace(
+                SlangStyle::NAMESPACE_BRACES, "namespace_braces", "namespace Lighting\n{\nfloat exposure;\n}", BraceParent.TYPE,
+            ),
+            brace(SlangStyle::TYPE_BRACES, "type_braces", "interface IShade\n{\nfloat shade();\n}"),
+            brace(
+                SlangStyle::STRUCT_BRACES, "struct_braces", "struct Material\n{\nfloat roughness;\n};", BraceParent.TYPE,
+            ),
+            brace(SlangStyle::CLASS_BRACES, "class_braces", "class Scene\n{\nfloat exposure;\n}", BraceParent.TYPE),
+            brace(SlangStyle::ENUM_BRACES, "enum_braces", "enum Mode\n{\nFast,\nAccurate\n}", BraceParent.TYPE),
+            brace(SlangStyle::BUFFER_BRACES, "buffer_braces", "cbuffer Scene\n{\nfloat exposure;\n}", BraceParent.TYPE),
+            brace(SlangStyle::FUNCTION_BRACES, "function_braces", FUNCTION),
+            brace(SlangStyle::SWITCH_BRACES, "switch_braces", SWITCH, BraceParent.CONTROL),
+            brace(
+                SlangStyle::CASE_BRACES, "case_braces",
+                "void shade(int mode)\n{\nswitch (mode)\n{\ncase 0:\n{\nupdate();\nbreak;\n}\n}\n}", BraceParent.CONTROL,
+            ),
+            brace(SlangStyle::INITIALIZER_BRACES, "initializer_braces", "float weights[2] =\n{\n0.5, 1.0\n};", BraceParent.CONTROL),
+            brace(SlangStyle::CONTROL_BRACES, "control_braces", CONDITIONAL),
+            checkbox(
+                Common::ELSE_ON_NEW_LINE.common(), message("settings.code.style.else"), CONDITIONAL,
+                group("keywords"), message("settings.code.style.describe.else"),
+            ),
+            checkbox(
+                Common::CATCH_ON_NEW_LINE.common(), message("settings.code.style.catch"),
+                "void shade()\n{\ntry { update(); }\ncatch { clear(); }\n}", group("keywords"),
+                message("settings.code.style.describe.catch"),
+            ),
+            checkbox(
+                Common::WHILE_ON_NEW_LINE.common(), message("settings.code.style.while"),
+                "void shade()\n{\ndo { update(); }\nwhile (active);\n}", group("keywords"),
+                message("settings.code.style.describe.while"),
+            ),
+            checkbox(
+                SlangStyle::KEEP_BLANK_LINES_AFTER_LBRACE.slang(), message("settings.code.style.keep.blank.lines.after.brace"),
+                "float shade()\n{\n\n\nreturn 1.0;\n}", group("blank.keep"),
+            ),
         )
         return OptionPreviewPanel(settings, "braces", message("settings.code.style.braces.tab"), options)
     }
 
-    private fun brace(field: String, title: String, sample: String) =
-        FormattingOption("${field}_BRACES", title, sample, OptionOwner.SLANG, braceStyles,
-            group = message("settings.code.style.group.braces"), inheritedValue = { settings ->
-                val style = settings.getCustomSettings(SlangCodeStyleSettings::class.java)
-                val parent = when (field) {
-                    "STRUCT", "CLASS", "ENUM", "NAMESPACE", "BUFFER" -> style.TYPE_BRACES
-                    "SWITCH", "CASE", "INITIALIZER" -> style.CONTROL_BRACES
-                    else -> 0
-                }
-                if (parent != 0) parent else if (style.BRACES_ON_NEW_LINE) 2 else 1
-            })
+    private fun brace(
+        field: KMutableProperty1<SlangStyle, Int>,
+        labelKey: String,
+        sample: String,
+        parent: BraceParent = BraceParent.DEFAULT,
+    ) = choice(
+        field.slang(), message("settings.code.style.$labelKey"), sample, group("braces"), braceStyles,
+        inherited = InheritedValue(0) { parent.resolve(slangSettings(it)) },
+    )
 
-    fun blankLines(settings: CodeStyleSettings) = OptionPreviewPanel(settings, "blankLines", message("settings.code.style.blank.lines.tab"), listOf(
-        common("KEEP_BLANK_LINES_IN_CODE", message("settings.code.style.blank.lines.code"), "void shade()\n{\nupdate();\n\n\n\nclear();\n}"),
-        common("KEEP_BLANK_LINES_IN_DECLARATIONS", message("settings.code.style.blank.lines.declarations"), "struct Material\n{\nfloat roughness;\n\n\n\nfloat exposure;\n};"),
-        common("KEEP_BLANK_LINES_BEFORE_RBRACE", message("settings.code.style.blank.lines.before.brace"), "void shade()\n{\nupdate();\n\n\n\n}"),
-        common("BLANK_LINES_AROUND_METHOD", message("settings.code.style.blank.lines.functions"), "float shadow() { return 0; }\nfloat shade() { return 1; }"),
-    ))
+    fun blankLines(settings: CodeStyleSettings) = OptionPreviewPanel(
+        settings, "blankLines", message("settings.code.style.blank.lines.tab"), listOf(
+            number(
+                Common::KEEP_BLANK_LINES_IN_CODE.common(), message("settings.code.style.blank.lines.code"),
+                "void shade()\n{\nupdate();\n\n\n\nclear();\n}", group("blank.keep"),
+            ),
+            number(
+                Common::KEEP_BLANK_LINES_IN_DECLARATIONS.common(), message("settings.code.style.blank.lines.declarations"),
+                "struct Material\n{\nfloat roughness;\n\n\n\nfloat exposure;\n};", group("blank.keep"),
+            ),
+            number(
+                Common::KEEP_BLANK_LINES_BEFORE_RBRACE.common(), message("settings.code.style.blank.lines.before.brace"),
+                "void shade()\n{\nupdate();\n\n\n\n}", group("blank.keep"),
+            ),
+            number(
+                Common::BLANK_LINES_AROUND_METHOD.common(), message("settings.code.style.blank.lines.functions"),
+                "float shadow() { return 0; }\nfloat shade() { return 1; }", group("blank.insert"),
+            ),
+        ),
+    )
 
-    fun wrapping(settings: CodeStyleSettings) = OptionPreviewPanel(settings, "wrapping", message("settings.code.style.wrapping.tab"), listOf(
-        FormattingOption("RIGHT_MARGIN", message("settings.code.style.right.margin"), WRAP_SAMPLE,
-            range = 1..1000, group = message("settings.code.style.group.wrapping")),
-        common("KEEP_LINE_BREAKS", message("settings.code.style.keep.line.breaks"), WRAP_SAMPLE,
-            message("settings.code.style.describe.keep.line.breaks")),
-        wrap("CALL_PARAMETERS_WRAP", message("settings.code.style.argument.lists")),
-        wrap("ASSIGNMENT_WRAP", message("settings.code.style.assignment.wrap")),
-    ))
+    fun wrapping(settings: CodeStyleSettings) = OptionPreviewPanel(
+        settings, "wrapping", message("settings.code.style.wrapping.tab"), listOf(
+            number(Common::RIGHT_MARGIN.common(), message("settings.code.style.right.margin"), WRAP_SAMPLE, group("wrapping"), 1..1000),
+            checkbox(
+                Common::KEEP_LINE_BREAKS.common(), message("settings.code.style.keep.line.breaks"), WRAP_SAMPLE,
+                group("wrapping"), message("settings.code.style.describe.keep.line.breaks"),
+            ),
+            wrap(Common::CALL_PARAMETERS_WRAP, message("settings.code.style.argument.lists")),
+            wrap(Common::ASSIGNMENT_WRAP, message("settings.code.style.assignment.wrap")),
+        ),
+    )
 
     private val WRAP_SAMPLE = "$CALL\n\n${MULTILINE_CALL.replace("shade()", "shadow()")}\n\n" +
         "float intensity = firstSample + secondSample + thirdSample + exposure * gain;"
 
-    private fun wrap(field: String, title: String) = FormattingOption(field, title, WRAP_SAMPLE,
-        choices = listOf(message("settings.code.style.wrap.never") to CommonCodeStyleSettings.DO_NOT_WRAP,
-            message("settings.code.style.wrap.needed") to CommonCodeStyleSettings.WRAP_AS_NEEDED,
-            message("settings.code.style.wrap.always") to CommonCodeStyleSettings.WRAP_ALWAYS,
-            message("settings.code.style.wrap.chop") to CommonCodeStyleSettings.WRAP_ON_EVERY_ITEM),
-        group = message("settings.code.style.group.wrapping"),
+    private fun wrap(field: KMutableProperty1<Common, Int>, title: String) = choice(
+        field.common(), title, WRAP_SAMPLE, group("wrapping"), listOf(
+            message("settings.code.style.wrap.never") to Common.DO_NOT_WRAP,
+            message("settings.code.style.wrap.needed") to Common.WRAP_AS_NEEDED,
+            message("settings.code.style.wrap.always") to Common.WRAP_ALWAYS,
+            message("settings.code.style.wrap.chop") to Common.WRAP_ON_EVERY_ITEM,
+        ),
     )
 
-    fun alignment(settings: CodeStyleSettings) = OptionPreviewPanel(settings, "alignment", message("settings.code.style.alignment.tab"), listOf(
-        common("ALIGN_MULTILINE_PARAMETERS_IN_CALLS", message("settings.code.style.align.arguments"), MULTILINE_CALL,
-            message("settings.code.style.describe.align.arguments")),
-        common("INDENT_CASE_FROM_SWITCH", message("settings.code.style.indent.case"), SWITCH,
-            message("settings.code.style.describe.indent.case")),
-        common("INDENT_BREAK_FROM_CASE", message("settings.code.style.indent.break"), SWITCH,
-            message("settings.code.style.describe.indent.break")),
-        FormattingOption("NAMESPACE_INDENTATION", message("settings.code.style.namespace.indent"), NAMESPACE, OptionOwner.SLANG,
-            listOf(message("settings.code.style.namespace.indent.all") to 0,
-                message("settings.code.style.namespace.indent.none") to 1, message("settings.code.style.namespace.indent.inner") to 2),
-            group = message("settings.code.style.group.alignment")),
-    ))
+    fun alignment(settings: CodeStyleSettings) = OptionPreviewPanel(
+        settings, "alignment", message("settings.code.style.alignment.tab"), listOf(
+            checkbox(
+                Common::ALIGN_MULTILINE_PARAMETERS_IN_CALLS.common(), message("settings.code.style.align.arguments"),
+                MULTILINE_CALL, group("alignment"), message("settings.code.style.describe.align.arguments"),
+            ),
+            checkbox(
+                Common::INDENT_CASE_FROM_SWITCH.common(), message("settings.code.style.indent.case"),
+                SWITCH, group("alignment"), message("settings.code.style.describe.indent.case"),
+            ),
+            checkbox(
+                Common::INDENT_BREAK_FROM_CASE.common(), message("settings.code.style.indent.break"),
+                SWITCH, group("alignment"), message("settings.code.style.describe.indent.break"),
+            ),
+            choice(
+                SlangStyle::NAMESPACE_INDENTATION.slang(), message("settings.code.style.namespace.indent"),
+                NAMESPACE, group("alignment"), listOf(
+                    message("settings.code.style.namespace.indent.all") to 0,
+                    message("settings.code.style.namespace.indent.none") to 1,
+                    message("settings.code.style.namespace.indent.inner") to 2,
+                ),
+            ),
+        ),
+    )
 
-    fun spaces(settings: CodeStyleSettings) = OptionPreviewPanel(settings, "spaces", message("settings.code.style.spaces.tab"), listOf(
-        common("SPACE_BEFORE_IF_PARENTHESES", message("settings.code.style.spaces.if"), "void shade() { if(active) update(); }"),
-        common("SPACE_BEFORE_FOR_PARENTHESES", message("settings.code.style.spaces.for"), "void shade() { for(int i = 0; i < 4; i++) update(); }"),
-        common("SPACE_BEFORE_WHILE_PARENTHESES", message("settings.code.style.spaces.while"), "void shade() { while(active) update(); }"),
-        common("SPACE_BEFORE_SWITCH_PARENTHESES", message("settings.code.style.spaces.switch"), SWITCH),
-        common("SPACE_BEFORE_CATCH_PARENTHESES", message("settings.code.style.spaces.catch"), "void shade() { try { update(); } catch(Error e) { clear(); } }"),
-        common("SPACE_BEFORE_METHOD_CALL_PARENTHESES", message("settings.code.style.function.parentheses"), "float shade() { return evaluate(1.0); }"),
-        common("SPACE_WITHIN_PARENTHESES", message("settings.code.style.spaces.parentheses"), "float shade() { return (exposure); }"),
-        common("SPACE_WITHIN_BRACKETS", message("settings.code.style.spaces.brackets"), "float shade() { return weights[0]; }"),
-        common("SPACE_BEFORE_COMMA", message("settings.code.style.spaces.before.comma"), COMMAS),
-        common("SPACE_AFTER_COMMA", message("settings.code.style.spaces.after.comma"), COMMAS),
-        common("SPACE_AFTER_SEMICOLON", message("settings.code.style.spaces.after.semicolon"), "void shade() { for(int i=0;i<4;i++) update(); }"),
-        common("SPACE_AROUND_ASSIGNMENT_OPERATORS", message("settings.code.style.spaces.assignment"), "void shade() { exposure=1.0; }"),
-        common("SPACE_AROUND_LOGICAL_OPERATORS", message("settings.code.style.spaces.logical"), "bool shade() { return active&&visible; }"),
-        common("SPACE_AROUND_EQUALITY_OPERATORS", message("settings.code.style.spaces.equality"), "bool shade() { return mode==0; }"),
-        common("SPACE_AROUND_ADDITIVE_OPERATORS", message("settings.code.style.spaces.additive"), "float shade() { return exposure+gain; }"),
-        common("SPACE_AROUND_SHIFT_OPERATORS", message("settings.code.style.spaces.shift"), "uint shade() { return flags<<2; }"),
-        FormattingOption("SPACE_WITHIN_GENERIC_ANGLES", message("settings.code.style.space.within.angles"),
-            "StructuredBuffer<float> weights;", OptionOwner.SLANG, group = message("settings.code.style.group.within"),
-            description = message("settings.code.style.describe.space.within.angles")),
-        FormattingOption("SPACE_AFTER_LOGICAL_NOT", message("settings.code.style.space.after.not"),
-            "bool shade() { return !active; }", OptionOwner.SLANG, group = message("settings.code.style.group.operators"),
-            description = message("settings.code.style.describe.space.after.not")),
-    ))
+    fun spaces(settings: CodeStyleSettings) = OptionPreviewPanel(
+        settings, "spaces", message("settings.code.style.spaces.tab"), listOf(
+            spacing(Common::SPACE_BEFORE_IF_PARENTHESES, "spaces.if", "void shade() { if(active) update(); }", "before.parentheses"),
+            spacing(
+                Common::SPACE_BEFORE_FOR_PARENTHESES, "spaces.for",
+                "void shade() { for(int i = 0; i < 4; i++) update(); }", "before.parentheses",
+            ),
+            spacing(
+                Common::SPACE_BEFORE_WHILE_PARENTHESES, "spaces.while",
+                "void shade() { while(active) update(); }", "before.parentheses",
+            ),
+            spacing(Common::SPACE_BEFORE_SWITCH_PARENTHESES, "spaces.switch", SWITCH, "before.parentheses"),
+            spacing(
+                Common::SPACE_BEFORE_CATCH_PARENTHESES, "spaces.catch",
+                "void shade() { try { update(); } catch(Error e) { clear(); } }", "before.parentheses",
+            ),
+            spacing(
+                Common::SPACE_BEFORE_METHOD_CALL_PARENTHESES, "function.parentheses",
+                "float shade() { return evaluate(1.0); }", "before.parentheses",
+            ),
+            spacing(
+                Common::SPACE_WITHIN_PARENTHESES, "spaces.parentheses", "float shade() { return (exposure); }", "within",
+            ),
+            spacing(Common::SPACE_WITHIN_BRACKETS, "spaces.brackets", "float shade() { return weights[0]; }", "within"),
+            spacing(Common::SPACE_BEFORE_COMMA, "spaces.before.comma", COMMAS, "punctuation"),
+            spacing(Common::SPACE_AFTER_COMMA, "spaces.after.comma", COMMAS, "punctuation"),
+            spacing(
+                Common::SPACE_AFTER_SEMICOLON, "spaces.after.semicolon",
+                "void shade() { for(int i=0;i<4;i++) update(); }", "punctuation",
+            ),
+            spacing(
+                Common::SPACE_AROUND_ASSIGNMENT_OPERATORS, "spaces.assignment", "void shade() { exposure=1.0; }", "operators",
+            ),
+            spacing(
+                Common::SPACE_AROUND_LOGICAL_OPERATORS, "spaces.logical", "bool shade() { return active&&visible; }", "operators",
+            ),
+            spacing(Common::SPACE_AROUND_EQUALITY_OPERATORS, "spaces.equality", "bool shade() { return mode==0; }", "operators"),
+            spacing(
+                Common::SPACE_AROUND_ADDITIVE_OPERATORS, "spaces.additive", "float shade() { return exposure+gain; }", "operators",
+            ),
+            spacing(Common::SPACE_AROUND_SHIFT_OPERATORS, "spaces.shift", "uint shade() { return flags<<2; }", "operators"),
+            checkbox(
+                SlangStyle::SPACE_WITHIN_GENERIC_ANGLES.slang(), message("settings.code.style.space.within.angles"),
+                "StructuredBuffer<float> weights;", group("within"), message("settings.code.style.describe.space.within.angles"),
+            ),
+            checkbox(
+                SlangStyle::SPACE_AFTER_LOGICAL_NOT.slang(), message("settings.code.style.space.after.not"),
+                "bool shade() { return !active; }", group("operators"), message("settings.code.style.describe.space.after.not"),
+            ),
+        ),
+    )
 
-    private fun common(field: String, title: String, sample: String, help: String? = null): FormattingOption {
-        val group = when {
-            field.contains("_OPERATOR") -> message("settings.code.style.group.operators")
-            field.startsWith("SPACE_BEFORE_") && field.endsWith("PARENTHESES") -> message("settings.code.style.group.before.parentheses")
-            field.startsWith("SPACE_WITHIN") -> message("settings.code.style.group.within")
-            field.startsWith("SPACE_") -> message("settings.code.style.group.punctuation")
-            field.startsWith("KEEP_BLANK") -> message("settings.code.style.group.blank.keep")
-            field == "BLANK_LINES_AROUND_METHOD" -> message("settings.code.style.group.blank.insert")
-            field.endsWith("_ON_NEW_LINE") -> message("settings.code.style.group.keywords")
-            field == "KEEP_LINE_BREAKS" -> message("settings.code.style.group.wrapping")
-            else -> message("settings.code.style.group.alignment")
-        }
-        val description = help ?: if (field.startsWith("SPACE_")) {
-            message("settings.code.style.describe.spacing", title)
-        } else {
-            null
-        }
-        return FormattingOption(field, title, sample, group = group, description = description)
+    private fun spacing(field: KMutableProperty1<Common, Boolean>, key: String, sample: String, group: String): FormattingOption {
+        val title = message("settings.code.style.$key")
+        return checkbox(field.common(), title, sample, group(group), message("settings.code.style.describe.spacing", title))
     }
 }

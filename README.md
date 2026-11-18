@@ -67,6 +67,8 @@ With JetBrains' MCP Server enabled, the plugin contributes three read-only tools
 
 Search Settings for **MCP Server** to enable it and configure clients. Newer IDEs also list the tools under **Exposed Tools**. For standalone Air connected to a running IDE, use **Clients Auto-Configuration**. Keep the IDE server disabled if you don't want to expose tools to MCP clients.
 
+Starting with IDE version 2026.2, the Slang tools are directly visible by default even in router mode.
+
 The plugin compiles against the MCP Server bundled with the minimum IDEA SDK. Run `./gradlew test -PmcpSmokeTest=true` to check that the server discovers and invokes all three tools on that SDK.
 
 To diagnose slow inspections or generic-bracket typing on large files, add `#slanglsp.editor.AnalysisTiming` to **Help → Diagnostic Tools → Debug Log Settings**. The IDE log reports analysis duration and the count and combined wait time of unused-symbol reference checks.
