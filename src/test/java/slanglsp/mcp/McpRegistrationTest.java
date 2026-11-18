@@ -8,6 +8,8 @@ import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
+import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -41,6 +43,11 @@ class McpRegistrationTest {
         var toolset = extensionPoint.getExtensionList().stream()
                 .filter(tool -> tool.getClass().getName().equals("slanglsp.mcp.SlangToolset"))
                 .findFirst().orElseThrow(() -> new AssertionError("Missing Slang MCP toolset"));
+        var interfaceDefaults = Set.of("isEnabled", "isUserConfigurable", "displayName", "displayDescription", "alwaysIncluded");
+        var generatedBridges = Arrays.stream(toolset.getClass().getDeclaredMethods())
+                .map(Method::getName)
+                .filter(interfaceDefaults::contains).toList();
+        assertEquals(List.of(), generatedBridges, "Do not generate calls to newer MCP interface defaults");
         var jsonType = loader.loadClass("kotlinx.serialization.json.Json");
         var reflection = loader.loadClass("com.intellij.mcpserver.impl.util.ToolsetReflection_utilKt");
         var tools = (List<?>) reflection.getMethod("asTools", toolsetType, jsonType)
