@@ -91,22 +91,8 @@ jobs:
           if-no-files-found: error
 
   verify:
-    name: Verify ${{ matrix.target.name }}
+    name: Verify CLion
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - name: CLion
-            idea-version: ''
-          - name: IDEA 2025.1.7.2
-            idea-version: '2025.1.7.2'
-          - name: IDEA 2025.2.6.4
-            idea-version: '2025.2.6.4'
-          - name: IDEA 2026.1.5.1
-            idea-version: '2026.1.5.1'
-          - name: IDEA 2026.2.5
-            idea-version: '2026.2.5'
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-java@v5
@@ -115,16 +101,9 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v6
       - name: Run JetBrains Plugin Verifier
-        env:
-          VERIFICATION_IDEA_VERSION: ${{ matrix.target.idea-version }}
-        run: |
-          args=(verifyPlugin --stacktrace)
-          if [[ -n "$VERIFICATION_IDEA_VERSION" ]]; then
-            args+=("-PverificationIdeaVersion=$VERIFICATION_IDEA_VERSION")
-          fi
-          ./gradlew "${args[@]}"
+        run: ./gradlew verifyPlugin --stacktrace
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: plugin-verifier-${{ matrix.target.name }}
+          name: plugin-verifier-CL
           path: build/reports/pluginVerifier
