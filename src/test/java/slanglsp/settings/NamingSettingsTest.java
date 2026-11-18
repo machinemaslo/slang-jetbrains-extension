@@ -6,9 +6,24 @@ import com.intellij.testFramework.EdtTestUtil;
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import org.junit.jupiter.api.Test;
 import java.util.List;
+import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
 class NamingSettingsTest {
+    @Test
+    void acceptsAlternativeStylesAndSuggestsTheFirstOne() {
+        var rule = new NamingRule("Functions and methods",
+                Set.of(NamingRule.Category.FUNCTIONS, NamingRule.Category.METHODS),
+                List.of(new NamingRule.Variant(NamingRule.Style.LOWER_CAMEL_CASE, "", ""),
+                        new NamingRule.Variant(NamingRule.Style.SNAKE_CASE, "", "")), true);
+        assertTrue(rule.matches(NamingRule.Category.METHODS));
+        assertFalse(rule.matches(NamingRule.Category.LOCALS));
+        assertEquals("already_valid", rule.suggest("already_valid", ""));
+        assertEquals("convertThis", rule.suggest("ConvertThis", ""));
+        var disabled = new NamingRule(rule.name(), rule.categories(), rule.variants(), false);
+        assertEquals("ConvertThis", disabled.suggest("ConvertThis", ""));
+    }
+
     @Test
     void slangDefaultsFollowUpstreamDeclarations() {
         for (var rule : NamingRule.slang()) {
@@ -57,8 +72,10 @@ class NamingSettingsTest {
                 var manager = CodeStyleSettingsManager.getInstance(fixture.getProject());
                 var settings = manager.createSettings();
                 var custom = settings.getCustomSettings(SlangCodeStyleSettings.class);
-                var rule = new NamingRule("My <fields>", NamingRule.Category.FIELDS,
-                        NamingRule.Style.LOWER_CAMEL_CASE, "m_", "_");
+                var rule = new NamingRule("My <fields>",
+                        Set.of(NamingRule.Category.FIELDS, NamingRule.Category.LOCALS),
+                        List.of(new NamingRule.Variant(NamingRule.Style.LOWER_CAMEL_CASE, "m_", "_"),
+                                new NamingRule.Variant(NamingRule.Style.SNAKE_CASE, "", "")), false);
                 custom.setNamingRules(List.of(rule));
                 custom.NAMING_ABBREVIATIONS = "GPU, API";
                 var xml = new org.jdom.Element("code_scheme");
@@ -82,6 +99,12 @@ class NamingSettingsTest {
                     throw new AssertionError(failure);
                 }
                 var project = fixture.getProject();
+                var editor = new NamingRuleDialog(project, rule);
+                try {
+                    assertEquals(rule, editor.rule());
+                } finally {
+                    editor.close(com.intellij.openapi.ui.DialogWrapper.CANCEL_EXIT_CODE);
+                }
                 var panel = new NamingPanel(settings, project);
                 var profiles = (com.intellij.profile.codeInspection.BaseInspectionProfileManager)
                         com.intellij.profile.codeInspection.InspectionProfileManager.getInstance(project);

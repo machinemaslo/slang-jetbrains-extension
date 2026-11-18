@@ -56,7 +56,6 @@ class NamingInspectionTest {
                 state.useLocalVcpkgSlangd = false;
                 ProjectSettings.getInstance(fixture.getProject()).loadState(state);
                 files[0] = fixture.addFileToProject("naming.slang", source);
-                fixture.configureFromExistingVirtualFile(files[0].getVirtualFile());
                 NativeServerSupport.enable(fixture.getProject());
                 fixture.enableInspections(new InconsistentNamingInspection());
                 com.intellij.application.options.CodeStyle.getSettings(files[0])
@@ -64,6 +63,16 @@ class NamingInspectionTest {
                         .setNamingRules(NamingRule.defaults(false));
                 input[0] = annotator.collectInformation(files[0]);
                 assertNotNull(input[0]);
+            });
+            ProgressManager.getInstance().runProcess(() -> {
+                var batch = annotator.doAnnotate(input[0]);
+                assertNotNull(batch, "An unopened file must not require an editor cache");
+                assertNull(batch.failure());
+                assertTrue(batch.candidates().stream().anyMatch(candidate -> candidate.name().equals("testFunction")));
+            }, new EmptyProgressIndicator());
+            EdtTestUtil.runInEdtAndWait(() -> {
+                fixture.configureFromExistingVirtualFile(files[0].getVirtualFile());
+                input[0] = annotator.collectInformation(files[0], fixture.getEditor(), false);
             });
             NamingAnnotator.Result[] result = new NamingAnnotator.Result[1];
             ProgressManager.getInstance().runProcess(() -> result[0] = annotator.doAnnotate(input[0]),

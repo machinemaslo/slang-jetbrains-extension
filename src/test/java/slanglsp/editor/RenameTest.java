@@ -12,8 +12,6 @@ import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.EdtTestUtil;
-import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
-import com.intellij.testFramework.fixtures.impl.TempDirTestFixtureImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -36,9 +34,7 @@ class RenameTest {
     @Timeout(90)
     void verifiedRenameIncludesUnsavedImportsPreservesShadowingAndSupportsUndo() throws Exception {
         String executable = slanglsp.TestDependencies.slangd();
-        var factory = IdeaTestFixtureFactory.getFixtureFactory();
-        var fixture = factory.createCodeInsightFixture(
-                factory.createLightFixtureBuilder("SlangRenameTest").getFixture(), new TempDirTestFixtureImpl());
+        var fixture = NativeServerSupport.isolatedFixture("SlangRenameTest");
         EdtTestUtil.runInEdtAndWait(fixture::setUp);
 
         try {

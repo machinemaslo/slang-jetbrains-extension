@@ -1,0 +1,9 @@
+---
+IndentWidth: 3
+UseTab: Never
+---
+Language: JavaScript
+IndentWidth: 8
+---
+Language: Cpp
+IndentWidth: 2

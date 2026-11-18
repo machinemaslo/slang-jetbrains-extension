@@ -4,8 +4,31 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 /** Immutable, ordered code-style rule. The first matching category wins. */
-public record NamingRule(String name, Category category, Style style, String prefix, String suffix) {
+public record NamingRule(String name, Set<Category> categories, List<Variant> variants, boolean enabled) {
     public static final String ABBREVIATIONS = "GPU, CPU, API, UV, ID, BRDF, SSA, D3D";
+
+    public record Variant(Style style, String prefix, String suffix) {
+    }
+
+    public NamingRule {
+        categories = categories.contains(Category.ALL) ? Set.of(Category.ALL) : Set.copyOf(categories);
+        variants = List.copyOf(variants);
+        if (categories.isEmpty() || variants.isEmpty()) {
+            throw new IllegalArgumentException("A naming rule needs at least one category and style");
+        }
+    }
+
+    public NamingRule(String name, Category category, Style style, String prefix, String suffix) {
+        this(name, Set.of(category), List.of(new Variant(style, prefix, suffix)), true);
+    }
+
+    public Category category() {
+        return categories.stream().min(Comparator.naturalOrder()).orElseThrow();
+    }
+
+    public boolean matches(Category category) {
+        return categories.contains(Category.ALL) || categories.contains(category);
+    }
 
     public enum Category {
         TYPES, INTERFACES, ENUMS, ENUM_MEMBERS, NAMESPACES, FUNCTIONS, METHODS,
@@ -20,6 +43,20 @@ public record NamingRule(String name, Category category, Style style, String pre
             "[A-Z]+(?=[A-Z][a-z]|[0-9]|$)|[A-Z]?[a-z]+|[A-Z]+|[0-9]+");
 
     public String suggest(String identifier, String abbreviations) {
+        if (!enabled) {
+            return identifier;
+        }
+        for (Variant variant : variants) {
+            if (suggest(variant, identifier, abbreviations).equals(identifier)) {
+                return identifier;
+            }
+        }
+        return suggest(variants.getFirst(), identifier, abbreviations);
+    }
+
+    private static String suggest(Variant variant, String identifier, String abbreviations) {
+        String prefix = variant.prefix(), suffix = variant.suffix();
+        Style style = variant.style();
         String base = identifier;
         if (!prefix.isEmpty() && base.startsWith(prefix) && (prefix.length() > 1 || prefix.equals("_")
                 || base.length() > 1 && Character.isUpperCase(base.charAt(1)))) {

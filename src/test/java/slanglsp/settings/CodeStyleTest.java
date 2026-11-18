@@ -6,15 +6,42 @@ import com.intellij.psi.codeStyle.LanguageCodeStyleSettingsProvider;
 import com.intellij.testFramework.EdtTestUtil;
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import slanglsp.TestDependencies;
 import slanglsp.language.SlangLanguage;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static slanglsp.FormattingFixtures.withoutFinalNewline;
 
 class CodeStyleTest {
+    @Test
+    void exportedStyleWorksInCppAndSlangdMode(@TempDir Path directory) throws Exception {
+        CodeStyleSettings settings = CodeStyleSettingsManager.getInstance().createSettings();
+        var custom = settings.getCustomSettings(SlangCodeStyleSettings.class);
+        custom.FUNCTION_BRACES = 2;
+        custom.CONTROL_BRACES = 1;
+        custom.NAMESPACE_INDENTATION = 1;
+        custom.SPACE_AFTER_LOGICAL_NOT = true;
+        var path = Files.writeString(directory.resolve(".clang-format"), ClangFormatStyle.export(settings));
+        for (String filename : new String[]{"sample.cpp", "sample.slang.cs"}) {
+            String formatted = format("file:" + path, "bool test(bool v) { if (!v) { return false; } return v; }", filename);
+            assertTrue(formatted.contains("test(bool v)\n{"), formatted);
+            assertTrue(formatted.contains("if (! v) {"), formatted);
+        }
+        var parsed = ClangFormatSettingsImporter.parse(Files.readString(path));
+        var imported = CodeStyleSettingsManager.getInstance().createSettings();
+        ClangFormatSettingsImporter.apply(parsed, imported);
+        var roundTrip = imported.getCustomSettings(SlangCodeStyleSettings.class);
+        assertEquals(2, roundTrip.FUNCTION_BRACES);
+        assertEquals(1, roundTrip.NAMESPACE_INDENTATION);
+        assertTrue(roundTrip.SPACE_AFTER_LOGICAL_NOT);
+    }
+
     @Test
     void presetsPersistAndProduceNativeFormatting() throws Exception {
         var fixture = IdeaTestFixtureFactory.getFixtureFactory().createLightFixtureBuilder("CodeStyle").getFixture();
@@ -46,7 +73,7 @@ class CodeStyleTest {
                 }
                 new CodeStylePresets.Slang().apply(styles[0]);
             });
-            String source = "float evaluate(float value){if(value>0){return value;}return 0;}";
+            String source = withoutFinalNewline("preset/before.slang");
             String slang = format(ClangFormatStyle.clangFormatStyle(styles[0]), source);
             String java = format(ClangFormatStyle.clangFormatStyle(styles[1]), source);
             assertTrue(slang.contains("evaluate(float value)\n{"), slang);
@@ -65,8 +92,12 @@ class CodeStyleTest {
     }
 
     private static String format(String style, String source) throws Exception {
+        return format(style, source, "sample.slang");
+    }
+
+    private static String format(String style, String source, String filename) throws Exception {
         var process = new ProcessBuilder(TestDependencies.clangFormat(), "--style=" + style,
-                "--assume-filename=sample.slang").redirectErrorStream(true).start();
+                 "--assume-filename=" + filename).redirectErrorStream(true).start();
         try {
             process.getOutputStream().write(source.getBytes(StandardCharsets.UTF_8));
             process.getOutputStream().close();

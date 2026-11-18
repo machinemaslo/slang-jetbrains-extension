@@ -8,7 +8,6 @@ import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.progress.util.ProgressIndicatorUtils;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
@@ -30,7 +29,7 @@ import java.net.URI;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
-/** Indexed candidates, verified with bounded concurrent requests; no network wait holds a read action. */
+/** Indexed candidates verified with bounded requests. Legacy callers may hold an outer read lock. */
 final class UsageSearch {
     private record Source(PsiFile file, Document document, long stamp, int offset, String name) {
         void checkUnchanged() {
@@ -84,13 +83,25 @@ final class UsageSearch {
 
     /** Absence must be proven: unresolved candidates are not evidence of an unused symbol. */
     static boolean isUnused(PsiElement element) {
+        return isUnused(element, null);
+    }
+
+    static boolean isUnused(PsiElement element, AnalysisTiming timing) {
         Source source = snapshot(element);
 
         if (source == null) {
             return false;
         }
 
-        var references = references(source);
+        long started = timing == null ? 0 : System.nanoTime();
+        List<LocationData> references;
+        try {
+            references = references(source);
+        } finally {
+            if (timing != null) {
+                timing.referenceCompleted(System.nanoTime() - started);
+            }
+        }
         source.checkUnchanged();
 
         if (references != null) {
@@ -164,6 +175,7 @@ final class UsageSearch {
         });
     }
 
+    @SuppressWarnings("UnstableApiUsage") // LSP4IJ's documented PSI conversion requires its client features.
     private static boolean processReferences(
             Project project, List<LocationData> references, SearchScope scope, Processor<? super UsageInfo> consumer) {
         Set<String> seen = new HashSet<>();
@@ -315,6 +327,17 @@ final class UsageSearch {
     }
 
     private static List<LocationData> references(Source source) {
+        if (BatchAnalysisService.isBatch()) {
+            var future = source.file.getProject().getService(BatchAnalysisService.class)
+                    .references(source.file, source.document, source.offset);
+            try {
+                return AnalysisDeadline.await(future);
+            } finally {
+                if (!future.isDone()) {
+                    future.cancel(true);
+                }
+            }
+        }
         var support = new LSPReferenceSupport(source.file);
         CompletableFuture<List<LocationData>> future = ReadActions.compute(() -> {
             var params = new LSPReferenceParams(
@@ -325,7 +348,7 @@ final class UsageSearch {
         });
 
         try {
-            return ProgressIndicatorUtils.awaitWithCheckCanceled(future);
+            return AnalysisDeadline.await(future);
         } finally {
             if (!future.isDone()) {
                 support.cancel();
@@ -343,18 +366,31 @@ final class UsageSearch {
         @Override
         public void close() {
             if (!future.isDone()) {
-                support.cancel();
+                if (support == null) {
+                    future.cancel(true);
+                } else {
+                    support.cancel();
+                }
             }
         }
 
         List<LocationData> await() {
-            var result = ProgressIndicatorUtils.awaitWithCheckCanceled(future);
+            var result = AnalysisDeadline.await(future);
 
             return result == null ? List.of() : DefinitionLocations.normalize(file, offset, name, result);
         }
     }
 
     private static DefinitionRequest requestDefinition(PsiFile file, Document document, int offset) {
+        if (BatchAnalysisService.isBatch()) {
+            String name = ReadActions.compute(() -> {
+                var leaf = file.findElementAt(offset);
+                return SlangFindUsagesProvider.isIdentifier(leaf) ? leaf.getText() : null;
+            });
+            return new DefinitionRequest(null,
+                    file.getProject().getService(BatchAnalysisService.class).definitions(file, document, offset),
+                    file, offset, name);
+        }
         var support = new LSPDefinitionSupport(file);
 
         try {

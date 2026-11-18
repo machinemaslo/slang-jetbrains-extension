@@ -18,7 +18,7 @@ public final class CodeStylePresets {
         indent.USE_TAB_CHARACTER = false;
         var custom = settings.getCustomSettings(SlangCodeStyleSettings.class);
         custom.BRACES_ON_NEW_LINE = true;
-        custom.FUNCTION_BRACES = custom.TYPE_BRACES = custom.CONTROL_BRACES = 0;
+        custom.resetBraceOverrides();
         common.ELSE_ON_NEW_LINE = common.CATCH_ON_NEW_LINE = common.WHILE_ON_NEW_LINE = true;
         custom.setNamingRules(NamingRule.slang());
         custom.NAMING_ABBREVIATIONS = NamingRule.ABBREVIATIONS;

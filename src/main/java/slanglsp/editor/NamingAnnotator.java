@@ -4,13 +4,11 @@ import com.intellij.codeInsight.daemon.HighlightDisplayKey;
 import com.intellij.lang.annotation.*;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.progress.ProcessCanceledException;
-import com.intellij.openapi.progress.util.ProgressIndicatorUtils;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.profile.codeInspection.InspectionProfileManager;
 import com.intellij.psi.PsiFile;
 import com.intellij.application.options.CodeStyle;
 import com.redhat.devtools.lsp4ij.LSPIJUtils;
-import com.redhat.devtools.lsp4ij.features.documentSymbol.LSPDocumentSymbolSupport;
 import org.eclipse.lsp4j.*;
 import org.jetbrains.annotations.NotNull;
 import slanglsp.SlangBundle;
@@ -18,10 +16,12 @@ import slanglsp.settings.NamingRule;
 import slanglsp.settings.SlangCodeStyleSettings;
 import java.util.*;
 
+@SuppressWarnings("try") // Timing and analysis scopes do their work on entry and close.
 public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Input, NamingAnnotator.Result> {
-    public record Input(UnusedSymbolsAnnotator.Input source, List<NamingRule> rules, String abbreviations) {}
+    public record Input(UnusedSymbolsAnnotator.Input source, List<NamingRule> rules, String abbreviations,
+                        boolean batchOnly) {}
     public record Candidate(String name, NamingRule.Category category, TextRange range) {}
-    public record Result(Input input, List<Candidate> candidates, Map<Integer, String> unusedMessages) {}
+    public record Result(Input input, List<Candidate> candidates, Map<Integer, String> unusedMessages, String failure) {}
 
     @Override
     public String getPairedBatchInspectionShortName() {
@@ -37,11 +37,15 @@ public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Inp
     @Override
     public Input collectInformation(@NotNull PsiFile file, @NotNull com.intellij.openapi.editor.Editor editor,
                                     boolean hasErrors) {
-        return hasErrors ? null : collectInformation(file);
+        return hasErrors ? null : collect(file, false);
     }
 
     @Override
     public Input collectInformation(@NotNull PsiFile file) {
+        return collect(file, true);
+    }
+
+    private Input collect(PsiFile file, boolean batchOnly) {
         if (disabled(file) || file.getVirtualFile() == null
                 || file.getVirtualFile() instanceof slanglsp.server.BuiltinFiles.BuiltinFile
                 || com.intellij.openapi.project.DumbService.isDumb(file.getProject())) {
@@ -54,18 +58,30 @@ public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Inp
         var settings = CodeStyle.getSettings(file).getCustomSettings(SlangCodeStyleSettings.class);
         return new Input(new UnusedSymbolsAnnotator.Input(file, document, document.getModificationStamp(),
                 com.intellij.psi.util.PsiModificationTracker.getInstance(file.getProject()).getModificationCount(),
-                document.getText()), settings.getNamingRules(), settings.NAMING_ABBREVIATIONS);
+                document.getText()), settings.getNamingRules(), settings.NAMING_ABBREVIATIONS, batchOnly);
     }
 
     @Override
     public Result doAnnotate(Input input) {
+        try (@SuppressWarnings("unused") var timing = AnalysisTiming.start(input.batchOnly() ? "batch naming" : "editor naming",
+                input.source().file().getName())) {
+            return annotate(input);
+        }
+    }
+
+    private Result annotate(Input input) {
         var source = input.source();
-        var support = new LSPDocumentSymbolSupport(source.file());
-        try {
-            var future = ReadActions.compute(() -> support.getDocumentSymbols(new DocumentSymbolParams(
-                    new TextDocumentIdentifier(UsageSearch.fileUri(source.file().getVirtualFile()).toString()))));
-            var symbols = ProgressIndicatorUtils.awaitWithCheckCanceled(future);
+        try (@SuppressWarnings("unused") var deadline = AnalysisDeadline.open();
+             @SuppressWarnings("unused") var batch = BatchAnalysisService.enter(input.batchOnly())) {
+            var future = DocumentSymbolRequests.get(source.file(), source.document(), source.stamp(), input.batchOnly());
+            var symbols = AnalysisDeadline.await(future);
+            if (input.batchOnly()) {
+                requireServer(source.file());
+            }
             if (symbols == null) {
+                if (input.batchOnly()) {
+                    throw new IllegalStateException(SlangBundle.message("analysis.server.unavailable"));
+                }
                 return null;
             }
             var candidates = ReadActions.compute(() -> {
@@ -82,7 +98,8 @@ public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Inp
                 return null;
             }
             var unusedAnnotator = new UnusedSymbolsAnnotator();
-            var unusedInput = ReadActions.compute(() -> unusedAnnotator.collectInformation(source.file()));
+            var unusedInput = input.batchOnly() ? null
+                    : ReadActions.compute(() -> unusedAnnotator.collectForEditor(source.file()));
             Map<Integer, String> unusedMessages = new HashMap<>();
             if (unusedInput != null && unusedInput.stamp() == source.stamp()
                     && unusedInput.projectStamp() == source.projectStamp()) {
@@ -92,14 +109,21 @@ public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Inp
                             unusedMessages.put(candidate.range().getStartOffset(), candidate.message()));
                 }
             }
-            return new Result(input, candidates, Map.copyOf(unusedMessages));
+            return new Result(input, candidates, Map.copyOf(unusedMessages), null);
         } catch (ProcessCanceledException canceled) {
             throw canceled;
         } catch (RuntimeException failure) {
             com.intellij.openapi.diagnostic.Logger.getInstance(getClass()).debug("Naming analysis unavailable", failure);
-            return null;
-        } finally {
-            support.cancel();
+            return input.batchOnly()
+                    ? new Result(input, List.of(), Map.of(), SlangBundle.message("analysis.batch.failed", "Naming", failure.getMessage()))
+                    : null;
+        }
+    }
+
+    static void requireServer(PsiFile file) {
+        if (com.redhat.devtools.lsp4ij.LanguageServerManager.getInstance(file.getProject())
+                .getServerStatus("slanglsp.SlangLanguageServer") != com.redhat.devtools.lsp4ij.ServerStatus.started) {
+            throw new IllegalStateException(SlangBundle.message("analysis.server.unavailable"));
         }
     }
 
@@ -190,8 +214,7 @@ public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Inp
     }
 
     static NamingRule rule(Input input, Candidate candidate) {
-        return input.rules().stream().filter(rule -> rule.category() == candidate.category()
-                || rule.category() == NamingRule.Category.ALL).findFirst().orElse(null);
+        return input.rules().stream().filter(rule -> rule.matches(candidate.category())).findFirst().orElse(null);
     }
 
     @Override
@@ -205,6 +228,10 @@ public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Inp
         var current = CodeStyle.getSettings(file).getCustomSettings(SlangCodeStyleSettings.class);
         if (!current.getNamingRules().equals(result.input().rules())
                 || !current.NAMING_ABBREVIATIONS.equals(result.input().abbreviations())) {
+            return;
+        }
+        if (result.failure() != null) {
+            holder.newAnnotation(HighlightSeverity.WARNING, result.failure()).fileLevel().create();
             return;
         }
         var key = HighlightDisplayKey.find(InconsistentNamingInspection.ID);

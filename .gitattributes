@@ -1,0 +1,2 @@
+# Formatting fixtures are byte-sensitive, including intentional blank lines at EOF.
+src/test/resources/formatting/** text eol=lf whitespace=-blank-at-eof

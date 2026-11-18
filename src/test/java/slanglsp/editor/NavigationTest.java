@@ -14,8 +14,6 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.testFramework.EdtTestUtil;
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture;
-import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
-import com.intellij.testFramework.fixtures.impl.TempDirTestFixtureImpl;
 import com.intellij.usageView.UsageInfo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -32,9 +30,7 @@ class NavigationTest {
     @Timeout(90)
     void builtinNavigationAndIndexedUsagesIncludeUnsavedEditsButExcludeShadowedNames() throws Exception {
         String executable = slanglsp.TestDependencies.slangd();
-        var factory = IdeaTestFixtureFactory.getFixtureFactory();
-        CodeInsightTestFixture fixture = factory.createCodeInsightFixture(
-                factory.createLightFixtureBuilder("SlangNavigationTest").getFixture(), new TempDirTestFixtureImpl());
+        CodeInsightTestFixture fixture = NativeServerSupport.isolatedFixture("SlangNavigationTest");
         EdtTestUtil.runInEdtAndWait(fixture::setUp);
 
         try {
@@ -68,6 +64,9 @@ class NavigationTest {
                     PsiDocumentManager.getInstance(fixture.getProject()).commitDocument(document);
                 });
             });
+            // Wait for process initialization, not a document connection. Hover must still open the file itself.
+            assertNotNull(slanglsp.server.BatchConnection.wrapper(fixture.getProject()).getInitializedServer()
+                    .get(15, java.util.concurrent.TimeUnit.SECONDS));
             String firstHover =
                     ReadActions.compute(()
                                                 -> new SlangDocumentationProvider().generateDoc(

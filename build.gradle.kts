@@ -1,5 +1,6 @@
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.models.ProductRelease
+import org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask
 import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
 
 version = "0.0.23"
@@ -39,6 +40,7 @@ dependencies {
         zipSigner()
 
         plugin("com.redhat.devtools.lsp4ij:${providers.gradleProperty("lsp4ijVersion").getOrElse("0.21.0")}")
+        bundledModule("intellij.platform.vcs.impl") // Exercise the real pre-commit analysis service in tests.
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
     // Use the IDE's Gson; do not bundle a separate copy across plugin classloaders.
@@ -99,47 +101,68 @@ val installTestDependencies = tasks.register<Exec>("installTestDependencies") {
     }
 }
 
-val preparePlayground = tasks.register<PreparePlayground>("preparePlayground") {
-    group = "intellij platform"
-    description = "Refresh Slang playground templates on every launch and connect installed native tools."
-    templateDirectory.set(layout.projectDirectory.dir("dev/playground"))
-    playgroundDirectory.set(layout.buildDirectory.dir("playground"))
-    slangdCandidate.set(testSlangd.asFile.absolutePath)
-    clangFormatCandidate.set(testClangFormat.asFile.absolutePath)
-    searchPath.set(providers.environmentVariable("PATH").getOrElse(""))
-    outputs.upToDateWhen { false }
+val home = providers.systemProperty("user.home").get()
+val toolboxDataRoot = when (hostOs) {
+    "windows" -> providers.environmentVariable("LOCALAPPDATA").getOrElse("$home/AppData/Local")
+    "osx" -> "$home/Library/Application Support"
+    else -> providers.environmentVariable("XDG_DATA_HOME").filter { it.isNotBlank() }.getOrElse("$home/.local/share")
+}
+val toolboxInventory = providers.fileContents(
+    layout.projectDirectory.file("$toolboxDataRoot/JetBrains/Toolbox/state.json")
+).asText.orElse("")
+
+fun registerPluginPlayground(
+    taskName: String,
+    ideName: String,
+    suffix: String,
+    vararg productCodes: String,
+) {
+    val installation = toolboxInventory.map { ToolboxInstallations.find(it, ideName, productCodes.toList()) }
+    val playground = layout.buildDirectory.dir("playground$suffix")
+    val preparePlayground = tasks.register<PreparePlayground>("preparePlayground$suffix") {
+        group = "intellij platform"
+        description = "Refresh the $ideName playground templates and connect installed native tools."
+        templateDirectory.set(layout.projectDirectory.dir("dev/playground"))
+        playgroundDirectory.set(playground)
+        slangdCandidate.set(testSlangd.asFile.absolutePath)
+        clangFormatCandidate.set(testClangFormat.asFile.absolutePath)
+        searchPath.set(providers.environmentVariable("PATH").getOrElse(""))
+        outputs.upToDateWhen { false }
+    }
+
+    val syncAppearance = tasks.register<SyncSandboxAppearance>("syncSandboxAppearance$suffix") {
+        group = "intellij platform"
+        description = "Copy the user's IDEA appearance settings into the $ideName sandbox."
+        val home = providers.systemProperty("user.home").get()
+        val configRoot = when (hostOs) {
+            "windows" -> providers.environmentVariable("APPDATA").getOrElse("$home/AppData/Roaming")
+            "osx" -> "$home/Library/Application Support"
+            else -> providers.environmentVariable("XDG_CONFIG_HOME").getOrElse("$home/.config")
+        }
+        userConfigRoot.set("$configRoot/JetBrains")
+    }
+
+    intellijPlatformTesting.runIde.register(taskName) {
+        localPath.set(layout.dir(installation))
+        plugins {
+            plugin("com.redhat.devtools.lsp4ij:${providers.gradleProperty("lsp4ijVersion").getOrElse("0.21.0")}")
+        }
+        task {
+            description = "Launch Toolbox's installed $ideName with the Slang plugin and refreshed playground."
+            dependsOn(preparePlayground, syncAppearance)
+            args(playground.get().asFile.absolutePath)
+        }
+    }
+
+    syncAppearance.configure {
+        val sandbox = tasks.named<PrepareSandboxTask>("prepareSandbox_$taskName")
+        dependsOn(sandbox)
+        sandboxConfigDirectory.set(sandbox.flatMap { it.sandboxConfigDirectory })
+    }
 }
 
-val syncSandboxAppearance = tasks.register<SyncSandboxAppearance>("syncSandboxAppearance") {
-    description = "Copy the user's IDE appearance settings into the development sandbox."
-    group = "intellij platform"
-    val home = providers.systemProperty("user.home").get()
-    val configRoot = when (hostOs) {
-        "windows" -> providers.environmentVariable("APPDATA").getOrElse("$home/AppData/Roaming")
-        "osx" -> "$home/Library/Application Support"
-        else -> providers.environmentVariable("XDG_CONFIG_HOME").getOrElse("$home/.config")
-    }
-    userConfigRoot.set("$configRoot/JetBrains")
-}
-
-val runPlugin = intellijPlatformTesting.runIde.register("runPlugin") {
-    type = IntelliJPlatformType.IntellijIdea
-    version = "latest"
-    plugins {
-        compatiblePlugin("com.redhat.devtools.lsp4ij")
-    }
-    task {
-        description = "Launch the latest IDEA with the Slang plugin and refreshed playground."
-        dependsOn(preparePlayground, syncSandboxAppearance)
-        args(layout.buildDirectory.dir("playground").get().asFile.absolutePath)
-    }
-}
-
-syncSandboxAppearance.configure {
-    val sandbox = tasks.named<org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask>("prepareSandbox_runPlugin")
-    dependsOn(sandbox)
-    sandboxConfigDirectory.set(sandbox.flatMap { it.sandboxConfigDirectory })
-}
+registerPluginPlayground("runPlugin", "IntelliJ IDEA", "", "IU", "IC")
+registerPluginPlayground("runPluginCLion", "CLion", "CLion", "CL")
 
 tasks {
     withType<JavaCompile> {

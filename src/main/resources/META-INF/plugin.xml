@@ -87,12 +87,24 @@
         
         <externalAnnotator language="Slang" implementationClass="slanglsp.editor.UnusedSymbolsAnnotator"/>
         <externalAnnotator language="Slang" implementationClass="slanglsp.editor.NamingAnnotator"/>
+        <externalAnnotator language="Slang" implementationClass="slanglsp.editor.BatchDiagnosticsAnnotator"/>
+        <localInspection language="Slang" shortName="SlangBatchDiagnostics"
+                         bundle="messages.SlangBundle" key="inspection.batch.name"
+                         groupBundle="messages.SlangBundle" groupKey="inspection.group.slang"
+                         enabledByDefault="true" level="ERROR"
+                         implementationClass="slanglsp.editor.BatchDiagnosticsInspection"/>
         <localInspection language="Slang" shortName="SlangInconsistentNaming"
                          bundle="messages.SlangBundle" key="naming.inspection"
                          groupBundle="messages.SlangBundle" groupKey="inspection.group.slang"
                          enabledByDefault="true" level="WARNING"
-                         implementationClass="slanglsp.editor.InconsistentNamingInspection"/>
+                          implementationClass="slanglsp.editor.InconsistentNamingInspection"/>
+        <localInspection language="Slang" shortName="SlangUnusedSymbols"
+                         bundle="messages.SlangBundle" key="inspection.unused.name"
+                         groupBundle="messages.SlangBundle" groupKey="inspection.group.slang"
+                         enabledByDefault="true" level="WARNING"
+                         implementationClass="slanglsp.editor.UnusedSymbolsInspection"/>
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
+        <fileBasedIndex implementation="slanglsp.editor.GenericDeclarationsIndex"/>
         <lang.formatter language="Slang" implementationClass="slanglsp.editor.SlangFormattingModelBuilder"/>
         <!-- Per-file .clang-format overrides require this experimental platform extension. -->
         <!--suppress UnstableApiUsage -->
@@ -156,11 +168,6 @@
                 serviceImplementation="slanglsp.settings.ProjectSettings"/>
     </extensions>
 
-    <applicationListeners>
-        <listener class="slanglsp.editor.ReformatNotifications"
-                  topic="com.intellij.openapi.actionSystem.ex.AnActionListener"/>
-    </applicationListeners>
-
     <projectListeners>
         <listener class="slanglsp.settings.CodeStyleChangeListener"
                   topic="com.intellij.psi.codeStyle.CodeStyleSettingsListener"/>
@@ -175,7 +182,7 @@
                 descriptionKey="server.description"
                 factoryClass="slanglsp.server.ServerFactory"/>
 
-        <fileNamePatternMapping patterns="*.slang;*.slangh"
+        <languageMapping language="Slang"
                                 serverId="slanglsp.SlangLanguageServer"
                                 languageId="slang"/>
     </extensions>

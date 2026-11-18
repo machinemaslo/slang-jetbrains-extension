@@ -1,0 +1,8 @@
+IndentWidth: 8
+---
+Language: JavaScript
+IndentWidth: 7
+---
+Language: Cpp
+IndentWidth: 2
+BreakBeforeBraces: Attach

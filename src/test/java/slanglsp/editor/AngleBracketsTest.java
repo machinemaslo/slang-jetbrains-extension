@@ -11,6 +11,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 class AngleBracketsTest {
     private CodeInsightTestFixture fixture;
@@ -25,6 +27,8 @@ class AngleBracketsTest {
                 factory.createLightFixtureBuilder("SlangAngles").getFixture(), new TempDirTestFixtureImpl());
         EdtTestUtil.runInEdtAndWait(() -> {
             fixture.setUp();
+            com.intellij.openapi.roots.ModuleRootModificationUtil.addContentRoot(
+                    fixture.getModule(), fixture.getTempDirPath());
             var definition = com.redhat.devtools.lsp4ij.LanguageServersRegistry.getInstance()
                     .getServerDefinition("slanglsp.SlangLanguageServer");
             org.junit.jupiter.api.Assertions.assertNotNull(definition);
@@ -46,6 +50,22 @@ class AngleBracketsTest {
             CodeInsightSettings.getInstance().TAB_EXITS_BRACKETS_AND_QUOTES = oldTab;
             CodeInsightSettings.getInstance().SURROUND_SELECTION_ON_QUOTE_TYPED = oldSurround;
             fixture.tearDown();
+        });
+    }
+
+    @Test
+    void reusesLargeDocumentParseUntilItChanges() {
+        EdtTestUtil.runInEdtAndWait(() -> {
+            fixture.configureByText("large.slang", "float4 color;\n".repeat(4000));
+            var document = fixture.getEditor().getDocument();
+            var initial = GenericResolver.parsed(document);
+            assertSame(initial, GenericResolver.parsed(document));
+            com.intellij.openapi.command.WriteCommandAction.runWriteCommandAction(fixture.getProject(),
+                    () -> document.insertString(0, "import lighting;\n"));
+            var updated = GenericResolver.parsed(document);
+            assertNotSame(initial, updated);
+            assertEquals(java.util.Set.of("lighting"), updated.imports());
+            assertSame(updated, GenericResolver.parsed(document));
         });
     }
 
@@ -183,6 +203,26 @@ class AngleBracketsTest {
             type("box<caret>", "<", "box<<caret>");
             type("import library;\nint box;\nbox<caret>", "<", "import library;\nint box;\nbox<<caret>");
             type("import library;\nunknown.get<caret>", "<", "import library;\nunknown.get<<caret>");
+        });
+    }
+
+    @Test
+    void importedGenericIndexTracksDeclarationEdits() {
+        EdtTestUtil.runInEdtAndWait(() -> {
+            var library = fixture.addFileToProject("changing.slang", "struct box<T> {}");
+            assertEquals(java.util.Set.of(":box"), new GenericContext(library.getText()).genericDeclarations());
+            org.junit.jupiter.api.Assertions.assertFalse(
+                    com.intellij.util.indexing.FileBasedIndex.getInstance().getContainingFiles(
+                            GenericDeclarationsIndex.NAME, "changing::box",
+                            com.intellij.psi.search.GlobalSearchScope.allScope(fixture.getProject())).isEmpty());
+            type("import changing;\nbox<caret>", "<", "import changing;\nbox<<caret>>");
+            var manager = com.intellij.psi.PsiDocumentManager.getInstance(fixture.getProject());
+            var document = manager.getDocument(library);
+            org.junit.jupiter.api.Assertions.assertNotNull(document);
+            com.intellij.openapi.command.WriteCommandAction.runWriteCommandAction(fixture.getProject(),
+                    () -> document.setText("struct box {}"));
+            manager.commitAllDocuments();
+            type("import changing;\nbox<caret>", "<", "import changing;\nbox<<caret>");
         });
     }
 

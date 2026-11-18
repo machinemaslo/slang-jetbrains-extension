@@ -15,6 +15,7 @@ import java.util.Objects;
 
 /** Slang-only declaration/usage navigation, leaving other languages to their own handlers. */
 public class SlangGotoDeclarationHandler implements GotoDeclarationHandler {
+    @SuppressWarnings("try") // The scope bounds legacy navigation latency.
     @Override
     public PsiElement[] getGotoDeclarationTargets(PsiElement source, int offset, Editor editor) {
         if (source == null || source.getContainingFile() == null ||
@@ -29,7 +30,14 @@ public class SlangGotoDeclarationHandler implements GotoDeclarationHandler {
             return null;
         // slangd resolves a dotted import at its final component.
         int position = module ? source.getTextRange().getEndOffset() - 1 : offset;
-        PsiElement[] targets = definitions(source, position);
+        PsiElement[] targets;
+        // The legacy navigation callback can run under a platform-owned read lock.
+        try (@SuppressWarnings("unused") var deadline = AnalysisDeadline.open(java.time.Duration.ofMillis(500))) {
+            targets = definitions(source, position);
+        } catch (java.util.concurrent.CompletionException unavailable) {
+            com.intellij.openapi.diagnostic.Logger.getInstance(getClass()).debug("Definition unavailable", unavailable);
+            return PsiElement.EMPTY_ARRAY;
+        }
 
         if (module) {
             return Arrays.stream(targets)

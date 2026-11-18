@@ -69,9 +69,7 @@ class OverloadMatcherTest {
     void resolvesSameLineOverloadsDespiteIncorrectColumns() throws Exception {
         String executable = slanglsp.TestDependencies.slangd();
 
-        var factory = IdeaTestFixtureFactory.getFixtureFactory();
-        var fixture = factory.createCodeInsightFixture(
-                factory.createLightFixtureBuilder("SlangOverloadResolution").getFixture(), new TempDirTestFixtureImpl());
+        var fixture = NativeServerSupport.isolatedFixture("SlangOverloadResolution");
         EdtTestUtil.runInEdtAndWait(fixture::setUp);
 
         try {
@@ -157,7 +155,11 @@ class OverloadMatcherTest {
                 }
             }, new EmptyProgressIndicator());
         } finally {
-            EdtTestUtil.runInEdtAndWait(fixture::tearDown);
+            try {
+                NativeServerSupport.stop(fixture.getProject());
+            } finally {
+                EdtTestUtil.runInEdtAndWait(fixture::tearDown);
+            }
         }
     }
 

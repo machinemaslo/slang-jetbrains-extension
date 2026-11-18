@@ -55,21 +55,10 @@ public final class SlangCodeStyleProvider extends LanguageCodeStyleSettingsProvi
         if (type == SettingsType.INDENT_SETTINGS) {
             consumer.showStandardOptions("INDENT_SIZE", "CONTINUATION_INDENT_SIZE", "TAB_SIZE", "USE_TAB_CHARACTER", "SMART_TABS");
         } else if (type == SettingsType.WRAPPING_AND_BRACES_SETTINGS) {
-            consumer.showStandardOptions("RIGHT_MARGIN", "KEEP_LINE_BREAKS", "CALL_PARAMETERS_WRAP",
-                    "ASSIGNMENT_WRAP", "ELSE_ON_NEW_LINE", "CATCH_ON_NEW_LINE", "WHILE_ON_NEW_LINE");
+            consumer.showStandardOptions("RIGHT_MARGIN", "KEEP_LINE_BREAKS", "CALL_PARAMETERS_WRAP", "ASSIGNMENT_WRAP");
             consumer.renameStandardOption("CALL_PARAMETERS_WRAP",
                     SlangBundle.message("settings.code.style.argument.lists"));
-            consumer.showCustomOption(SlangCodeStyleSettings.class, "BRACES_ON_NEW_LINE",
-                    SlangBundle.message("settings.code.style.braces.new.line"),
-                     SlangBundle.message("settings.code.style.braces"));
-            String[] choices = {SlangBundle.message("settings.code.style.braces.inherit"),
-                    SlangBundle.message("settings.code.style.braces.same.line"),
-                    SlangBundle.message("settings.code.style.braces.next.line")};
-            for (String option : new String[] {"FUNCTION_BRACES", "TYPE_BRACES", "CONTROL_BRACES"}) {
-                consumer.showCustomOption(SlangCodeStyleSettings.class, option,
-                        SlangBundle.message("settings.code.style." + option.toLowerCase(java.util.Locale.ROOT)),
-                        SlangBundle.message("settings.code.style.braces"), choices, new int[] {0, 1, 2});
-            }
+            LayoutPanels.showBraceOptions(consumer);
         } else if (type == SettingsType.SPACING_SETTINGS) {
             consumer.showStandardOptions("SPACE_BEFORE_IF_PARENTHESES", "SPACE_BEFORE_FOR_PARENTHESES",
                     "SPACE_BEFORE_WHILE_PARENTHESES", "SPACE_BEFORE_SWITCH_PARENTHESES", "SPACE_BEFORE_CATCH_PARENTHESES",
@@ -80,6 +69,12 @@ public final class SlangCodeStyleProvider extends LanguageCodeStyleSettingsProvi
                     "SPACE_AROUND_SHIFT_OPERATORS");
             consumer.renameStandardOption("SPACE_BEFORE_METHOD_CALL_PARENTHESES",
                     SlangBundle.message("settings.code.style.function.parentheses"));
+            consumer.showCustomOption(SlangCodeStyleSettings.class, "SPACE_WITHIN_GENERIC_ANGLES",
+                    SlangBundle.message("settings.code.style.space.within.angles"),
+                    com.intellij.psi.codeStyle.CodeStyleSettingsCustomizableOptions.getInstance().SPACES_WITHIN);
+            consumer.showCustomOption(SlangCodeStyleSettings.class, "SPACE_AFTER_LOGICAL_NOT",
+                    SlangBundle.message("settings.code.style.space.after.not"),
+                    com.intellij.psi.codeStyle.CodeStyleSettingsCustomizableOptions.getInstance().SPACES_AROUND_OPERATORS);
         } else if (type == SettingsType.BLANK_LINES_SETTINGS) {
             consumer.showStandardOptions("KEEP_BLANK_LINES_IN_CODE", "KEEP_BLANK_LINES_IN_DECLARATIONS",
                     "KEEP_BLANK_LINES_BEFORE_RBRACE", "BLANK_LINES_AROUND_METHOD");
@@ -148,14 +143,25 @@ public final class SlangCodeStyleProvider extends LanguageCodeStyleSettingsProvi
                     @Override
                      protected void initTabs(CodeStyleSettings settings) {
                         addTab(new FormatterPanel(settings));
-                        addTab(new MyIndentOptionsWrapper(settings, new TabWidthIndentEditor()) {
+                         addTab(new MyIndentOptionsWrapper(settings, new TabWidthIndentEditor()) {
                             @Override protected int getRightMargin() {
                                 return getSettings().getRightMargin(SlangLanguage.INSTANCE);
                             }
-                            @Override protected void installPreviewPanel(@NotNull JPanel preview) {
-                                super.installPreviewPanel(preview);
-                                LayoutPanels.padPreview(preview);
-                            }
+                             @Override protected void installPreviewPanel(@NotNull JPanel preview) {
+                                 super.installPreviewPanel(preview);
+                                 LayoutPanels.padPreview(preview);
+                             }
+
+                             @Override public JComponent getPanel() {
+                                 var content = super.getPanel();
+                                 if (content != null && content.getLayout() instanceof BorderLayout layout) {
+                                     var options = layout.getLayoutComponent(BorderLayout.WEST);
+                                     if (options != null) {
+                                         content.add(options, BorderLayout.NORTH);
+                                     }
+                                 }
+                                 return content;
+                             }
                         });
                         addTab(new NamingPanel(settings));
                         addTab(new LayoutPanels.Braces(settings));

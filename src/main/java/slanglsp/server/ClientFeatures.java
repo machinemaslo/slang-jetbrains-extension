@@ -14,6 +14,12 @@ import java.util.ArrayList;
 
 // LSP4IJ exposes custom client features through experimental extension points.
 final class ClientFeatures extends LSPClientFeatures {
+    @Override
+    public <S extends org.eclipse.lsp4j.services.LanguageServer>
+            @NotNull org.eclipse.lsp4j.jsonrpc.Launcher.Builder<S> createLauncherBuilder() {
+        return new ProtocolCompatibility<>(this);
+    }
+
     ClientFeatures() {
         setSemanticTokensFeature(new SemanticTokensFeature());
         setHoverFeature(new HoverFeature());
@@ -22,8 +28,8 @@ final class ClientFeatures extends LSPClientFeatures {
         setFormattingFeature(new com.redhat.devtools.lsp4ij.client.features.LSPFormattingFeature() {
             @Override
             public boolean isEnabled(@NotNull com.intellij.psi.PsiFile file) {
-                // Code Style selects the native model or our direct clang-format service.
-                return false;
+                return com.intellij.application.options.CodeStyle.getSettings(file)
+                        .getCustomSettings(slanglsp.settings.SlangCodeStyleSettings.class).USE_CLANG_FORMAT;
             }
 
             @Override
@@ -47,7 +53,7 @@ final class ClientFeatures extends LSPClientFeatures {
     }
 
     @Override
-    public com.intellij.openapi.vfs.VirtualFile findFileByUri(@NotNull String uri) {
+    public com.intellij.openapi.vfs.@org.jetbrains.annotations.Nullable VirtualFile findFileByUri(@NotNull String uri) {
         if (BuiltinFiles.moduleName(uri) != null) {
             return getProject().getService(BuiltinFiles.class).resolve(uri);
         }
@@ -56,7 +62,7 @@ final class ClientFeatures extends LSPClientFeatures {
     }
 
     @Override
-    public URI getFileUri(@NotNull com.intellij.openapi.vfs.VirtualFile file) {
+    public URI getFileUri(com.intellij.openapi.vfs.@NotNull VirtualFile file) {
         return file instanceof BuiltinFiles.BuiltinFile builtin ? builtin.uri() : super.getFileUri(file);
     }
 

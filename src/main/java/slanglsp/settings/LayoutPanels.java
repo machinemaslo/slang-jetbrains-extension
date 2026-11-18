@@ -7,6 +7,10 @@ import org.jetbrains.annotations.NotNull;
 import slanglsp.SlangBundle;
 import slanglsp.language.SlangLanguage;
 
+import javax.swing.JPanel;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+
 /** Standard JetBrains option tables and live previews, split into focused Slang tabs. */
 final class LayoutPanels {
     private LayoutPanels() {
@@ -15,6 +19,37 @@ final class LayoutPanels {
     static void padPreview(javax.swing.JPanel panel) {
         panel.setBorder(javax.swing.BorderFactory.createCompoundBorder(
                 panel.getBorder(), com.intellij.util.ui.JBUI.Borders.empty(8, 16, 8, 8)));
+    }
+
+    static void showBraceOptions(com.intellij.psi.codeStyle.CodeStyleSettingsCustomizable options) {
+        options.showStandardOptions("ELSE_ON_NEW_LINE", "CATCH_ON_NEW_LINE", "WHILE_ON_NEW_LINE");
+        String group = SlangBundle.message("settings.code.style.braces");
+        options.showCustomOption(SlangCodeStyleSettings.class, "BRACES_ON_NEW_LINE",
+                SlangBundle.message("settings.code.style.braces.new.line"), group);
+        String[] choices = {SlangBundle.message("settings.code.style.braces.inherit"),
+                SlangBundle.message("settings.code.style.braces.same.line"),
+                SlangBundle.message("settings.code.style.braces.next.line"),
+                SlangBundle.message("settings.code.style.braces.no.space")};
+        String[] fields = {"NAMESPACE_BRACES", "TYPE_BRACES", "STRUCT_BRACES", "CLASS_BRACES", "ENUM_BRACES",
+                "BUFFER_BRACES", "FUNCTION_BRACES",
+                "SWITCH_BRACES", "CASE_BRACES", "INITIALIZER_BRACES", "CONTROL_BRACES"};
+        String[] labels = {SlangBundle.message("settings.code.style.namespace_braces"),
+                SlangBundle.message("settings.code.style.type_braces"),
+                SlangBundle.message("settings.code.style.struct_braces"),
+                SlangBundle.message("settings.code.style.class_braces"),
+                SlangBundle.message("settings.code.style.enum_braces"),
+                SlangBundle.message("settings.code.style.buffer_braces"),
+                SlangBundle.message("settings.code.style.function_braces"),
+                SlangBundle.message("settings.code.style.switch_braces"),
+                SlangBundle.message("settings.code.style.case_braces"),
+                SlangBundle.message("settings.code.style.initializer_braces"),
+                SlangBundle.message("settings.code.style.control_braces")};
+        for (int i = 0; i < fields.length; i++) {
+            options.showCustomOption(SlangCodeStyleSettings.class, fields[i], labels[i], group, choices,
+                    new int[] {0, 1, 2, 3});
+        }
+        options.showCustomOption(SlangCodeStyleSettings.class, "KEEP_BLANK_LINES_AFTER_LBRACE",
+                SlangBundle.message("settings.code.style.keep.blank.lines.after.brace"), group);
     }
 
     private abstract static class PreviewPanel extends WrappingAndBracesPanel {
@@ -51,23 +86,61 @@ final class LayoutPanels {
 
         @Override
         protected void customizeSettings() {
-            showStandardOptions("ELSE_ON_NEW_LINE", "CATCH_ON_NEW_LINE", "WHILE_ON_NEW_LINE");
-            showCustomOption(SlangCodeStyleSettings.class, "BRACES_ON_NEW_LINE",
-                    SlangBundle.message("settings.code.style.braces.new.line"),
-                    SlangBundle.message("settings.code.style.braces"));
-            String[] choices = {SlangBundle.message("settings.code.style.braces.inherit"),
-                    SlangBundle.message("settings.code.style.braces.same.line"),
-                    SlangBundle.message("settings.code.style.braces.next.line")};
-            String[] options = {"FUNCTION_BRACES", "TYPE_BRACES", "CONTROL_BRACES"};
-            String[] labels = {
-                    SlangBundle.message("settings.code.style.function_braces"),
-                    SlangBundle.message("settings.code.style.type_braces"),
-                    SlangBundle.message("settings.code.style.control_braces")
-            };
-            for (int i = 0; i < options.length; i++) {
-                showCustomOption(SlangCodeStyleSettings.class, options[i], labels[i],
-                        SlangBundle.message("settings.code.style.braces"), choices, new int[] {0, 1, 2});
+            showBraceOptions(this);
+        }
+
+        @Override
+        protected void installPreviewPanel(@NotNull JPanel preview) {
+            super.installPreviewPanel(preview);
+            var parent = preview.getParent();
+            if (parent != null && parent.getLayout() instanceof GridBagLayout layout) {
+                for (var component : parent.getComponents()) {
+                    var constraints = layout.getConstraints(component);
+                    constraints.gridx = 0;
+                    constraints.gridy = component == preview ? 1 : 0;
+                    constraints.weightx = 1;
+                    constraints.weighty = 1;
+                    constraints.fill = GridBagConstraints.BOTH;
+                    layout.setConstraints(component, constraints);
+                }
             }
+        }
+
+        @Override
+        protected String getPreviewText() {
+            return """
+                    namespace Lighting
+                    {
+                        struct Material
+                        {
+                            float roughness;
+                        };
+                        cbuffer Scene
+                        {
+                            float exposure;
+                        }
+                        float intensity(int mode)
+                        {
+                            float values[2] = {1.0, 2.0};
+                            switch (mode)
+                            {
+                                case 0:
+                                {
+                                    if (exposure > 1.0)
+                                    {
+                                        return values[0];
+                                    }
+                                    else
+                                    {
+                                        return values[1];
+                                    }
+                                }
+                                default:
+                                    return exposure;
+                            }
+                        }
+                    }
+                    """;
         }
     }
 
@@ -102,6 +175,11 @@ final class LayoutPanels {
         protected void customizeSettings() {
             showStandardOptions("ALIGN_MULTILINE_PARAMETERS_IN_CALLS", "INDENT_CASE_FROM_SWITCH", "INDENT_BREAK_FROM_CASE");
             renameStandardOption("ALIGN_MULTILINE_PARAMETERS_IN_CALLS", SlangBundle.message("settings.code.style.align.arguments"));
+            showCustomOption(SlangCodeStyleSettings.class, "NAMESPACE_INDENTATION",
+                    SlangBundle.message("settings.code.style.namespace.indent"), getTabTitle(),
+                    new String[]{SlangBundle.message("settings.code.style.namespace.indent.all"),
+                            SlangBundle.message("settings.code.style.namespace.indent.none"),
+                            SlangBundle.message("settings.code.style.namespace.indent.inner")}, new int[]{0, 1, 2});
         }
     }
 

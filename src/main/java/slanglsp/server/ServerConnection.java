@@ -12,35 +12,18 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.EnvironmentUtil;
-import com.redhat.devtools.lsp4ij.LanguageServerManager;
 import com.redhat.devtools.lsp4ij.server.ProcessStreamConnectionProvider;
 import java.util.List;
 import java.util.Objects;
-import java.io.InputStream;
 import java.nio.file.Path;
 
 class ServerConnection extends ProcessStreamConnectionProvider {
-    private InputStream responseSource;
-    private InputStream responses;
-
-    @Override
-    public synchronized InputStream getInputStream() {
-        InputStream source = super.getInputStream();
-
-        if (source == null)
-            return null;
-
-        if (source != responseSource) {
-            responseSource = source;
-            responses = new ResponseInputStream(source);
-        }
-
-        return responses;
-    }
-
     final Project project;
     @Override
     public void start() throws com.redhat.devtools.lsp4ij.server.CannotStartProcessException {
+        if (getCommands() == null || getCommands().isEmpty()) {
+            throw new com.redhat.devtools.lsp4ij.server.CannotStartProcessException(SlangBundle.message("server.not.found"));
+        }
         super.start();
         // The superclass rejects null or empty commands before starting the process.
         var commands = Objects.requireNonNull(getCommands(), "Commands must exist after successful startup");
@@ -50,25 +33,26 @@ class ServerConnection extends ProcessStreamConnectionProvider {
     ServerConnection(Project project) {
         this.project = project;
 
-        var config = ProjectSettings.getInstance(project).getState();
-        var exePath = ExecutableLocator.find(config.explicitSlangdLocation, config.useLocalVcpkgSlangd,
-                ()
-                        -> project.getService(VcpkgDiscoveryService.class).findExecutable(),
-                EnvironmentUtil.getValue("PATH"), EnvironmentUtil.getValue("VULKAN_SDK"), getLspExeName(),
-                project.getBasePath());
-
+        var exePath = findExecutable(project);
         if (exePath.isPresent()) {
             super.setCommands(List.of(exePath.get()));
             super.setWorkingDirectory(project.getBasePath());
+            var recovery = project.getServiceIfCreated(ServerRecovery.class);
+            if (recovery != null) {
+                recovery.executableFound();
+            }
             notifyDiscovered(exePath.get());
         } else {
-            NotificationGroupManager.getInstance()
-                    .getNotificationGroup("Slang LSP")
-                    .createNotification(SlangBundle.message("notification.group.slang"),
-                            SlangBundle.message("server.not.found"), NotificationType.ERROR)
-                    .notify(project);
-            LanguageServerManager.getInstance(project).stop("slanglsp.SlangLanguageServer");
+            project.getService(ServerRecovery.class).missingExecutable();
         }
+    }
+
+    static java.util.Optional<String> findExecutable(Project project) {
+        var config = ProjectSettings.getInstance(project).getState();
+        return ExecutableLocator.find(config.explicitSlangdLocation, config.useLocalVcpkgSlangd,
+                () -> project.getService(VcpkgDiscoveryService.class).findExecutable(),
+                EnvironmentUtil.getValue("PATH"), EnvironmentUtil.getValue("VULKAN_SDK"), getLspExeName(),
+                project.getBasePath());
     }
 
     private void notifyDiscovered(String executable) {

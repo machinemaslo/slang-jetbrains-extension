@@ -22,6 +22,9 @@ import java.util.Set;
  */
 class NativeFormattingBlock implements BlockEx {
     private static final Set<String> CONTROL = Set.of("if", "for", "while", "switch", "catch");
+    private static final Set<String> ASSIGNMENTS = Set.of("=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=");
+    private static final java.util.regex.Pattern FORMAT_MARKER =
+            java.util.regex.Pattern.compile("^(?://|/\\*)\\s*clang-format (off|on)\\b");
     private static final Set<String> OPERATORS = Set.of(
             "==", "!=", "<=", ">=", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=",
             "<<", ">>", "<<=", ">>=", "->", "::");
@@ -32,27 +35,45 @@ class NativeFormattingBlock implements BlockEx {
     private final SlangCodeStyleSettings custom;
     private final Set<Integer> functionStarts = new java.util.HashSet<>();
 
+    private enum BraceKind {
+        NONE, FUNCTION, TYPE, STRUCT, CLASS, ENUM, NAMESPACE, BUFFER, CONTROL, SWITCH, CASE, INITIALIZER;
+
+        boolean isDeclaration() {
+            return switch (this) {
+                case TYPE, STRUCT, CLASS, ENUM, NAMESPACE, BUFFER -> true;
+                default -> false;
+            };
+        }
+    }
+
     NativeFormattingBlock(String source, CodeStyleSettings settings) {
         this.source = source;
         custom = settings.getCustomSettings(SlangCodeStyleSettings.class);
         common = settings.getCommonSettings(SlangLanguage.INSTANCE);
         newLineBraces = custom.BRACES_ON_NEW_LINE;
+        if (custom.DISABLE_FORMAT) {
+            return;
+        }
+
         var indent = settings.getIndentOptions(slanglsp.language.SlangFileType.INSTANCE);
-        var generic = new GenericContext(source);
+        var generic = source.indexOf('<') < 0 ? null : new GenericContext(source);
         var lexer = new SlangLexer();
         lexer.start(source);
         int braces = 0;
+        int namespaces = 0;
         int parentheses = 0;
         int unbraced = 0;
-        var parenKinds = new ArrayList<Boolean>();
+        var parenKinds = new ArrayList<String>();
         var parameterWraps = new ArrayList<Wrap>();
         var parameterAlignments = new ArrayList<Alignment>();
         var braceParens = new ArrayList<Integer>();
-        var braceKinds = new ArrayList<Integer>();
-        boolean pendingType = false;
+        var braceKinds = new ArrayList<BraceKind>();
+        BraceKind pendingDeclaration = BraceKind.NONE;
         boolean pendingFunction = false;
+        boolean pendingSwitch = false;
         boolean statementAssignment = false;
         boolean caseLabel = false;
+        boolean formattingOff = false;
         int caseDepth = -1;
         while (lexer.getTokenType() != null) {
             ProgressManager.checkCanceled();
@@ -68,8 +89,15 @@ class NativeFormattingBlock implements BlockEx {
                 end = directiveEnd(source, start);
             }
             String text = source.substring(start, end);
-            boolean angle = (text.equals("<") && generic.isOpening(generic.tokenAt(start)))
-                    || (text.equals(">") && generic.isClosing(generic.tokenAt(start)));
+            boolean preserveGap = formattingOff;
+            if (type == SlangLexer.COMMENT || type == SlangLexer.BLOCK_COMMENT) {
+                var marker = FORMAT_MARKER.matcher(text);
+                if (marker.find()) {
+                    formattingOff = marker.group(1).equals("off");
+                }
+            }
+            boolean angle = generic != null && ((text.equals("<") && generic.isOpening(generic.tokenAt(start)))
+                    || (text.equals(">") && generic.isClosing(generic.tokenAt(start))));
             if (type == SlangLexer.OPERATOR && !angle) {
                 // Keep actual multi-character operators atomic, but never merge spaced tokens.
                 for (int length = 3; length >= 2; length--) {
@@ -86,23 +114,56 @@ class NativeFormattingBlock implements BlockEx {
             }
             Leaf previous = children.isEmpty() ? null : (Leaf) children.getLast();
             String before = previous == null ? "" : previous.text;
-            boolean closesControl = false;
-            int braceKind = 0; // 1: function, 2: type/namespace, 3: control/initializer
-            if (Set.of("struct", "class", "interface", "enum", "namespace", "cbuffer", "extension").contains(text)) {
-                pendingType = true;
+            if (text.equals("{") && before.equals("spirv_asm")) {
+                // Embedded SPIR-V has its own grammar. Keep the whole body as one leaf.
+                int depth = 1;
+                while (depth > 0) {
+                    lexer.advance();
+                    if (lexer.getTokenType() == null) {
+                        end = source.length();
+                        break;
+                    }
+                    if (lexer.getTokenType() == SlangLexer.LBRACE) {
+                        depth++;
+                    } else if (lexer.getTokenType() == SlangLexer.RBRACE) {
+                        depth--;
+                    }
+                    end = lexer.getTokenEnd();
+                }
+                text = source.substring(start, end);
             }
+            boolean closesControl = false;
+            BraceKind braceKind = BraceKind.NONE;
+            pendingDeclaration = switch (text) {
+                case "namespace" -> BraceKind.NAMESPACE;
+                case "cbuffer", "tbuffer" -> BraceKind.BUFFER;
+                case "struct" -> BraceKind.STRUCT;
+                case "class" -> BraceKind.CLASS;
+                case "enum" -> BraceKind.ENUM;
+                case "interface", "extension" -> BraceKind.TYPE;
+                default -> pendingDeclaration;
+            };
             if (text.equals("=")) statementAssignment = true;
             if (text.equals(")")) {
                 parentheses = Math.max(0, parentheses - 1);
-                if (!parenKinds.isEmpty()) closesControl = parenKinds.removeLast();
+                String control = parenKinds.isEmpty() ? "" : parenKinds.removeLast();
+                closesControl = !control.isEmpty();
                 if (!parameterWraps.isEmpty()) parameterWraps.removeLast();
                 if (!parameterAlignments.isEmpty()) parameterAlignments.removeLast();
-                if (parentheses == 0 && !closesControl && !statementAssignment) pendingFunction = true;
+                if (parentheses == 0) {
+                    pendingSwitch = control.equals("switch");
+                    if (!closesControl && !statementAssignment) {
+                        pendingFunction = true;
+                    }
+                }
             }
             if (text.equals("}")) {
                 braces = Math.max(0, braces - 1);
                 if (!braceParens.isEmpty()) parentheses = braceParens.removeLast();
                 if (!braceKinds.isEmpty()) braceKind = braceKinds.removeLast();
+                if (braceKind == BraceKind.NAMESPACE) {
+                    namespaces--;
+                }
                 unbraced = 0;
                 if (braces < caseDepth) caseDepth = -1;
             }
@@ -111,7 +172,13 @@ class NativeFormattingBlock implements BlockEx {
                 caseDepth = braces;
             }
             boolean labelColon = caseLabel && text.equals(":");
-            int columns = braces * indent.INDENT_SIZE + parentheses * indent.CONTINUATION_INDENT_SIZE;
+            int unindentedNamespaces = switch (custom.NAMESPACE_INDENTATION) {
+                case 1 -> namespaces;
+                case 2 -> Math.min(1, namespaces);
+                default -> 0;
+            };
+            int columns = (braces - unindentedNamespaces) * indent.INDENT_SIZE
+                    + parentheses * indent.CONTINUATION_INDENT_SIZE;
             if (unbraced > 0 && !text.equals("{") && !text.equals("else")) columns += indent.INDENT_SIZE;
             if (caseDepth == braces && !caseLabel && !text.equals("}")) columns += indent.INDENT_SIZE;
             if (caseDepth == braces && !text.equals("}")) {
@@ -131,12 +198,25 @@ class NativeFormattingBlock implements BlockEx {
             } else if (before.equals("=") && common.ASSIGNMENT_WRAP != 0) {
                 wrap = Wrap.createWrap(WrapType.byLegacyRepresentation(common.ASSIGNMENT_WRAP), true);
             }
-            if (text.equals("{")) braceKind = pendingType ? 2 : pendingFunction ? 1 : 3;
-            children.add(new Leaf(text, type, new TextRange(start, end), directive ? 0 : columns,
-                    parentheses, braces, braceKind, braces == 0 || !braceKinds.isEmpty() && braceKinds.getLast() == 2,
-                    directive, angle, prefix, labelColon, wrap, alignment));
             if (text.equals("{")) {
-                if (braceKind == 1 && braces == 0) {
+                if (pendingDeclaration != BraceKind.NONE) {
+                    braceKind = pendingDeclaration;
+                } else if (previous != null && previous.labelColon) {
+                    braceKind = BraceKind.CASE;
+                } else if (pendingSwitch) {
+                    braceKind = BraceKind.SWITCH;
+                } else if (before.equals("=")) {
+                    braceKind = BraceKind.INITIALIZER;
+                } else {
+                    braceKind = pendingFunction ? BraceKind.FUNCTION : BraceKind.CONTROL;
+                }
+            }
+            children.add(new Leaf(text, type, new TextRange(start, end), directive ? 0 : columns,
+                    parentheses, braces, braceKind, braces == 0 || !braceKinds.isEmpty() && braceKinds.getLast().isDeclaration(),
+                    directive, angle, prefix, labelColon, preserveGap, preserveGap ? null : wrap,
+                    preserveGap ? null : alignment));
+            if (text.equals("{")) {
+                if (braceKind == BraceKind.FUNCTION && braces == 0) {
                     int first = children.size() - 2;
                     while (first >= 0) {
                         Leaf token = (Leaf) children.get(first);
@@ -147,13 +227,16 @@ class NativeFormattingBlock implements BlockEx {
                     functionStarts.add(children.get(first + 1).getTextRange().getStartOffset());
                 }
                 braces++;
+                if (braceKind == BraceKind.NAMESPACE) {
+                    namespaces++;
+                }
                 braceParens.add(parentheses);
                 braceKinds.add(braceKind);
                 parentheses = 0;
                 unbraced = 0;
             } else if (text.equals("(")) {
                 parentheses++;
-                parenKinds.add(CONTROL.contains(before));
+                parenKinds.add(CONTROL.contains(before) ? before : "");
                 parameterWraps.add(!CONTROL.contains(before) && before.matches("[A-Za-z_][A-Za-z_0-9]*")
                         && common.CALL_PARAMETERS_WRAP != 0
                         ? Wrap.createWrap(WrapType.byLegacyRepresentation(common.CALL_PARAMETERS_WRAP), true) : null);
@@ -167,8 +250,9 @@ class NativeFormattingBlock implements BlockEx {
                 unbraced = 0;
             }
             if (Set.of(";", "{", "}").contains(text)) {
-                pendingType = false;
+                pendingDeclaration = BraceKind.NONE;
                 pendingFunction = false;
+                pendingSwitch = false;
                 statementAssignment = false;
             }
             if (labelColon) caseLabel = false;
@@ -192,6 +276,9 @@ class NativeFormattingBlock implements BlockEx {
     @Override
     public @Nullable Spacing getSpacing(@Nullable Block child1, @NotNull Block child2) {
         if (!(child1 instanceof Leaf left) || !(child2 instanceof Leaf right)) return null;
+        if (right.preserveGap) {
+            return Spacing.getReadOnlySpacing();
+        }
         String a = left.text, b = right.text;
         String gap = source.substring(left.range.getEndOffset(), right.range.getStartOffset());
         int keptBlankLines = left.declarationContext ? common.KEEP_BLANK_LINES_IN_DECLARATIONS : common.KEEP_BLANK_LINES_IN_CODE;
@@ -201,9 +288,17 @@ class NativeFormattingBlock implements BlockEx {
         if (functionStarts.contains(right.range.getStartOffset()) && common.BLANK_LINES_AROUND_METHOD > 0)
             return lines(common.BLANK_LINES_AROUND_METHOD + 1, common.KEEP_BLANK_LINES_IN_DECLARATIONS);
         if (a.equals("{") && b.equals("}")) return spaces(0, false);
-        if (b.equals("{")) return braceOnNewLine(right.braceKind) ? line() : spaces(1, false);
+        if (b.equals("{")) {
+            return switch (bracePlacement(right.braceKind)) {
+                case 2 -> line();
+                case 3 -> spaces(0, false);
+                default -> spaces(1, false);
+            };
+        }
         if (b.equals("}")) return lines(1, common.KEEP_BLANK_LINES_BEFORE_RBRACE);
-        if (a.equals("{")) return line();
+        if (a.equals("{")) {
+            return lines(1, custom.KEEP_BLANK_LINES_AFTER_LBRACE ? common.KEEP_BLANK_LINES_IN_CODE : 0);
+        }
         if (a.equals(";")) return left.parentheses == 0 ? lines(1, keptBlankLines)
                 : spaces(common.SPACE_AFTER_SEMICOLON ? 1 : 0, false);
         if (left.labelColon) return line();
@@ -223,7 +318,7 @@ class NativeFormattingBlock implements BlockEx {
                 default -> {
                 }
             }
-            if (left.braceKind == 1 && left.braces == 0)
+            if (left.braceKind == BraceKind.FUNCTION && left.braces == 0)
                 return lines(common.BLANK_LINES_AROUND_METHOD + 1, common.KEEP_BLANK_LINES_IN_DECLARATIONS);
             return lines(1, keptBlankLines);
         }
@@ -238,17 +333,26 @@ class NativeFormattingBlock implements BlockEx {
         if (a.equals("]") && gap.contains("\n")) return line(); // Keep shader attribute lines separate.
         if (b.equals("[")) return spaces(a.equals("]") ? 1 : 0, true);
         if (a.equals(",")) return spaces(common.SPACE_AFTER_COMMA ? 1 : 0, true);
-        if (right.angle && b.equals("<") || left.angle && a.equals("<") || right.angle && b.equals(">"))
+        if (right.angle && b.equals("<")) {
             return spaces(0, false);
+        }
+        if (left.angle && a.equals("<") || right.angle && b.equals(">")) {
+            boolean empty = left.angle && right.angle && a.equals("<") && b.equals(">");
+            boolean nestedClosers = left.angle && right.angle && a.equals(">");
+            return spaces(custom.SPACE_WITHIN_GENERIC_ANGLES && !empty && !nestedClosers ? 1 : 0, false);
+        }
         if (left.angle && a.equals(">")) return spaces(b.equals(">") ? 0 : 1, true);
-        if (left.prefix) return spaces(right.type == SlangLexer.OPERATOR ? 1 : 0, false);
+        if (left.prefix) {
+            boolean space = right.type == SlangLexer.OPERATOR || a.equals("!") && custom.SPACE_AFTER_LOGICAL_NOT;
+            return spaces(space ? 1 : 0, false);
+        }
         if (Set.of("++", "--").contains(b) && !right.prefix) return spaces(0, false);
-        // Pointer declarations, dereferences, and unknown generic names need semantic information.
+        // Pointer declarations and dereferences need semantic information.
         // Preserve ambiguous gaps rather than inventing a different token sequence.
-        if (Set.of("*", "&", "<", ">").contains(a) || Set.of("*", "&", "<", ">").contains(b))
+        if (Set.of("*", "&").contains(a) || Set.of("*", "&").contains(b))
             return Spacing.getReadOnlySpacing();
         if (left.type == SlangLexer.OPERATOR || right.type == SlangLexer.OPERATOR) {
-            boolean space = operatorSpace(left.type == SlangLexer.OPERATOR ? a : b);
+            boolean space = operatorSpace(left.type == SlangLexer.OPERATOR ? a : b, left.type != SlangLexer.OPERATOR);
             // Removing whitespace between separate operators may create ++, --, etc.
             if (left.type == SlangLexer.OPERATOR && right.type == SlangLexer.OPERATOR) space = true;
             return spaces(space ? 1 : 0, true);
@@ -257,9 +361,25 @@ class NativeFormattingBlock implements BlockEx {
         return spaces(1, true);
     }
 
-    private boolean braceOnNewLine(int kind) {
-        int value = kind == 1 ? custom.FUNCTION_BRACES : kind == 2 ? custom.TYPE_BRACES : custom.CONTROL_BRACES;
-        return value == 0 ? newLineBraces : value == 2;
+    private int bracePlacement(BraceKind kind) {
+        int value = switch (kind) {
+            case FUNCTION -> custom.FUNCTION_BRACES;
+            case TYPE -> custom.TYPE_BRACES;
+            case STRUCT -> inherit(custom.STRUCT_BRACES, custom.TYPE_BRACES);
+            case CLASS -> inherit(custom.CLASS_BRACES, custom.TYPE_BRACES);
+            case ENUM -> inherit(custom.ENUM_BRACES, custom.TYPE_BRACES);
+            case NAMESPACE -> inherit(custom.NAMESPACE_BRACES, custom.TYPE_BRACES);
+            case BUFFER -> inherit(custom.BUFFER_BRACES, custom.TYPE_BRACES);
+            case SWITCH -> inherit(custom.SWITCH_BRACES, custom.CONTROL_BRACES);
+            case CASE -> inherit(custom.CASE_BRACES, custom.CONTROL_BRACES);
+            case INITIALIZER -> inherit(custom.INITIALIZER_BRACES, custom.CONTROL_BRACES);
+            default -> custom.CONTROL_BRACES;
+        };
+        return inherit(value, newLineBraces ? 2 : 1);
+    }
+
+    private static int inherit(int value, int fallback) {
+        return value == 0 ? fallback : value;
     }
 
     private boolean spaceBeforeParentheses(String token) {
@@ -273,11 +393,15 @@ class NativeFormattingBlock implements BlockEx {
         };
     }
 
-    private boolean operatorSpace(String token) {
+    private boolean operatorSpace(String token, boolean before) {
+        if (ASSIGNMENTS.contains(token)) {
+            return custom.SPACE_BEFORE_ASSIGNMENT < 0
+                    ? common.SPACE_AROUND_ASSIGNMENT_OPERATORS : !before || custom.SPACE_BEFORE_ASSIGNMENT == 1;
+        }
         return switch (token) {
-            case "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=" -> common.SPACE_AROUND_ASSIGNMENT_OPERATORS;
             case "&&", "||" -> common.SPACE_AROUND_LOGICAL_OPERATORS;
             case "==", "!=" -> common.SPACE_AROUND_EQUALITY_OPERATORS;
+            case "<", ">", "<=", ">=" -> common.SPACE_AROUND_RELATIONAL_OPERATORS;
             case "+", "-" -> common.SPACE_AROUND_ADDITIVE_OPERATORS;
             case "<<", ">>" -> common.SPACE_AROUND_SHIFT_OPERATORS;
             default -> true;
@@ -308,8 +432,8 @@ class NativeFormattingBlock implements BlockEx {
     @Override public boolean isLeaf() { return children.isEmpty(); }
 
     private record Leaf(String text, IElementType type, TextRange range, int columns, int parentheses,
-                        int braces, int braceKind, boolean declarationContext,
-                        boolean directive, boolean angle, boolean prefix, boolean labelColon,
+                        int braces, BraceKind braceKind, boolean declarationContext,
+                        boolean directive, boolean angle, boolean prefix, boolean labelColon, boolean preserveGap,
                         Wrap wrap, Alignment alignment) implements BlockEx {
         @Override public @NotNull TextRange getTextRange() { return range; }
         @Override public @NotNull com.intellij.lang.Language getLanguage() { return SlangLanguage.INSTANCE; }
