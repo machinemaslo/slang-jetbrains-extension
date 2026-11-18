@@ -4,7 +4,7 @@ import org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask
 import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE
 
-version = "0.0.23"
+version = "0.0.24"
 group = "slang"
 
 plugins {
@@ -179,6 +179,10 @@ fun registerPluginPlayground(
         localPath.set(layout.dir(installation))
         plugins {
             plugin("com.redhat.devtools.lsp4ij:${providers.gradleProperty("lsp4ijVersion").getOrElse("0.21.0")}")
+            if (suffix == "CLion" && !providers.gradleProperty("playgroundPython").map(String::toBoolean).getOrElse(false)) {
+                // Some Toolbox CLion builds ship a Python ML module with a broken classloader dependency.
+                disablePlugin("PythonCore")
+            }
         }
         task {
             description = "Launch Toolbox's installed $ideName with the Slang plugin and refreshed playground."

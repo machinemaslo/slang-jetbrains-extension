@@ -18,6 +18,15 @@
 
     <change-notes>
         <![CDATA[
+         <p><b>0.0.24</b></p>
+        <ul>
+            <li>Fixed bundled <code>clang-format.exe</code> discovery on Windows</li>
+            <li>Fixed pre-commit analysis stalling when the IDE's shared worker pool is busy</li>
+            <li>Auto <code>slangd</code> recovery when the executable becomes available after a failed startup</li>
+            <li>Batch compiler diagnostics for unsaved edits and an unused-symbol inspection</li>
+            <li>More JB's formatter options, inherited <code>.clang-format</code> settings, export of supported settings</li>
+            <li>MCP tools for Slang documentation, declaration and reference lookup, and compiler checks</li>
+        </ul>
         <p><b>0.0.23</b></p>
         <ul>
             <li>Native Slang formatter, optional <code>clang-format</code>, and <code>.clang-format</code> import</li>

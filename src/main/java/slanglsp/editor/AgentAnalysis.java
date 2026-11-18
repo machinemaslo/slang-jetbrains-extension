@@ -1,6 +1,5 @@
 package slanglsp.editor;
 
-import com.intellij.ide.impl.TrustedProjects;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.progress.ProgressManager;
@@ -173,7 +172,7 @@ public final class AgentAnalysis {
         if (project.isDisposed() || project.getBasePath() == null) {
             throw new IllegalArgumentException("Open a local Slang project first.");
         }
-        if (!TrustedProjects.isTrusted(project)) {
+        if (!ProjectTrust.isTrusted(project)) {
             throw new IllegalArgumentException("Slang analysis requires a trusted project.");
         }
         return Path.of(project.getBasePath()).toRealPath();

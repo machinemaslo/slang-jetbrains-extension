@@ -50,6 +50,7 @@ New projects have no predefined macros. Edit project macros under **General**.
 ### Development playground
 
 Select **Run Plugin (IJ)** (`./gradlew runPlugin`) or **Run Plugin (CLion)** (`./gradlew runPluginCLion`). Both read JetBrains Toolbox's local inventory and launch the newest installed build of the requested IDE in a separate sandbox with sample Slang files. No IDE download or per-developer path setting is needed; install the IDE in Toolbox if it isn't listed there.
+The CLion playground disables its bundled Python plugin to avoid a startup error in some CLion builds, use `-PplaygroundPython=true` to enable it in that sandbox.
 Install `slangd` on PATH or use existing vcpkg tools. Native formatting is the default; clang-format is optional.
 Edit `dev/playground` for lasting changes—samples and generated settings reset each launch. Extra files and dictionaries remain.
 Plugin DevKit is optional for development assistance.
