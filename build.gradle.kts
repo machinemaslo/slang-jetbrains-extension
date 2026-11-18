@@ -142,6 +142,27 @@ dependencies {
 }
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>().configureEach {
     compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+    // A compatibility bridge would invoke MCP interface defaults that do not exist on older IDEs.
+    compilerOptions.jvmDefault.set(org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode.NO_COMPATIBILITY)
+}
+
+// Give the optional module its own class loader and keep MCP symbols out of the core JAR.
+val mcpAdapterJar = tasks.register<Jar>("mcpAdapterJar") {
+    archiveFileName.set("slanglsp.mcp.adapter.jar")
+    from(tasks.compileKotlin.flatMap { it.destinationDirectory }) {
+        include("slanglsp/mcp/adapter/**")
+    }
+    from("src/main/resources") {
+        include("slanglsp.mcp.adapter.xml")
+    }
+}
+tasks.withType<org.gradle.jvm.tasks.Jar>().matching { it.name in setOf("jar", "instrumentedJar", "composedJar") }.configureEach {
+    exclude("slanglsp/mcp/adapter/**", "slanglsp.mcp.adapter.xml")
+}
+tasks.withType<PrepareSandboxTask>().configureEach {
+    from(mcpAdapterJar) {
+        into(pluginName.map { "$it/lib/modules" })
+    }
 }
 
 fun registerPluginPlayground(
@@ -269,10 +290,11 @@ intellijPlatform {
         )
         ides {
             val verificationIdePath = providers.gradleProperty("verificationIdePath").orNull
-            if (verificationIdePath != null) {
-                local(file(verificationIdePath))
-            } else {
-                latest {
+            val verificationIdeaVersion = providers.gradleProperty("verificationIdeaVersion").orNull
+            when {
+                verificationIdePath != null -> local(file(verificationIdePath))
+                verificationIdeaVersion != null -> create("IU", verificationIdeaVersion)
+                else -> latest {
                     types = listOf(IntelliJPlatformType.CLion)
                     channels = listOf(ProductRelease.Channel.RELEASE)
                 }
