@@ -1,6 +1,7 @@
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.models.ProductRelease
 import org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask
+import org.jetbrains.intellij.platform.gradle.tasks.RunIdeTask
 import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE
 
@@ -43,10 +44,8 @@ dependencies {
 
         plugin("com.redhat.devtools.lsp4ij:${providers.gradleProperty("lsp4ijVersion").getOrElse("0.21.0")}")
         bundledModule("intellij.platform.vcs.impl") // Exercise the real pre-commit analysis service in tests.
-        // Newer IDEs split the spellchecker out of the baseline platform compile classpath.
-        if (localIdePath != null && providers.gradleProperty("mcpSmokeTest").map(String::toBoolean).getOrElse(false)) {
-            bundledModule("intellij.spellchecker")
-        }
+        // The 2025.2 SDK ships spellchecking in a separate bundled module.
+        bundledModule("intellij.spellchecker")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
     // Use the IDE's Gson; do not bundle a separate copy across plugin classloaders.
@@ -186,11 +185,12 @@ fun registerPluginPlayground(
                 disablePlugin("PythonCore")
             }
         }
-        task {
-            description = "Launch Toolbox's installed $ideName with the Slang plugin and refreshed playground."
-            dependsOn(preparePlayground, syncAppearance)
-            args(playground.get().asFile.absolutePath)
-        }
+    }
+
+    tasks.named<RunIdeTask>(taskName) {
+        description = "Launch Toolbox's installed $ideName with the Slang plugin and refreshed playground."
+        dependsOn(preparePlayground, syncAppearance)
+        args(playground.get().asFile.absolutePath)
     }
 
     syncAppearance.configure {
