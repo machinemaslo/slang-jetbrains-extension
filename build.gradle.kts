@@ -3,7 +3,6 @@ import org.jetbrains.intellij.platform.gradle.models.ProductRelease
 import org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask
 import org.jetbrains.intellij.platform.gradle.tasks.RunIdeTask
 import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
-import org.gradle.api.artifacts.type.ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE
 
 version = "0.0.24"
 group = "slang"
@@ -14,6 +13,9 @@ plugins {
     kotlin("jvm") version "2.4.21"
     id("org.jetbrains.intellij.platform") version "2.20.1"
 }
+
+val minimumIdeaVersion = "2025.2.6.4"
+val minimumIdeaBuild = "252.28539.149"
 
 idea {
     module {
@@ -37,12 +39,13 @@ dependencies {
         if (localIdePath != null) {
             local(localIdePath)
         } else {
-            intellijIdeaCommunity("2025.2.6.4")
+            intellijIdeaCommunity(minimumIdeaVersion)
         }
         pluginVerifier("1.410")
         zipSigner()
 
         plugin("com.redhat.devtools.lsp4ij:${providers.gradleProperty("lsp4ijVersion").getOrElse("0.21.0")}")
+        bundledPlugin("com.intellij.mcpServer") // The plugin descriptor keeps MCP optional at runtime.
         bundledModule("intellij.platform.vcs.impl") // Exercise the real pre-commit analysis service in tests.
         // The 2025.2 SDK ships spellchecking in a separate bundled module.
         bundledModule("intellij.spellchecker")
@@ -52,7 +55,7 @@ dependencies {
     compileOnly("com.google.code.gson:gson:2.11.0")
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
     testImplementation("junit:junit:4.13.2") // IntelliJ's test fixtures extend JUnit 3 classes.
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.0")
+    testImplementation("org.junit.platform:junit-platform-launcher:1.10.0")
 }
 
 java {
@@ -116,33 +119,20 @@ val toolboxInventory = providers.fileContents(
     layout.projectDirectory.file("$toolboxDataRoot/JetBrains/Toolbox/state.json")
 ).asText.orElse("")
 
-// Use the newer MCP API and descriptor for compilation and DevKit indexing, not at runtime.
-val mcpSdkDependency = configurations.dependencyScope("mcpSdkDependency")
-val mcpSdkArchive = configurations.resolvable("mcpSdkArchive") { extendsFrom(mcpSdkDependency.get()) }
-dependencies {
-    add("mcpSdkDependency", "com.jetbrains.intellij.idea:idea:2026.3@zip")
-    registerTransform(ExtractMcpSdk::class) {
-        from.attribute(ARTIFACT_TYPE_ATTRIBUTE, "zip")
-        to.attribute(ARTIFACT_TYPE_ATTRIBUTE, "slang-mcp-sdk")
-    }
-}
-val mcpSdkFiles = providers.gradleProperty("mcpSdkPath").orNull?.let { path ->
-    val api = file(path)
-    val descriptor = api.resolveSibling("mcpserver-plugin.jar")
-    require(api.isFile && descriptor.isFile) {
-        "mcpSdkPath must point to intellij.mcpserver.jar next to mcpserver-plugin.jar."
-    }
-    files(api, descriptor)
-} ?: mcpSdkArchive.get().incoming.artifactView {
-    attributes.attribute(ARTIFACT_TYPE_ATTRIBUTE, "slang-mcp-sdk")
-}.files
-dependencies {
-    compileOnly(mcpSdkFiles)
-}
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>().configureEach {
     compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
-    // Do not generate calls to MCP interface defaults introduced after the minimum IDE build.
+    // IDEA 2025.2's Kotlin runtime reads v1 coroutine debug metadata.
+    compilerOptions.apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_2)
+    // Compatibility bridges would call MCP interface defaults missing on older IDEs.
     compilerOptions.jvmDefault.set(org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode.NO_COMPATIBILITY)
+}
+
+// The invocation fixture constructs the baseline server's internal request context.
+// Keep registration tests portable when explicitly targeting a different SDK.
+if (providers.gradleProperty("localIdePath").isPresent) {
+    kotlin.sourceSets.named("test") {
+        kotlin.exclude("slanglsp/mcp/BaselineMcpCallsTest.kt")
+    }
 }
 
 fun registerPluginPlayground(
@@ -211,8 +201,9 @@ tasks {
 
     if (providers.gradleProperty("mcpSmokeTest").map(String::toBoolean).getOrElse(false)) {
         compileTestJava {
-            // This smoke suite targets the newer MCP SDK, not the baseline test APIs.
+            // Run only the registration smoke test when explicitly requested.
             include("slanglsp/mcp/McpRegistrationTest.java")
+            include("slanglsp/DesktopTestSession.java")
         }
     }
 
@@ -254,7 +245,7 @@ tasks {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "252.28539.149"
+            sinceBuild = minimumIdeaBuild
             // Allow future IDE builds; verification still checks actual API compatibility.
             untilBuild = provider { null }
         }

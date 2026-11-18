@@ -26,6 +26,8 @@
             <li>Batch compiler diagnostics for unsaved edits and an unused-symbol inspection</li>
             <li>More JB's formatter options, inherited <code>.clang-format</code> settings, export of supported settings</li>
             <li>MCP tools for Slang documentation, declaration and reference lookup, and compiler checks</li>
+            <li>Minimum IntelliJ IDEA version: 2025.2.6.4</li>
+            <li>Fixed MCP binary compatibility with IntelliJ IDEA 2026.2.5</li>
         </ul>
         <p><b>0.0.23</b></p>
         <ul>
@@ -83,7 +85,7 @@
             <li>Project settings for additional include/search paths, predefined macros, and searching workspace subdirectories</li>
         </ul>
         <p>The rename fallback covers project Slang files under the current server configuration. It cannot check inactive code, external references, or new-name conflicts. Built-in/external declarations and ambiguous or unverified targets are rejected; changes to project files during search or preview require a new search.</p>
-        <p>Requires JetBrains IDE build 252.28539.149 or newer, LSP4IJ, and a working <code>slangd</code> installation for server-provided features. Native formatting does not require external tools; the optional Clang-Format formatter requires <code>clang-format</code>. Server-provided features depend on the installed Slang version.</p>
+        <p>Requires IntelliJ IDEA 2025.2.6.4 or a compatible IDE (build 252.28539.149 or newer), LSP4IJ, and a working <code>slangd</code> installation for server-provided features. Native formatting does not require external tools; the optional Clang-Format formatter requires <code>clang-format</code>. Server-provided features depend on the installed Slang version.</p>
         ]]>
     </change-notes>
     <!-- Product and plugin compatibility requirements. -->

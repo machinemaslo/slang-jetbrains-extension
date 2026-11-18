@@ -32,7 +32,7 @@ class McpRegistrationTest {
     }
 
     private static void assertRegistered() throws ReflectiveOperationException {
-        // Ask the installed server for its actual extension point; the baseline SDK does not declare it.
+        // Resolve the extension through the installed server's classloader.
         var server = PluginManagerCore.getPlugin(PluginId.getId("com.intellij.mcpServer"));
         assertNotNull(server, "Missing JetBrains MCP Server plugin");
         var loader = server.getPluginClassLoader();

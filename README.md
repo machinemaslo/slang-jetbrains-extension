@@ -17,7 +17,7 @@ If you want any additional features, please open an issue on github and I will t
 ### To Build
 1. Install JDK 21–27 and optionally IntelliJ IDEA for development.
 2. Fetch code with `git clone --recursive https://github.com/machinemaslo/slang-jetbrains-extension.git`
-3. The plugin requires IntelliJ IDEA 2025.2.6.4 or newer, builds use the Gradle-managed IDEA 2025.2.6.4 SDK by default. To build and test against a local IDE instead, pass `-PlocalIdePath=/path/to/intellij-idea` to Gradle. **Run Plugin** independently uses the latest IDEA.
+3. The minimum supported IntelliJ IDEA version is 2025.2.6.4 (platform build `252.28539.149`), which is also the default Gradle SDK. To build and test against a local IDE instead, pass `-PlocalIdePath=/path/to/intellij-idea` to Gradle. **Run Plugin (IJ)** independently uses the newest IDEA installed through Toolbox.
 4. Open the project in IDEA, select the Gradle wrapper and JDK 21–27 as the project/Gradle JVM, then run `test` and `buildPlugin` (or `./gradlew test buildPlugin` from the project directory). Tests require the native prerequisites below. Compilation targets Java 21.
 5. Install the plugin ZIP from `build/distributions/`
 
@@ -59,15 +59,15 @@ Plugin DevKit is optional for development assistance.
 
 #### Slang tools for JetBrains Air and MCP
 
-On compatible IDEs with JetBrains' MCP Server enabled, the plugin contributes three read-only tools (verified on IntelliJ IDEA 2026.3). No project files, hooks, or agent skills are installed. The compiler and symbol tools require a trusted project.
+With JetBrains' MCP Server enabled, the plugin contributes three read-only tools.
 
-- `slang_lookup` searches the official [Slang LLM index](https://shader-slang.org/docs/llms.txt) and [full reference](https://shader-slang.org/docs/llms-full.txt), follows supported links to guides and examples, and looks up exact intrinsic names in the Core Module Reference. Supply `sdkVersion` (for example, `2026.22`) to prefer matching release sources where available; current upstream results are labeled. The plugin caches public pages, ranks them locally, and sends only requests for the selected pages, not project code or the query as a search request.
-- `slang_check_files` checks the current editor contents of up to 16 project Slang files with `slangc`, using configured include paths and macros. Imported dependencies are read from disk. It reports diagnostics without saving or generating shader binaries.
+- `slang_lookup` searches the official [Slang LLM index](https://shader-slang.org/docs/llms.txt) and [full reference](https://shader-slang.org/docs/llms-full.txt), follows supported links to guides and examples, and looks up exact intrinsic names in the Core Module Reference. The plugin caches public pages, ranks them locally, and sends only requests for the selected pages.
+- `slang_check_files` checks the current editor contents of up to 16 project Slang files with `slangc`, using configured include paths and macros. Imported dependencies are read from disk.
 - `slang_symbol` uses `slangd` to resolve a symbol at a file position and can also find project references.
 
-View the tools under **Settings → AI → MCP Server → Exposed Tools**. For standalone Air connected to a running IDE, use **Clients Auto-Configuration** on the same settings page. Keep the IDE server disabled if you don't want to expose tools to MCP clients.
+Search Settings for **MCP Server** to enable it and configure clients. Newer IDEs also list the tools under **Exposed Tools**. For standalone Air connected to a running IDE, use **Clients Auto-Configuration**. Keep the IDE server disabled if you don't want to expose tools to MCP clients.
 
-For plugin development, Gradle resolves the compile-only MCP API and plugin descriptor from a pinned IDEA 2026.3 archive, including during IDE import. Pass `-PmcpSdkPath=/path/to/intellij.mcpserver.jar` to use a local installation instead; `mcpserver-plugin.jar` must be next to that JAR. Neither JAR ships with the Slang plugin.
+The plugin compiles against the MCP Server bundled with the minimum IDEA SDK. Run `./gradlew test -PmcpSmokeTest=true` to check that the server discovers and invokes all three tools on that SDK.
 
 To diagnose slow inspections or generic-bracket typing on large files, add `#slanglsp.editor.AnalysisTiming` to **Help → Diagnostic Tools → Debug Log Settings**. The IDE log reports analysis duration and the count and combined wait time of unused-symbol reference checks.
 
@@ -89,7 +89,7 @@ Use **Refactor → Rename**. The plugin uses `slangd`, with a reference-verified
 
 Unreferenced declarations are marked automatically, excluding entry points, exports, and uncertain cases. Disable under **Settings → Tools → Slang → General → Check unused symbols**; server diagnostics stay enabled. Checks cover project Slang references only.
 
-Supported declarations offer an undoable **Remove unused …** action after references are rechecked. Shared variable declarations and potentially side-effecting initializers are excluded from removal. Unused messages take precedence in hover tooltips while naming underlines and rename actions remain available.
+Supported declarations offer an undoable **Remove unused** action after references are rechecked. Shared variable declarations and potentially side-effecting initializers are excluded from removal. Unused messages take precedence in hover tooltips while naming underlines and rename actions remain available.
 
 ---
 
