@@ -36,7 +36,7 @@ dependencies {
         if (localIdePath != null) {
             local(localIdePath)
         } else {
-            intellijIdeaCommunity("2025.1")
+            intellijIdeaCommunity("2025.2.6.4")
         }
         pluginVerifier("1.410")
         zipSigner()
@@ -142,27 +142,8 @@ dependencies {
 }
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>().configureEach {
     compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
-    // A compatibility bridge would invoke MCP interface defaults that do not exist on older IDEs.
+    // Do not generate calls to MCP interface defaults introduced after the minimum IDE build.
     compilerOptions.jvmDefault.set(org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode.NO_COMPATIBILITY)
-}
-
-// Give the optional module its own class loader and keep MCP symbols out of the core JAR.
-val mcpAdapterJar = tasks.register<Jar>("mcpAdapterJar") {
-    archiveFileName.set("slanglsp.mcp.adapter.jar")
-    from(tasks.compileKotlin.flatMap { it.destinationDirectory }) {
-        include("slanglsp/mcp/adapter/**")
-    }
-    from("src/main/resources") {
-        include("slanglsp.mcp.adapter.xml")
-    }
-}
-tasks.withType<org.gradle.jvm.tasks.Jar>().matching { it.name in setOf("jar", "instrumentedJar", "composedJar") }.configureEach {
-    exclude("slanglsp/mcp/adapter/**", "slanglsp.mcp.adapter.xml")
-}
-tasks.withType<PrepareSandboxTask>().configureEach {
-    from(mcpAdapterJar) {
-        into(pluginName.map { "$it/lib/modules" })
-    }
 }
 
 fun registerPluginPlayground(
@@ -273,7 +254,7 @@ tasks {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "251"
+            sinceBuild = "252.28539.149"
             // Allow future IDE builds; verification still checks actual API compatibility.
             untilBuild = provider { null }
         }
@@ -290,11 +271,10 @@ intellijPlatform {
         )
         ides {
             val verificationIdePath = providers.gradleProperty("verificationIdePath").orNull
-            val verificationIdeaVersion = providers.gradleProperty("verificationIdeaVersion").orNull
-            when {
-                verificationIdePath != null -> local(file(verificationIdePath))
-                verificationIdeaVersion != null -> create("IU", verificationIdeaVersion)
-                else -> latest {
+            if (verificationIdePath != null) {
+                local(file(verificationIdePath))
+            } else {
+                latest {
                     types = listOf(IntelliJPlatformType.CLion)
                     channels = listOf(ProductRelease.Channel.RELEASE)
                 }

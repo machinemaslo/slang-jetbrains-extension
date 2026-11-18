@@ -1,4 +1,4 @@
-package slanglsp.mcp.adapter
+package slanglsp.mcp
 
 import com.intellij.mcpserver.McpExpectedError
 import com.intellij.mcpserver.McpToolset
@@ -12,7 +12,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.runInterruptible
 import slanglsp.editor.AgentAnalysis
-import slanglsp.mcp.OfficialSlangDocs
 import java.io.IOException
 import java.util.concurrent.CompletionException
 import java.util.concurrent.TimeoutException

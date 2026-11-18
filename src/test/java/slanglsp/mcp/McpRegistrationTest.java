@@ -41,7 +41,7 @@ class McpRegistrationTest {
         var companion = toolsetType.getField("Companion").get(null);
         var extensionPoint = (ExtensionPointName<?>) companion.getClass().getMethod("getEP").invoke(companion);
         var toolset = extensionPoint.getExtensionList().stream()
-                .filter(tool -> tool.getClass().getName().equals("slanglsp.mcp.adapter.SlangToolset"))
+                .filter(tool -> tool.getClass().getName().equals("slanglsp.mcp.SlangToolset"))
                 .findFirst().orElseThrow(() -> new AssertionError("Missing Slang MCP toolset"));
         var interfaceDefaults = Set.of("isEnabled", "isUserConfigurable", "displayName", "displayDescription", "alwaysIncluded");
         var generatedBridges = Arrays.stream(toolset.getClass().getDeclaredMethods())
