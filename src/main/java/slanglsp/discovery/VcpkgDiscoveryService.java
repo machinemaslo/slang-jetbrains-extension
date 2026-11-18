@@ -10,6 +10,7 @@ import com.intellij.openapi.vfs.newvfs.BulkFileListener;
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent;
 import com.intellij.util.EnvironmentUtil;
 import org.jetbrains.annotations.NotNull;
+import slanglsp.server.ServerRecovery;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -50,9 +51,12 @@ public final class VcpkgDiscoveryService implements Disposable {
                                                   path.endsWith("/.gitmodules") || path.endsWith("/xmake.lua") ||
                                                   path.endsWith("/meson.build") || path.endsWith("/vcpkg_installed") ||
                                                   path.endsWith("/installed"))) ||
-                            path.endsWith("/slangd") || path.endsWith("/slangd.exe") ||
+                             path.endsWith("/slangd") || path.endsWith("/slangd.exe") ||
+                             path.endsWith("/slangc") || path.endsWith("/slangc.exe") ||
+                             path.endsWith("/tools/shader-slang") || path.endsWith("/tools/slang") ||
                             path.contains("/tools/shader-slang/") || path.contains("/tools/slang/")) {
                         cache.invalidate();
+                        ServerRecovery.retryIfMissing(project);
                         break;
                     }
                 }

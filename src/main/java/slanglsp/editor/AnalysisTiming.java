@@ -11,6 +11,8 @@ final class AnalysisTiming implements AutoCloseable {
     private final String operation;
     private final int id;
     private final long started = System.nanoTime();
+    private int references;
+    private long referenceNanos;
 
     private AnalysisTiming(String operation, String file) {
         this.operation = operation;
@@ -23,9 +25,15 @@ final class AnalysisTiming implements AutoCloseable {
         return LOG.isDebugEnabled() ? new AnalysisTiming(operation, file) : null;
     }
 
+    void referenceCompleted(long elapsedNanos) {
+        references++;
+        referenceNanos += elapsedNanos;
+    }
+
     @Override
     public void close() {
         LOG.debug("Slang analysis #" + id + " finished: " + operation
-                + " elapsedMs=" + (System.nanoTime() - started) / 1_000_000);
+                + " elapsedMs=" + (System.nanoTime() - started) / 1_000_000
+                + (references == 0 ? "" : " referenceChecks=" + references + " referenceMs=" + referenceNanos / 1_000_000));
     }
 }

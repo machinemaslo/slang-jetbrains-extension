@@ -74,6 +74,10 @@ final class NamingRuleDialog extends DialogWrapper {
                 Category.GENERIC_PARAMETERS, Category.PARAMETERS);
         group(root, message("naming.elements.values"), rule, Category.FIELDS, Category.GLOBALS,
                 Category.CONSTANTS, Category.LOCALS);
+        return createTree(root);
+    }
+
+    private static CheckboxTree createTree(CheckedTreeNode root) {
         var tree = new CheckboxTree(new CheckboxTree.CheckboxTreeCellRenderer() {
             @Override
             public void customizeRenderer(JTree tree, Object value, boolean selected, boolean expanded,

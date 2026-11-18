@@ -3,7 +3,6 @@ package slanglsp.server;
 import slanglsp.settings.ProjectSettings;
 
 import org.eclipse.lsp4j.*;
-import org.eclipse.lsp4j.launch.LSPLauncher;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -95,7 +94,7 @@ class NativeProtocolTest {
             }
         };
         Process process = new ProcessBuilder(executable).redirectError(ProcessBuilder.Redirect.DISCARD).start();
-        var launcher = new ClientFeatures().<org.eclipse.lsp4j.services.LanguageServer>createLauncherBuilder()
+        var launcher = new ClientFeatures().createLauncherBuilder()
                 .setLocalService(client)
                 .setRemoteInterface(org.eclipse.lsp4j.services.LanguageServer.class)
                 .setInput(process.getInputStream())

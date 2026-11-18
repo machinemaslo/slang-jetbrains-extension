@@ -53,8 +53,9 @@ public final class ClangFormattingService extends AsyncDocumentFormattingService
         var process = new java.util.concurrent.atomic.AtomicReference<com.intellij.execution.process.CapturingProcessHandler>();
         return new FormattingTask() {
             @Override
+            @SuppressWarnings("try") // Closing the scopes restores the deadline and server configuration.
             public void run() {
-                try (var deadline = AnalysisDeadline.open()) {
+                try (@SuppressWarnings("unused") var deadline = AnalysisDeadline.open()) {
                     if (cancelled.get()) {
                         return;
                     }
@@ -72,7 +73,8 @@ public final class ClangFormattingService extends AsyncDocumentFormattingService
                         }
                     });
                     String formatted;
-                    try (var configuration = file.getProject().getService(slanglsp.server.FormattingSettings.class)
+                    try (@SuppressWarnings("unused") var configuration =
+                                 file.getProject().getService(slanglsp.server.FormattingSettings.class)
                             .open(serverSettings, cancelled::get)) {
                         if (cancelled.get()) {
                             return;

@@ -83,13 +83,25 @@ final class UsageSearch {
 
     /** Absence must be proven: unresolved candidates are not evidence of an unused symbol. */
     static boolean isUnused(PsiElement element) {
+        return isUnused(element, null);
+    }
+
+    static boolean isUnused(PsiElement element, AnalysisTiming timing) {
         Source source = snapshot(element);
 
         if (source == null) {
             return false;
         }
 
-        var references = references(source);
+        long started = timing == null ? 0 : System.nanoTime();
+        List<LocationData> references;
+        try {
+            references = references(source);
+        } finally {
+            if (timing != null) {
+                timing.referenceCompleted(System.nanoTime() - started);
+            }
+        }
         source.checkUnchanged();
 
         if (references != null) {
@@ -163,6 +175,7 @@ final class UsageSearch {
         });
     }
 
+    @SuppressWarnings("UnstableApiUsage") // LSP4IJ's documented PSI conversion requires its client features.
     private static boolean processReferences(
             Project project, List<LocationData> references, SearchScope scope, Processor<? super UsageInfo> consumer) {
         Set<String> seen = new HashSet<>();

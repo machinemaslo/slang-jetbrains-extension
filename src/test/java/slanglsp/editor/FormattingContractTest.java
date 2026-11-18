@@ -17,7 +17,6 @@ import com.intellij.testFramework.EdtTestUtil;
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture;
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import com.intellij.testFramework.fixtures.impl.TempDirTestFixtureImpl;
-import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -327,7 +326,7 @@ class FormattingContractTest {
         EdtTestUtil.runInEdtAndWait(() -> {
             String stderr = runFormatting(selection);
             assertEquals(expected, fixture.getEditor().getDocument().getText(),
-                    () -> stderr + notifications.toString());
+                    () -> stderr + notifications);
             assertTrue(stderr.isBlank(), stderr);
             assertTrue(notifications.stream().noneMatch(notification ->
                     notification.getType() == com.intellij.notification.NotificationType.ERROR),

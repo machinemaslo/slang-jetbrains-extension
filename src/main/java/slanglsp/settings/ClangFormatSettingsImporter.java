@@ -27,6 +27,11 @@ import java.util.Map;
 @SuppressWarnings("UnstableApiUsage")
 public final class ClangFormatSettingsImporter implements CodeStyleSettingsModifier {
     private static final Logger LOG = Logger.getInstance(ClangFormatSettingsImporter.class);
+    private static final com.intellij.openapi.util.Key<ParsedConfig> PARSED_CONFIG =
+            com.intellij.openapi.util.Key.create("slang.clangFormat.parsedConfig");
+
+    private record ParsedConfig(long stamp, Map<String, Object> options) {
+    }
 
     @Override
     public boolean modifySettings(@NotNull TransientCodeStyleSettings settings, @NotNull PsiFile file) {
@@ -67,16 +72,30 @@ public final class ClangFormatSettingsImporter implements CodeStyleSettingsModif
             }
             if (config == null || config.isDirectory()) continue;
             if (config.getLength() > 1_000_000) return Map.of();
-            var values = parse(com.intellij.openapi.vfs.VfsUtilCore.loadText(config));
+            var values = readOptions(config);
             if ("InheritParentConfig".equals(values.get("BasedOnStyle"))) {
                 var merged = new LinkedHashMap<>(find(current.getParent()));
-                values.remove("BasedOnStyle");
-                mergeOptions(merged, values);
+                var overrides = new LinkedHashMap<>(values);
+                overrides.remove("BasedOnStyle");
+                mergeOptions(merged, overrides);
                 return merged;
             }
             return values;
         }
         return Map.of();
+    }
+
+    static Map<String, Object> readOptions(VirtualFile config) throws java.io.IOException {
+        long stamp = config.getModificationStamp();
+        var cached = config.getUserData(PARSED_CONFIG);
+        if (cached != null && cached.stamp() == stamp) {
+            return cached.options();
+        }
+        var options = java.util.Collections.unmodifiableMap(parse(com.intellij.openapi.vfs.VfsUtilCore.loadText(config)));
+        if (config.getModificationStamp() == stamp) {
+            config.putUserData(PARSED_CONFIG, new ParsedConfig(stamp, options));
+        }
+        return options;
     }
 
     static Map<String, Object> parse(String yaml) {
@@ -108,7 +127,7 @@ public final class ClangFormatSettingsImporter implements CodeStyleSettingsModif
             }
             if (target.get(name) instanceof Map<?, ?> previous && value instanceof Map<?, ?> overrides) {
                 var combined = new LinkedHashMap<Object, Object>(previous);
-                overrides.forEach(combined::put);
+                combined.putAll(overrides);
                 target.put(name, combined);
             } else {
                 target.put(name, value);

@@ -1,8 +1,8 @@
 package slanglsp.settings;
 
+import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.util.SystemInfo;
-import com.intellij.util.PlatformUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,17 +14,18 @@ public final class BundledClangFormat {
     }
 
     private static final class Holder {
-        private static final String EXECUTABLE = locate(Path.of(PathManager.getHomePath()), PlatformUtils.getPlatformPrefix());
+        private static final String EXECUTABLE = locate(Path.of(PathManager.getHomePath()),
+                ApplicationInfo.getInstance().getBuild().getProductCode());
     }
 
     public static String executable() {
         return Holder.EXECUTABLE;
     }
 
-    static String locate(Path home, String platformPrefix) {
-        List<String> roots = switch (platformPrefix) {
-            case "CLion" -> List.of("plugins/clion-radler/DotFiles", "bin");
-            case "Rider" -> List.of("lib/ReSharperHost", "plugins/rider/lib/ReSharperHost", "bin");
+    static String locate(Path home, String productCode) {
+        List<String> roots = switch (productCode) {
+            case "CL" -> List.of("plugins/clion-radler/DotFiles", "bin");
+            case "RD" -> List.of("lib/ReSharperHost", "plugins/rider/lib/ReSharperHost", "bin");
             default -> List.of();
         };
         String name = SystemInfo.isWindows ? "clang-format.exe" : "clang-format";

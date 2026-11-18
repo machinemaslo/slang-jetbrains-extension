@@ -247,6 +247,8 @@ public class SettingsPanel {
                     com.redhat.devtools.lsp4ij.ServerStatus.started) {
                 manager.start("slanglsp.SlangLanguageServer",
                         new com.redhat.devtools.lsp4ij.LanguageServerManager.StartOptions().setForceStart(true));
+            } else {
+                slanglsp.server.ServerRecovery.retryIfMissing(project);
             }
         }
 

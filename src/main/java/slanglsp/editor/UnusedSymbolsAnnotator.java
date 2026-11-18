@@ -11,7 +11,6 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiModificationTracker;
 import com.redhat.devtools.lsp4ij.LSPIJUtils;
-import com.redhat.devtools.lsp4ij.features.documentSymbol.LSPDocumentSymbolSupport;
 import org.eclipse.lsp4j.*;
 import org.jetbrains.annotations.NotNull;
 import slanglsp.SlangBundle;
@@ -22,8 +21,10 @@ import java.util.*;
 /** Network and index work runs outside the read action; stale results are never applied. */
 public final class UnusedSymbolsAnnotator
         extends ExternalAnnotator<UnusedSymbolsAnnotator.Input, UnusedSymbolsAnnotator.Result> {
-    private static final com.intellij.openapi.util.Key<Result> CACHE =
-            com.intellij.openapi.util.Key.create("slang.unused.analysis");
+    private record CachedResult(long serverStamp, Result result) {
+    }
+    private static final com.intellij.openapi.util.Key<CachedResult> REVISION_CACHE =
+            com.intellij.openapi.util.Key.create("slang.unused.analysisRevision");
 
     public record Input(PsiFile file, Document document, long stamp, long projectStamp, String text, boolean batchOnly) {
         public Input(PsiFile file, Document document, long stamp, long projectStamp, String text) {
@@ -102,41 +103,35 @@ public final class UnusedSymbolsAnnotator
     public Result doAnnotate(Input input) {
         try (var timing = AnalysisTiming.start(input.batchOnly() ? "batch unused symbols" : "editor unused symbols",
                 input.file().getName())) {
-            return annotate(input);
+            return annotate(input, timing);
         }
     }
 
-    private Result annotate(Input input) {
-        var cached = input.file().getUserData(CACHE);
-        if (!input.batchOnly() && cached != null && cached.input.stamp == input.stamp
-                && cached.input.projectStamp == input.projectStamp) {
-            return cached;
+    @SuppressWarnings("try") // Closing restores the deadline and batch mode.
+    private Result annotate(Input input, AnalysisTiming timing) {
+        var cached = input.file().getUserData(REVISION_CACHE);
+        long serverStamp = slanglsp.server.ServerClient.analysisGeneration(input.file().getProject());
+        if (!input.batchOnly() && cached != null && cached.serverStamp() == serverStamp
+                && cached.result().input.stamp == input.stamp && cached.result().input.projectStamp == input.projectStamp) {
+            return cached.result();
         }
         Result result;
-        try (var deadline = AnalysisDeadline.open();
-             var batch = BatchAnalysisService.enter(input.batchOnly())) {
-            result = analyze(input);
+        try (@SuppressWarnings("unused") var deadline = AnalysisDeadline.open();
+             @SuppressWarnings("unused") var batch = BatchAnalysisService.enter(input.batchOnly())) {
+            result = analyze(input, timing);
         }
         if (result != null && !input.batchOnly()) {
             ReadActions.run(() -> {
                 check(input);
-                input.file().putUserData(CACHE, result);
+                input.file().putUserData(REVISION_CACHE, new CachedResult(serverStamp, result));
             });
         }
         return result;
     }
 
-    private Result analyze(Input input) {
-        var support = new LSPDocumentSymbolSupport(input.file);
-
+    private Result analyze(Input input, AnalysisTiming timing) {
         try {
-            var future = input.batchOnly()
-                    ? input.file().getProject().getService(BatchAnalysisService.class)
-                            .symbols(input.file(), input.document())
-                    : ReadActions.compute(
-                    ()
-                            -> support.getDocumentSymbols(new DocumentSymbolParams(new TextDocumentIdentifier(
-                                    UsageSearch.fileUri(input.file.getVirtualFile()).toString()))));
+            var future = DocumentSymbolRequests.get(input.file(), input.document(), input.stamp(), input.batchOnly());
             var symbols = AnalysisDeadline.await(future);
             if (input.batchOnly()) {
                 NamingAnnotator.requireServer(input.file());
@@ -168,7 +163,7 @@ public final class UnusedSymbolsAnnotator
                     return input.file.findElementAt(candidate.range.getStartOffset());
                 });
 
-                if (element != null && UsageSearch.isUnused(element)) {
+                if (element != null && UsageSearch.isUnused(element, timing)) {
                     unused.add(candidate);
                 }
             }
@@ -184,8 +179,6 @@ public final class UnusedSymbolsAnnotator
             return input.batchOnly()
                     ? new Result(input, List.of(), SlangBundle.message("analysis.batch.failed", "Unused symbols", failure.getMessage()))
                     : null;
-        } finally {
-            support.cancel();
         }
     }
 

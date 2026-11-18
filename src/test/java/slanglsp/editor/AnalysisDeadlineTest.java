@@ -9,6 +9,7 @@ import java.util.concurrent.TimeoutException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@SuppressWarnings("try") // These tests observe effects of entering and closing nested scopes.
 class AnalysisDeadlineTest {
     private com.intellij.testFramework.fixtures.IdeaProjectTestFixture fixture;
 
@@ -26,9 +27,9 @@ class AnalysisDeadlineTest {
 
     @Test
     void nestedScopeCannotExtendBudgetAndClosingRestoresOuterScope() {
-        try (var outer = AnalysisDeadline.open(Duration.ofSeconds(5))) {
-            try (var expired = AnalysisDeadline.open(Duration.ZERO);
-                 var nested = AnalysisDeadline.open(Duration.ofSeconds(10))) {
+        try (@SuppressWarnings("unused") var outer = AnalysisDeadline.open(Duration.ofSeconds(5))) {
+            try (@SuppressWarnings("unused") var expired = AnalysisDeadline.open(Duration.ZERO);
+                 @SuppressWarnings("unused") var nested = AnalysisDeadline.open(Duration.ofSeconds(10))) {
                 var failure = assertThrows(CompletionException.class,
                         () -> AnalysisDeadline.await(new CompletableFuture<>()));
                 assertInstanceOf(TimeoutException.class, failure.getCause());
@@ -53,7 +54,7 @@ class AnalysisDeadlineTest {
     @Test
     void timeoutDoesNotPoisonSharedRequest() {
         var shared = new CompletableFuture<String>();
-        try (var scope = AnalysisDeadline.open(Duration.ofMillis(30))) {
+        try (@SuppressWarnings("unused") var scope = AnalysisDeadline.open(Duration.ofMillis(30))) {
             var failure = assertThrows(CompletionException.class, () -> AnalysisDeadline.await(shared));
             assertInstanceOf(TimeoutException.class, failure.getCause());
         }

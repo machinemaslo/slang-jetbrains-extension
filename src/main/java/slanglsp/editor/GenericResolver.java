@@ -1,8 +1,10 @@
 package slanglsp.editor;
 
 import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.IndexNotReadyException;
+import com.intellij.openapi.util.Key;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.util.indexing.FileBasedIndex;
 
@@ -11,26 +13,49 @@ import java.util.Map;
 
 /** Indexed, local declaration lookup: typing never waits for a language-server request. */
 final class GenericResolver {
+    private static final Key<Parsed> PARSED = Key.create("slang.generics.parsed");
+
+    private record Parsed(long stamp, GenericContext context) {
+    }
+
     private GenericResolver() {
     }
 
     static GenericContext context(Editor editor) {
-        return context(editor, editor.getDocument().getImmutableCharSequence());
+        return withIndex(editor, parsed(editor.getDocument()));
+    }
+
+    @SuppressWarnings("try") // The timing scope logs when closed.
+    static GenericContext parsed(Document document) {
+        long stamp = document.getModificationStamp();
+        var cached = document.getUserData(PARSED);
+        if (cached != null && cached.stamp() == stamp) {
+            return cached.context();
+        }
+        GenericContext parsed;
+        try (@SuppressWarnings("unused") var timing = AnalysisTiming.start("generic parse", "")) {
+            parsed = new GenericContext(document.getImmutableCharSequence());
+        }
+        if (document.getModificationStamp() == stamp) {
+            document.putUserData(PARSED, new Parsed(stamp, parsed));
+        }
+        return parsed;
     }
 
     static GenericContext context(Editor editor, CharSequence text) {
+        // Surround-selection uses speculative text, not the current document.
+        return withIndex(editor, new GenericContext(text));
+    }
+
+    private static GenericContext withIndex(Editor editor, GenericContext parsed) {
         var project = editor.getProject();
-        if (project == null || DumbService.isDumb(project)) {
-            return new GenericContext(text);
+        var imports = parsed.imports();
+        if (project == null || imports.isEmpty() || DumbService.isDumb(project)) {
+            return parsed;
         }
-        var contexts = new GenericContext[1];
         Map<String, Boolean> resolved = new HashMap<>();
-        contexts[0] = new GenericContext(text, (name, owner) -> resolved.computeIfAbsent(
+        return parsed.withExternalLookup((name, owner) -> resolved.computeIfAbsent(
                 name + ":" + owner, ignored -> {
-                    var imports = contexts[0].imports();
-                    if (imports.isEmpty()) {
-                        return false;
-                    }
                     try {
                         String symbol = GenericDeclarationsIndex.symbol(owner, name);
                         var index = FileBasedIndex.getInstance();
@@ -46,6 +71,5 @@ final class GenericResolver {
                     }
                     return false;
                 }));
-        return contexts[0];
     }
 }

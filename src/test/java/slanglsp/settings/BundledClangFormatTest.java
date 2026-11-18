@@ -35,11 +35,11 @@ class BundledClangFormatTest {
 
     static Stream<Arguments> installations() {
         return Stream.of(
-                Arguments.of("CLion", clionBinary()),
-                Arguments.of("CLion", "bin/" + executableName()),
-                Arguments.of("Rider", "lib/ReSharperHost/" + platformBinary()),
-                Arguments.of("Rider", "plugins/rider/lib/ReSharperHost/" + platformBinary()),
-                Arguments.of("Rider", "bin/" + executableName()));
+                Arguments.of("CL", clionBinary()),
+                Arguments.of("CL", "bin/" + executableName()),
+                Arguments.of("RD", "lib/ReSharperHost/" + platformBinary()),
+                Arguments.of("RD", "plugins/rider/lib/ReSharperHost/" + platformBinary()),
+                Arguments.of("RD", "bin/" + executableName()));
     }
 
     @ParameterizedTest(name = "{0}: {1}")
@@ -52,13 +52,13 @@ class BundledClangFormatTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"CLion", "Rider"})
+    @ValueSource(strings = {"CL", "RD"})
     void missingBinaryDoesNotInventAnExecutable(String ide) {
         assertNull(BundledClangFormat.locate(root, ide));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"idea", "Idea", "RustRover"})
+    @ValueSource(strings = {"IU", "IC", "RR"})
     void otherIdesDoNotOfferBundledClangFormat(String ide) throws Exception {
         executable(root.resolve(clionBinary()));
         executable(root.resolve("bin").resolve(executableName()));
@@ -68,14 +68,14 @@ class BundledClangFormatTest {
     @Test
     void directoriesNamedLikeExecutablesAreNotAccepted() throws Exception {
         Files.createDirectories(root.resolve(clionBinary()));
-        assertNull(BundledClangFormat.locate(root, "CLion"));
+        assertNull(BundledClangFormat.locate(root, "CL"));
     }
 
     @Test
     void bundledToolWinsOverUnrelatedBinTool() throws Exception {
         Path bundled = executable(root.resolve(clionBinary()));
         executable(root.resolve("bin").resolve(executableName()));
-        assertEquals(bundled.toString(), BundledClangFormat.locate(root, "CLion"));
+        assertEquals(bundled.toString(), BundledClangFormat.locate(root, "CL"));
     }
 
     private static Path executable(Path file) throws Exception {

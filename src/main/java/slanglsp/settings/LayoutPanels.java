@@ -33,10 +33,20 @@ final class LayoutPanels {
         String[] fields = {"NAMESPACE_BRACES", "TYPE_BRACES", "STRUCT_BRACES", "CLASS_BRACES", "ENUM_BRACES",
                 "BUFFER_BRACES", "FUNCTION_BRACES",
                 "SWITCH_BRACES", "CASE_BRACES", "INITIALIZER_BRACES", "CONTROL_BRACES"};
-        for (String field : fields) {
-            options.showCustomOption(SlangCodeStyleSettings.class, field,
-                    SlangBundle.message("settings.code.style." + field.toLowerCase(java.util.Locale.ROOT)),
-                    group, choices, new int[] {0, 1, 2, 3});
+        String[] labels = {SlangBundle.message("settings.code.style.namespace_braces"),
+                SlangBundle.message("settings.code.style.type_braces"),
+                SlangBundle.message("settings.code.style.struct_braces"),
+                SlangBundle.message("settings.code.style.class_braces"),
+                SlangBundle.message("settings.code.style.enum_braces"),
+                SlangBundle.message("settings.code.style.buffer_braces"),
+                SlangBundle.message("settings.code.style.function_braces"),
+                SlangBundle.message("settings.code.style.switch_braces"),
+                SlangBundle.message("settings.code.style.case_braces"),
+                SlangBundle.message("settings.code.style.initializer_braces"),
+                SlangBundle.message("settings.code.style.control_braces")};
+        for (int i = 0; i < fields.length; i++) {
+            options.showCustomOption(SlangCodeStyleSettings.class, fields[i], labels[i], group, choices,
+                    new int[] {0, 1, 2, 3});
         }
         options.showCustomOption(SlangCodeStyleSettings.class, "KEEP_BLANK_LINES_AFTER_LBRACE",
                 SlangBundle.message("settings.code.style.keep.blank.lines.after.brace"), group);
@@ -83,7 +93,7 @@ final class LayoutPanels {
         protected void installPreviewPanel(@NotNull JPanel preview) {
             super.installPreviewPanel(preview);
             var parent = preview.getParent();
-            if (parent.getLayout() instanceof GridBagLayout layout) {
+            if (parent != null && parent.getLayout() instanceof GridBagLayout layout) {
                 for (var component : parent.getComponents()) {
                     var constraints = layout.getConstraints(component);
                     constraints.gridx = 0;

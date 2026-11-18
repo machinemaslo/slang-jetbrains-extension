@@ -192,6 +192,8 @@ class CommitAnalysisSaturationTest {
                 if (System.nanoTime() >= deadline) {
                     throw new java.util.concurrent.TimeoutException("External inspection queue did not drain");
                 }
+                // The IDE inspection queue does not expose an idle future.
+                //noinspection BusyWait
                 Thread.sleep(10);
             }
         }

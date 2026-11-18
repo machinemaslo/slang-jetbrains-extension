@@ -66,6 +66,7 @@ public final class BatchConnection {
         field.setAccessible(true);
         var servers = (Collection<?>) field.get(accessor);
         Object[] snapshot;
+        //noinspection SynchronizationOnLocalVariableOrMethodParameter
         synchronized (servers) {
             snapshot = servers.toArray();
         }
@@ -113,6 +114,8 @@ public final class BatchConnection {
                 if (folder != null) {
                     notifyFolder = workspace.markFolderAsNotified(folder);
                 }
+                // Use the same monitor as LSP4IJ's document synchronizer.
+                //noinspection SynchronizationOnLocalVariableOrMethodParameter
                 synchronized (synchronizer) {
                     opened = access.didOpen(synchronizer);
                     if (opened == null) {

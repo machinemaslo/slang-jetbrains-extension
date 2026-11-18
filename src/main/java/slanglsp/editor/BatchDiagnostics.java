@@ -18,23 +18,23 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import slanglsp.editor.BatchDiagnosticsAnnotator.Problem;
 
 /**
  * Explicit, bounded batch validation. Slangd's unversioned, change-only push diagnostics
  * cannot establish completion for a clean/unchanged file. Use its sibling compiler.
  */
+@SuppressWarnings("try") // Timing scopes report elapsed time when closed.
 final class BatchDiagnostics {
     private static final int TIMEOUT_MILLIS = 10_000;
 
-    record Problem(String file, int line, int column, int endLine, int endColumn,
-                   HighlightSeverity severity, String message) {}
 
     static List<Problem> check(BatchDiagnosticsAnnotator.Input input) throws Exception {
         ProgressManager.checkCanceled();
         var project = input.file().getProject();
         var state = input.settings();
         Path compiler;
-        try (var timing = AnalysisTiming.start("compiler discovery", input.path().toString())) {
+        try (@SuppressWarnings("unused") var timing = AnalysisTiming.start("compiler discovery", input.path().toString())) {
             String server = ExecutableLocator.find(state.explicitSlangdLocation, state.useLocalVcpkgSlangd,
                     () -> project.getService(VcpkgDiscoveryService.class).findExecutable(),
                     EnvironmentUtil.getValue("PATH"), EnvironmentUtil.getValue("VULKAN_SDK"),
@@ -58,7 +58,7 @@ final class BatchDiagnostics {
         state.predefinedMacros.stream().filter(macro -> !macro.isBlank())
                 .forEach(macro -> command.addParameter("-D" + macro));
         command.addParameters("--", "-");
-        try (var timing = AnalysisTiming.start("compiler execution", input.path().toString())) {
+        try (@SuppressWarnings("unused") var timing = AnalysisTiming.start("compiler execution", input.path().toString())) {
             return run(command, input.text(), TIMEOUT_MILLIS);
         }
     }
@@ -66,7 +66,7 @@ final class BatchDiagnostics {
     static List<Problem> run(GeneralCommandLine command, String source, int timeoutMillis) throws Exception {
         ProgressManager.checkCanceled();
         CapturingProcessHandler handler;
-        try (var timing = AnalysisTiming.start("compiler process startup", command.getExePath())) {
+        try (@SuppressWarnings("unused") var timing = AnalysisTiming.start("compiler process startup", command.getExePath())) {
             handler = new CapturingProcessHandler(command);
         }
         var writer = ApplicationManager.getApplication().executeOnPooledThread(() -> {

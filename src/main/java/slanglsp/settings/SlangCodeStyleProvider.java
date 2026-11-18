@@ -154,7 +154,7 @@ public final class SlangCodeStyleProvider extends LanguageCodeStyleSettingsProvi
 
                              @Override public JComponent getPanel() {
                                  var content = super.getPanel();
-                                 if (content.getLayout() instanceof BorderLayout layout) {
+                                 if (content != null && content.getLayout() instanceof BorderLayout layout) {
                                      var options = layout.getLayoutComponent(BorderLayout.WEST);
                                      if (options != null) {
                                          content.add(options, BorderLayout.NORTH);

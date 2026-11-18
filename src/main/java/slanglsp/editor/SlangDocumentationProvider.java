@@ -49,16 +49,15 @@ public class SlangDocumentationProvider extends AbstractDocumentationProvider {
         return html.isBlank() ? null : html;
     }
 
+    @SuppressWarnings("try") // The scope bounds hover latency.
     protected @NotNull List<String> hoverDocumentation(PsiFile file, int offset) {
         if (file.getProject().isDisposed() || DumbService.isDumb(file.getProject()))
             return List.of();
 
         // Legacy Ctrl-hover callbacks can hold a platform read lock. They must yield
         // promptly; the platform's normal LSP documentation target remains available.
-        try (var deadline = AnalysisDeadline.open(java.time.Duration.ofMillis(500))) {
+        try (@SuppressWarnings("unused") var deadline = AnalysisDeadline.open(java.time.Duration.ofMillis(500))) {
             return new HoverRequest(file).documentationAt(offset);
-        } catch (com.intellij.openapi.progress.ProcessCanceledException cancelled) {
-            throw cancelled;
         } catch (java.util.concurrent.CompletionException unavailable) {
             com.intellij.openapi.diagnostic.Logger.getInstance(getClass()).debug("Hover unavailable", unavailable);
             return List.of();

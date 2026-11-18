@@ -9,7 +9,6 @@ import com.intellij.profile.codeInspection.InspectionProfileManager;
 import com.intellij.psi.PsiFile;
 import com.intellij.application.options.CodeStyle;
 import com.redhat.devtools.lsp4ij.LSPIJUtils;
-import com.redhat.devtools.lsp4ij.features.documentSymbol.LSPDocumentSymbolSupport;
 import org.eclipse.lsp4j.*;
 import org.jetbrains.annotations.NotNull;
 import slanglsp.SlangBundle;
@@ -17,6 +16,7 @@ import slanglsp.settings.NamingRule;
 import slanglsp.settings.SlangCodeStyleSettings;
 import java.util.*;
 
+@SuppressWarnings("try") // Timing and analysis scopes do their work on entry and close.
 public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Input, NamingAnnotator.Result> {
     public record Input(UnusedSymbolsAnnotator.Input source, List<NamingRule> rules, String abbreviations,
                         boolean batchOnly) {}
@@ -63,7 +63,7 @@ public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Inp
 
     @Override
     public Result doAnnotate(Input input) {
-        try (var timing = AnalysisTiming.start(input.batchOnly() ? "batch naming" : "editor naming",
+        try (@SuppressWarnings("unused") var timing = AnalysisTiming.start(input.batchOnly() ? "batch naming" : "editor naming",
                 input.source().file().getName())) {
             return annotate(input);
         }
@@ -71,14 +71,9 @@ public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Inp
 
     private Result annotate(Input input) {
         var source = input.source();
-        var support = new LSPDocumentSymbolSupport(source.file());
-        try (var deadline = AnalysisDeadline.open();
-             var batch = BatchAnalysisService.enter(input.batchOnly())) {
-            var future = input.batchOnly()
-                    ? source.file().getProject().getService(BatchAnalysisService.class)
-                            .symbols(source.file(), source.document())
-                    : ReadActions.compute(() -> support.getDocumentSymbols(new DocumentSymbolParams(
-                    new TextDocumentIdentifier(UsageSearch.fileUri(source.file().getVirtualFile()).toString()))));
+        try (@SuppressWarnings("unused") var deadline = AnalysisDeadline.open();
+             @SuppressWarnings("unused") var batch = BatchAnalysisService.enter(input.batchOnly())) {
+            var future = DocumentSymbolRequests.get(source.file(), source.document(), source.stamp(), input.batchOnly());
             var symbols = AnalysisDeadline.await(future);
             if (input.batchOnly()) {
                 requireServer(source.file());
@@ -122,8 +117,6 @@ public final class NamingAnnotator extends ExternalAnnotator<NamingAnnotator.Inp
             return input.batchOnly()
                     ? new Result(input, List.of(), Map.of(), SlangBundle.message("analysis.batch.failed", "Naming", failure.getMessage()))
                     : null;
-        } finally {
-            support.cancel();
         }
     }
 

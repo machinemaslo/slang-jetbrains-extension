@@ -64,19 +64,22 @@ class BatchAnalysisServiceTest {
                 .getFirst().getDocumentSymbol().getName());
         var wrapper = BatchConnection.wrapper(fixture.getProject());
         var uri = wrapper.toUri(file.getVirtualFile());
-        var synchronizer = wrapper.getOpenedDocument(uri).getSynchronizer();
+        var synchronizer = java.util.Objects.requireNonNull(wrapper.getOpenedDocument(uri)).getSynchronizer();
         assertNotNull(synchronizer);
         assertTrue(synchronizer.getDidOpenFuture().isDone());
         EdtTestUtil.runInEdtAndWait(() -> {
             fixture.configureFromExistingVirtualFile(file.getVirtualFile());
             WriteCommandAction.runWriteCommandAction(fixture.getProject(),
-                    () -> document.setText("// é🙂\nfloat second() { return 2; }\n"
-                            + "float caller() { return second(); }\n"));
+                    () -> document.setText("""
+                            // é🙂
+                            float second() { return 2; }
+                            float caller() { return second(); }
+                            """));
             PsiDocumentManager.getInstance(fixture.getProject()).commitAllDocuments();
         });
         assertEquals("second", service.symbols(file, document).get(10, TimeUnit.SECONDS)
                 .getFirst().getDocumentSymbol().getName());
-        assertSame(synchronizer, wrapper.getOpenedDocument(uri).getSynchronizer());
+        assertSame(synchronizer, java.util.Objects.requireNonNull(wrapper.getOpenedDocument(uri)).getSynchronizer());
         assertEquals(1, wrapper.getOpenedDocuments().size());
         assertTrue(ReadActions.compute(() -> FileDocumentManager.getInstance().isDocumentUnsaved(document)));
         String text = document.getText();
@@ -96,7 +99,7 @@ class BatchAnalysisServiceTest {
         assertEquals("second", service.symbols(file, document).get(10, TimeUnit.SECONDS)
                 .getFirst().getDocumentSymbol().getName());
         var restarted = BatchConnection.wrapper(fixture.getProject());
-        assertNotSame(synchronizer, restarted.getOpenedDocument(uri).getSynchronizer());
+        assertNotSame(synchronizer, java.util.Objects.requireNonNull(restarted.getOpenedDocument(uri)).getSynchronizer());
         assertEquals(1, restarted.getOpenedDocuments().size());
     }
 

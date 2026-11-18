@@ -56,7 +56,7 @@ class NativeFormattingBlock implements BlockEx {
         }
 
         var indent = settings.getIndentOptions(slanglsp.language.SlangFileType.INSTANCE);
-        var generic = new GenericContext(source);
+        var generic = source.indexOf('<') < 0 ? null : new GenericContext(source);
         var lexer = new SlangLexer();
         lexer.start(source);
         int braces = 0;
@@ -96,8 +96,8 @@ class NativeFormattingBlock implements BlockEx {
                     formattingOff = marker.group(1).equals("off");
                 }
             }
-            boolean angle = (text.equals("<") && generic.isOpening(generic.tokenAt(start)))
-                    || (text.equals(">") && generic.isClosing(generic.tokenAt(start)));
+            boolean angle = generic != null && ((text.equals("<") && generic.isOpening(generic.tokenAt(start)))
+                    || (text.equals(">") && generic.isClosing(generic.tokenAt(start))));
             if (type == SlangLexer.OPERATOR && !angle) {
                 // Keep actual multi-character operators atomic, but never merge spaced tokens.
                 for (int length = 3; length >= 2; length--) {
@@ -338,7 +338,7 @@ class NativeFormattingBlock implements BlockEx {
         }
         if (left.angle && a.equals("<") || right.angle && b.equals(">")) {
             boolean empty = left.angle && right.angle && a.equals("<") && b.equals(">");
-            boolean nestedClosers = left.angle && right.angle && a.equals(">") && b.equals(">");
+            boolean nestedClosers = left.angle && right.angle && a.equals(">");
             return spaces(custom.SPACE_WITHIN_GENERIC_ANGLES && !empty && !nestedClosers ? 1 : 0, false);
         }
         if (left.angle && a.equals(">")) return spaces(b.equals(">") ? 0 : 1, true);

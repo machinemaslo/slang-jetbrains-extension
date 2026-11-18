@@ -20,13 +20,18 @@ import java.util.LinkedHashSet;
 import java.util.List;
 
 /** Batch-only: editor diagnostics continue to be supplied by LSP4IJ. */
+@SuppressWarnings("try") // Timing scopes report elapsed time when closed.
 public final class BatchDiagnosticsAnnotator
         extends ExternalAnnotator<BatchDiagnosticsAnnotator.Input, BatchDiagnosticsAnnotator.Result> {
     private static final com.intellij.openapi.util.Key<com.intellij.psi.util.CachedValue<List<String>>> WORKSPACE_PATHS =
             com.intellij.openapi.util.Key.create("slang.batch.workspace.paths");
-    record Input(PsiFile file, Document document, long stamp, String text, Path path,
+    public record Input(PsiFile file, Document document, long stamp, String text, Path path,
                  ProjectSettings.State settings, List<String> searchPaths) {}
-    record Result(Input input, List<BatchDiagnostics.Problem> problems, String failure) {}
+    public record Problem(String file, int line, int column, int endLine, int endColumn,
+                          HighlightSeverity severity, String message) {
+    }
+
+    public record Result(Input input, List<Problem> problems, String failure) {}
 
     @Override
     public String getPairedBatchInspectionShortName() {
@@ -40,7 +45,7 @@ public final class BatchDiagnosticsAnnotator
 
     @Override
     public Input collectInformation(@NotNull PsiFile file) {
-        try (var timing = AnalysisTiming.start("batch snapshot and search paths", file.getName())) {
+        try (@SuppressWarnings("unused") var timing = AnalysisTiming.start("batch snapshot and search paths", file.getName())) {
             return collect(file);
         }
     }
@@ -86,7 +91,7 @@ public final class BatchDiagnosticsAnnotator
 
     @Override
     public Result doAnnotate(Input input) {
-        try (var timing = AnalysisTiming.start("batch diagnostics total", input.path().toString())) {
+        try (@SuppressWarnings("unused") var timing = AnalysisTiming.start("batch diagnostics total", input.path().toString())) {
             return new Result(input, BatchDiagnostics.check(input), null);
         } catch (ProcessCanceledException cancelled) {
             throw cancelled;
@@ -121,7 +126,9 @@ public final class BatchDiagnosticsAnnotator
             if (end <= start && start < file.getTextLength()) end = start + 1;
             var annotation = holder.newAnnotation(problem.severity(), problem.message())
                     .range(new TextRange(start, Math.max(start, end)));
-            if (start == end) annotation.afterEndOfLine();
+            if (start == end) {
+                annotation = annotation.afterEndOfLine();
+            }
             annotation.create();
         }
     }
@@ -136,6 +143,6 @@ public final class BatchDiagnosticsAnnotator
         }
         int end = text.indexOf('\n', start);
         if (end < 0) end = text.length();
-        return text.offsetByCodePoints(start, Math.min(Math.max(0, column - 1), text.codePointCount(start, end)));
+        return text.offsetByCodePoints(start, Math.clamp(column - 1, 0, text.codePointCount(start, end)));
     }
 }

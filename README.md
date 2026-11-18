@@ -40,10 +40,9 @@ The native importer supports indentation and tabs, `ColumnLimit`, `IndentCaseLab
 
 Use **Write current style to .clang-format…** to export the options that have a clang-format equivalent. Slang-only controls and naming rules are not exported.
 
-Other tabs control indentation, naming, braces, blank lines, wrapping, spacing, and alignment, with live previews. **Set from → Slang** applies default naming rules, four-space indentation, a **Tab width** of four columns, 100 columns, and Allman braces.
+Other tabs control indentation, naming, braces, blank lines, wrapping, spacing, and alignment, with live previews. **Set from → Slang** applies default naming rules.
 
-**Inconsistent Naming** checks the first matching rule and offers a reference-aware, undoable **Rename to ‘suggested_name’** action. Rules can match multiple kinds of Slang elements and accept multiple styles. The first style is used for suggestions when none of the styles match. Rules support custom casing, prefixes, suffixes, and abbreviations. [Upstream-derived defaults](docs/slang-naming.md) include `UpperCamelCase` types, `lowerCamelCase` values, `I` interfaces, `g` globals, and `k` static constants. Entry points and required external/interface names are excluded.
-
+**Inconsistent Naming** checks the first matching rule and offers a reference-aware, undoable **Rename to ‘suggested_name’** action. Rules can match multiple kinds of Slang elements and accept multiple styles. The first style is used for suggestions when none of the styles match. 
 Use **Reformat Code** for a file or selection. The native formatter preserves Slang-specific layouts; optional live checks use **Incorrect formatting**.
 
 New projects have no predefined macros. Edit project macros under **General**.
@@ -57,7 +56,9 @@ Plugin DevKit is optional for development assistance.
 
 ### Smart editing
 
-Comments and strings use the IDE’s spellchecker and dictionaries, including bundled [Slang terms](docs/spelling-dictionary.md). Use Alt+Enter for corrections or to save words. Identifiers aren’t checked.
+To diagnose slow inspections or generic-bracket typing on large files, add `#slanglsp.editor.AnalysisTiming` to **Help → Diagnostic Tools → Debug Log Settings**. The IDE log reports analysis duration and the count and combined wait time of unused-symbol reference checks.
+
+Comments and strings use the IDE’s spellchecker and dictionaries, including bundled Slang terms. Use Alt+Enter for corrections or to save words. Identifiers aren’t checked.
 
 Brackets, quotes, indentation, and smart editing follow IDE settings. Generic `<T>` pairing supports recognized Slang types and declarations without guessing; comparisons and shifts stay unchanged.
 

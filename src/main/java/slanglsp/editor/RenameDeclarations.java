@@ -3,7 +3,6 @@ package slanglsp.editor;
 import com.intellij.openapi.editor.Document;
 import com.intellij.psi.PsiFile;
 import com.redhat.devtools.lsp4ij.LSPIJUtils;
-import com.redhat.devtools.lsp4ij.features.documentSymbol.LSPDocumentSymbolSupport;
 import org.eclipse.lsp4j.*;
 
 import java.util.LinkedHashMap;
@@ -11,22 +10,16 @@ import java.util.LinkedHashMap;
 /** Declaration-site definition requests are optional in slangd; document symbols are independent evidence. */
 final class RenameDeclarations {
     static boolean contains(PsiFile file, Document document, String text, String name, int offset, Runnable check) {
-        var support = new LSPDocumentSymbolSupport(file);
-        try {
-            var future = ReadActions.compute(() -> {
-                check.run();
-                return support.getDocumentSymbols(new DocumentSymbolParams(
-                        new TextDocumentIdentifier(UsageSearch.fileUri(file.getVirtualFile()).toString())));
-            });
-            var symbols = AnalysisDeadline.await(future);
-            return ReadActions.compute(() -> {
-                check.run();
-                return symbols != null && symbols.stream().anyMatch(symbol ->
-                        contains(symbol.getDocumentSymbol(), document, text, name, offset));
-            });
-        } finally {
-            support.cancel();
-        }
+        var future = ReadActions.compute(() -> {
+            check.run();
+            return DocumentSymbolRequests.get(file, document, document.getModificationStamp(), false);
+        });
+        var symbols = AnalysisDeadline.await(future);
+        return ReadActions.compute(() -> {
+            check.run();
+            return symbols != null && symbols.stream().anyMatch(symbol ->
+                    contains(symbol.getDocumentSymbol(), document, text, name, offset));
+        });
     }
 
     private static boolean contains(DocumentSymbol symbol, Document document, String text, String name, int offset) {

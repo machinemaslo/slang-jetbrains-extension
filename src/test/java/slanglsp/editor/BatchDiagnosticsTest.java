@@ -87,7 +87,8 @@ class BatchDiagnosticsTest {
     void inspectCodeUsesRegisteredPairedInspection() {
         var file = source("unknown.slang", "int f(){return unknown;}\n");
         var manager = InspectionManager.getInstance(fixture.getProject());
-        var problems = new BatchDiagnosticsInspection().checkFile(file, manager.createNewGlobalContext(false), manager);
+        var problems = new BatchDiagnosticsInspection().checkFile(file, manager.createNewGlobalContext(), manager);
+        assertNotNull(problems);
         assertTrue(java.util.Arrays.stream(problems).anyMatch(problem ->
                 problem.getDescriptionTemplate().contains("unknown")));
     }
@@ -160,8 +161,8 @@ class BatchDiagnosticsTest {
         assertNotNull(namingInput);
         assertNotNull(unusedInput);
         assertTimeout(Duration.ofSeconds(1), () -> {
-            assertNotNull(naming.doAnnotate(namingInput).failure());
-            assertNotNull(unused.doAnnotate(unusedInput).failure());
+            assertNotNull(java.util.Objects.requireNonNull(naming.doAnnotate(namingInput)).failure());
+            assertNotNull(java.util.Objects.requireNonNull(unused.doAnnotate(unusedInput)).failure());
         });
     }
 
@@ -202,7 +203,11 @@ class BatchDiagnosticsTest {
                     }, indicator));
             try {
                 assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
-                    while (!Files.exists(marker) || Files.size(marker) == 0) Thread.sleep(10);
+                    // The child writes its PID to disk; wait only until it is safe to cancel it.
+                    while (!Files.exists(marker) || Files.size(marker) == 0) {
+                        //noinspection BusyWait
+                        Thread.sleep(10);
+                    }
                 });
             } finally {
                 indicator.cancel();
@@ -214,8 +219,7 @@ class BatchDiagnosticsTest {
         assertProcessStopped(marker);
     }
 
-    private static com.intellij.execution.configurations.GeneralCommandLine unresponsiveCompiler(Path marker)
-            throws Exception {
+    private static com.intellij.execution.configurations.GeneralCommandLine unresponsiveCompiler(Path marker) {
         String java = Path.of(System.getProperty("java.home"), "bin",
                 com.intellij.openapi.util.SystemInfo.isWindows ? "java.exe" : "java").toString();
         String classes = com.intellij.openapi.application.PathManager
@@ -227,9 +231,10 @@ class BatchDiagnosticsTest {
     private static void assertProcessStopped(Path marker) throws Exception {
         assertTrue(Files.exists(marker), "Test subprocess must actually start");
         long pid = Long.parseLong(Files.readString(marker));
-        assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
-            while (ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false)) Thread.sleep(10);
-        });
+        var process = ProcessHandle.of(pid);
+        if (process.isPresent()) {
+            process.get().onExit().get(5, java.util.concurrent.TimeUnit.SECONDS);
+        }
     }
 
     private PsiFile source(String name, String text) {
@@ -241,7 +246,8 @@ class BatchDiagnosticsTest {
     private void edit(PsiFile file, String text) {
         EdtTestUtil.runInEdtAndWait(() -> {
             var manager = PsiDocumentManager.getInstance(fixture.getProject());
-            WriteCommandAction.runWriteCommandAction(fixture.getProject(), () -> manager.getDocument(file).setText(text));
+            var document = java.util.Objects.requireNonNull(manager.getDocument(file));
+            WriteCommandAction.runWriteCommandAction(fixture.getProject(), () -> document.setText(text));
             manager.commitAllDocuments();
         });
     }

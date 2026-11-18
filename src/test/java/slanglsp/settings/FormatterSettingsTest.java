@@ -103,16 +103,18 @@ class FormatterSettingsTest {
                 source.USE_CLANG_FORMAT = clang;
                 source.READ_CLANG_FORMAT = readConfig;
                 source.USE_CUSTOM_CLANG_FORMAT = external;
-                source.CLANG_FORMAT_PATH = Path.of(fixture.getProject().getBasePath(), "tools with spaces", "clang-format")
+                source.CLANG_FORMAT_PATH = Path.of(java.util.Objects.requireNonNull(fixture.getProject().getBasePath()),
+                        "tools with spaces", "clang-format")
                         .toAbsolutePath().toString();
                 var panel = new FormatterPanel(settings, bundledAvailable ? "bundled fixture" : null);
                 try {
                     panel.reset(settings);
                     assertFalse(panel.isModified(settings));
-                    assertEquals(bundledAvailable, Arrays.stream(panel.getPanel().getComponents())
+                    var controls = java.util.Objects.requireNonNull(panel.getPanel()).getComponents();
+                    assertEquals(bundledAvailable, Arrays.stream(controls)
                             .anyMatch(component -> component instanceof JCheckBox checkBox && checkBox.isVisible()
                                     && checkBox.getText().equals(SlangBundle.message("settings.formatter.external"))));
-                    var pathField = Arrays.stream(panel.getPanel().getComponents())
+                    var pathField = Arrays.stream(controls)
                             .filter(JPanel.class::isInstance)
                             .flatMap(row -> Arrays.stream(((JPanel) row).getComponents()))
                             .filter(JTextField.class::isInstance)

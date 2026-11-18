@@ -11,6 +11,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 class AngleBracketsTest {
     private CodeInsightTestFixture fixture;
@@ -48,6 +50,22 @@ class AngleBracketsTest {
             CodeInsightSettings.getInstance().TAB_EXITS_BRACKETS_AND_QUOTES = oldTab;
             CodeInsightSettings.getInstance().SURROUND_SELECTION_ON_QUOTE_TYPED = oldSurround;
             fixture.tearDown();
+        });
+    }
+
+    @Test
+    void reusesLargeDocumentParseUntilItChanges() {
+        EdtTestUtil.runInEdtAndWait(() -> {
+            fixture.configureByText("large.slang", "float4 color;\n".repeat(4000));
+            var document = fixture.getEditor().getDocument();
+            var initial = GenericResolver.parsed(document);
+            assertSame(initial, GenericResolver.parsed(document));
+            com.intellij.openapi.command.WriteCommandAction.runWriteCommandAction(fixture.getProject(),
+                    () -> document.insertString(0, "import lighting;\n"));
+            var updated = GenericResolver.parsed(document);
+            assertNotSame(initial, updated);
+            assertEquals(java.util.Set.of("lighting"), updated.imports());
+            assertSame(updated, GenericResolver.parsed(document));
         });
     }
 

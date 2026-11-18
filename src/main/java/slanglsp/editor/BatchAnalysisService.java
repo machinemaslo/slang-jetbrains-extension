@@ -24,9 +24,9 @@ import java.util.function.Supplier;
 @Service(Service.Level.PROJECT)
 public final class BatchAnalysisService implements Disposable {
     private static final ThreadLocal<Boolean> BATCH = new ThreadLocal<>();
-    private final ExecutorService requests = executor("Slang batch requests", 2);
+    private final ExecutorService requests = executor("Slang batch requests");
     // Server-to-client callbacks must remain runnable while requests wait for initialization.
-    private final ExecutorService callbacks = executor("Slang batch callbacks", 2);
+    private final ExecutorService callbacks = executor("Slang batch callbacks");
     private final Set<CompletableFuture<?>> pending = ConcurrentHashMap.newKeySet();
     private final Project project;
     private volatile boolean disposed;
@@ -122,6 +122,7 @@ public final class BatchAnalysisService implements Disposable {
                         file.getVirtualFile(), server.getClientFeatures())));
     }
 
+    @SuppressWarnings("try") // The deadline applies to all waits inside the request.
     private <T> CompletableFuture<T> request(PsiFile file, Document document,
             Function<LanguageServerItem, CompletableFuture<T>> action) {
         var result = track(new CompletableFuture<T>());
@@ -141,7 +142,7 @@ public final class BatchAnalysisService implements Disposable {
                 if (result.isDone()) {
                     return;
                 }
-                try (var deadline = AnalysisDeadline.open()) {
+                try (@SuppressWarnings("unused") var deadline = AnalysisDeadline.open()) {
                     var wrapper = BatchConnection.wrapper(project);
                     var server = AnalysisDeadline.await(wrapper.getInitializedServer());
                     if (server == null || disposed || result.isDone()) {
@@ -188,9 +189,9 @@ public final class BatchAnalysisService implements Disposable {
         return future;
     }
 
-    private static ExecutorService executor(String name, int threads) {
+    private static ExecutorService executor(String name) {
         var sequence = new AtomicInteger();
-        return new ThreadPoolExecutor(threads, threads, 30, TimeUnit.SECONDS,
+        return new ThreadPoolExecutor(2, 2, 30, TimeUnit.SECONDS,
                 new ArrayBlockingQueue<>(256), runnable -> {
                     var thread = new Thread(runnable, name + "-" + sequence.incrementAndGet());
                     thread.setDaemon(true);

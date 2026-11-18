@@ -16,7 +16,7 @@ import static org.junit.Assert.assertTrue;
 
 public class ToolboxInstallationsTest {
     @Rule
-    public TemporaryFolder directory = new TemporaryFolder();
+    public final TemporaryFolder directory = new TemporaryFolder();
 
     @Test
     public void selectsNewestMatchingInstalledBuildFromInventory() throws IOException {

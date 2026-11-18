@@ -26,10 +26,11 @@ final class AnalysisDeadline implements AutoCloseable {
         return new AnalysisDeadline(budget);
     }
 
+    @SuppressWarnings("try") // Closing the scope restores the previous deadline.
     static <T> T await(CompletableFuture<T> future) {
         Long deadline = DEADLINE.get();
         if (deadline == null) {
-            try (var scope = open()) {
+            try (@SuppressWarnings("unused") var scope = open()) {
                 return await(future);
             }
         }

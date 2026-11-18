@@ -40,9 +40,10 @@ final class GenericContext {
         }
     }
 
-    private final List<Token> tokens = new ArrayList<>();
-    private final List<Integer> parents = new ArrayList<>();
-    private final Map<String, Integer> typeScopes = new HashMap<>();
+    private final List<Token> tokens;
+    private final List<Integer> parents;
+    private final Map<String, Integer> typeScopes;
+    private final Set<String> imports;
     private final BiPredicate<String, String> externalGeneric;
     private final CharSequence source;
 
@@ -52,6 +53,9 @@ final class GenericContext {
 
     GenericContext(CharSequence text, BiPredicate<String, String> externalGeneric) {
         this.externalGeneric = externalGeneric;
+        tokens = new ArrayList<>();
+        parents = new ArrayList<>();
+        typeScopes = new HashMap<>();
         source = text;
         var lexer = new SlangLexer();
         lexer.start(text);
@@ -65,7 +69,11 @@ final class GenericContext {
             lexer.advance();
         }
         var scopes = new ArrayList<Integer>();
+        var imported = new java.util.HashSet<String>();
         for (int i = 0; i < tokens.size(); i++) {
+            if (word(i).equals("import") && i + 1 < tokens.size()) {
+                imported.add(word(i + 1));
+            }
             parents.add(scopes.isEmpty() ? -1 : scopes.getLast());
             if (word(i).equals("{")) {
                 scopes.add(i);
@@ -83,6 +91,7 @@ final class GenericContext {
                 }
             }
         }
+        imports = Set.copyOf(imported);
         // Parameter names belong to their function body, not the surrounding namespace.
         for (int i = 1; i < tokens.size(); i++) {
             if (!word(i).equals("(")) {
@@ -121,6 +130,19 @@ final class GenericContext {
                 parents.set(parameter, scope);
             }
         }
+    }
+
+    GenericContext withExternalLookup(BiPredicate<String, String> lookup) {
+        return new GenericContext(this, lookup);
+    }
+
+    private GenericContext(GenericContext parsed, BiPredicate<String, String> lookup) {
+        tokens = parsed.tokens;
+        parents = parsed.parents;
+        typeScopes = parsed.typeScopes;
+        imports = parsed.imports;
+        source = parsed.source;
+        externalGeneric = lookup;
     }
 
     int tokenAt(int offset) {
@@ -274,13 +296,7 @@ final class GenericContext {
     }
 
     Set<String> imports() {
-        var result = new java.util.HashSet<String>();
-        for (int i = 0; i + 1 < tokens.size(); i++) {
-            if (word(i).equals("import")) {
-                result.add(word(i + 1));
-            }
-        }
-        return result;
+        return imports;
     }
 
     String moduleName() {

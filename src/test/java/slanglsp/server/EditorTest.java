@@ -39,17 +39,19 @@ class EditorTest {
     }
 
     @Test
+    @SuppressWarnings("try") // The sessions own the temporary formatting settings.
     void formattingOptionsSurviveConfigurationRequestsAndCancelledContenders() throws Exception {
         var settings = fixture.getProject().getService(FormattingSettings.class);
         var client = new ServerClient(fixture.getProject());
         String key = "slang.format.clangFormatStyle";
         Object original = client.findSettings(key);
         try (var executor = java.util.concurrent.Executors.newSingleThreadExecutor()) {
-            try (var session = settings.open(java.util.Map.of(key, "file:/first/_clang-format"), () -> false)) {
+            try (@SuppressWarnings("unused") var session =
+                         settings.open(java.util.Map.of(key, "file:/first/_clang-format"), () -> false)) {
                 assertEquals("file:/first/_clang-format",
                         executor.submit(() -> client.findSettings(key)).get(5, java.util.concurrent.TimeUnit.SECONDS));
                 var contender = executor.submit(() -> {
-                    try (var ignored = settings.open(java.util.Map.of(key, "LLVM"), () -> true)) {
+                    try (@SuppressWarnings("unused") var ignored = settings.open(java.util.Map.of(key, "LLVM"), () -> true)) {
                         fail("Cancelled contender must not replace the active formatting settings");
                     }
                     return null;
@@ -60,7 +62,7 @@ class EditorTest {
                 assertEquals("file:/first/_clang-format", client.findSettings(key));
             }
             assertEquals(original, client.findSettings(key));
-            try (var session = settings.open(java.util.Map.of(key, "LLVM"), () -> false)) {
+            try (@SuppressWarnings("unused") var session = settings.open(java.util.Map.of(key, "LLVM"), () -> false)) {
                 assertEquals("LLVM", client.findSettings(key));
             }
         } finally {
@@ -128,14 +130,7 @@ class EditorTest {
             assertSame(formatting, messages.get(2));
 
             // A delayed incremental event already covered by that snapshot must not be applied twice.
-            var delayed = new org.eclipse.lsp4j.jsonrpc.messages.NotificationMessage();
-            delayed.setMethod("textDocument/didChange");
-            delayed.setParams(new org.eclipse.lsp4j.DidChangeTextDocumentParams(
-                    new org.eclipse.lsp4j.VersionedTextDocumentIdentifier(uri, 2),
-                    java.util.List.of(new org.eclipse.lsp4j.TextDocumentContentChangeEvent(
-                            new org.eclipse.lsp4j.Range(new org.eclipse.lsp4j.Position(0, 0),
-                                    new org.eclipse.lsp4j.Position(0, 12)), "stale edit"))));
-            synchronization.consume(delayed, messages::add);
+            synchronization.consume(delayedChange(uri), messages::add);
             assertEquals(3, messages.size());
 
             // Batch readiness and a delayed editor continuation share one wire-level open.
@@ -150,5 +145,16 @@ class EditorTest {
             synchronization.consume(open, messages::add);
             assertEquals(5, messages.size(), "An actual close/reopen must still be transmitted");
         });
+    }
+
+    private static org.eclipse.lsp4j.jsonrpc.messages.NotificationMessage delayedChange(String uri) {
+        var delayed = new org.eclipse.lsp4j.jsonrpc.messages.NotificationMessage();
+        delayed.setMethod("textDocument/didChange");
+        delayed.setParams(new org.eclipse.lsp4j.DidChangeTextDocumentParams(
+                new org.eclipse.lsp4j.VersionedTextDocumentIdentifier(uri, 2),
+                java.util.List.of(new org.eclipse.lsp4j.TextDocumentContentChangeEvent(
+                        new org.eclipse.lsp4j.Range(new org.eclipse.lsp4j.Position(0, 0),
+                                new org.eclipse.lsp4j.Position(0, 12)), "stale edit"))));
+        return delayed;
     }
 }
