@@ -2,13 +2,15 @@ import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.models.ProductRelease
 import org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask
 import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE
 
-version = "0.0.23"
+version = "0.0.24"
 group = "slang"
 
 plugins {
     id("java")
     idea
+    kotlin("jvm") version "2.4.21"
     id("org.jetbrains.intellij.platform") version "2.20.1"
 }
 
@@ -41,6 +43,10 @@ dependencies {
 
         plugin("com.redhat.devtools.lsp4ij:${providers.gradleProperty("lsp4ijVersion").getOrElse("0.21.0")}")
         bundledModule("intellij.platform.vcs.impl") // Exercise the real pre-commit analysis service in tests.
+        // Newer IDEs split the spellchecker out of the baseline platform compile classpath.
+        if (localIdePath != null && providers.gradleProperty("mcpSmokeTest").map(String::toBoolean).getOrElse(false)) {
+            bundledModule("intellij.spellchecker")
+        }
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
     // Use the IDE's Gson; do not bundle a separate copy across plugin classloaders.
@@ -111,6 +117,33 @@ val toolboxInventory = providers.fileContents(
     layout.projectDirectory.file("$toolboxDataRoot/JetBrains/Toolbox/state.json")
 ).asText.orElse("")
 
+// Use the newer MCP API and descriptor for compilation and DevKit indexing, not at runtime.
+val mcpSdkDependency = configurations.dependencyScope("mcpSdkDependency")
+val mcpSdkArchive = configurations.resolvable("mcpSdkArchive") { extendsFrom(mcpSdkDependency.get()) }
+dependencies {
+    add("mcpSdkDependency", "com.jetbrains.intellij.idea:idea:2026.3@zip")
+    registerTransform(ExtractMcpSdk::class) {
+        from.attribute(ARTIFACT_TYPE_ATTRIBUTE, "zip")
+        to.attribute(ARTIFACT_TYPE_ATTRIBUTE, "slang-mcp-sdk")
+    }
+}
+val mcpSdkFiles = providers.gradleProperty("mcpSdkPath").orNull?.let { path ->
+    val api = file(path)
+    val descriptor = api.resolveSibling("mcpserver-plugin.jar")
+    require(api.isFile && descriptor.isFile) {
+        "mcpSdkPath must point to intellij.mcpserver.jar next to mcpserver-plugin.jar."
+    }
+    files(api, descriptor)
+} ?: mcpSdkArchive.get().incoming.artifactView {
+    attributes.attribute(ARTIFACT_TYPE_ATTRIBUTE, "slang-mcp-sdk")
+}.files
+dependencies {
+    compileOnly(mcpSdkFiles)
+}
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>().configureEach {
+    compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+}
+
 fun registerPluginPlayground(
     taskName: String,
     ideName: String,
@@ -146,6 +179,10 @@ fun registerPluginPlayground(
         localPath.set(layout.dir(installation))
         plugins {
             plugin("com.redhat.devtools.lsp4ij:${providers.gradleProperty("lsp4ijVersion").getOrElse("0.21.0")}")
+            if (suffix == "CLion" && !providers.gradleProperty("playgroundPython").map(String::toBoolean).getOrElse(false)) {
+                // Some Toolbox CLion builds ship a Python ML module with a broken classloader dependency.
+                disablePlugin("PythonCore")
+            }
         }
         task {
             description = "Launch Toolbox's installed $ideName with the Slang plugin and refreshed playground."
@@ -170,11 +207,26 @@ tasks {
         options.compilerArgs.add("-Xlint:deprecation")
     }
 
+    if (providers.gradleProperty("mcpSmokeTest").map(String::toBoolean).getOrElse(false)) {
+        compileTestJava {
+            // This smoke suite targets the newer MCP SDK, not the baseline test APIs.
+            include("slanglsp/mcp/McpRegistrationTest.java")
+        }
+    }
+
     test {
         dependsOn(installTestDependencies)
-        useJUnitPlatform()
+        val mcpSmokeTest = providers.gradleProperty("mcpSmokeTest").map(String::toBoolean).getOrElse(false)
+        useJUnitPlatform {
+            if (mcpSmokeTest) {
+                excludeEngines("junit-vintage")
+            }
+        }
         systemProperty("junit.jupiter.testclass.order.default", $$"org.junit.jupiter.api.ClassOrderer$ClassName")
-        systemProperty("idea.load.plugins.id", "slanglsp_r")
+        if (!mcpSmokeTest) {
+            systemProperty("idea.load.plugins.id", "slanglsp_r")
+        }
+        systemProperty("slang.test.mcp", mcpSmokeTest)
         systemProperty("idea.log.config.properties.file",
             layout.projectDirectory.file("src/test/resources/test-log.properties").asFile.absolutePath)
         inputs.file("src/test/resources/test-log.properties").withPropertyName("testLoggingConfig")

@@ -50,11 +50,24 @@ New projects have no predefined macros. Edit project macros under **General**.
 ### Development playground
 
 Select **Run Plugin (IJ)** (`./gradlew runPlugin`) or **Run Plugin (CLion)** (`./gradlew runPluginCLion`). Both read JetBrains Toolbox's local inventory and launch the newest installed build of the requested IDE in a separate sandbox with sample Slang files. No IDE download or per-developer path setting is needed; install the IDE in Toolbox if it isn't listed there.
+The CLion playground disables its bundled Python plugin to avoid a startup error in some CLion builds, use `-PplaygroundPython=true` to enable it in that sandbox.
 Install `slangd` on PATH or use existing vcpkg tools. Native formatting is the default; clang-format is optional.
 Edit `dev/playground` for lasting changes—samples and generated settings reset each launch. Extra files and dictionaries remain.
 Plugin DevKit is optional for development assistance.
 
 ### Smart editing
+
+#### Slang tools for JetBrains Air and MCP
+
+On compatible IDEs with JetBrains' MCP Server enabled, the plugin contributes three read-only tools (verified on IntelliJ IDEA 2026.3). No project files, hooks, or agent skills are installed. The compiler and symbol tools require a trusted project.
+
+- `slang_lookup` searches the official [Slang LLM index](https://shader-slang.org/docs/llms.txt) and [full reference](https://shader-slang.org/docs/llms-full.txt), follows supported links to guides and examples, and looks up exact intrinsic names in the Core Module Reference. Supply `sdkVersion` (for example, `2026.22`) to prefer matching release sources where available; current upstream results are labeled. The plugin caches public pages, ranks them locally, and sends only requests for the selected pages, not project code or the query as a search request.
+- `slang_check_files` checks the current editor contents of up to 16 project Slang files with `slangc`, using configured include paths and macros. Imported dependencies are read from disk. It reports diagnostics without saving or generating shader binaries.
+- `slang_symbol` uses `slangd` to resolve a symbol at a file position and can also find project references.
+
+View the tools under **Settings → AI → MCP Server → Exposed Tools**. For standalone Air connected to a running IDE, use **Clients Auto-Configuration** on the same settings page. Keep the IDE server disabled if you don't want to expose tools to MCP clients.
+
+For plugin development, Gradle resolves the compile-only MCP API and plugin descriptor from a pinned IDEA 2026.3 archive, including during IDE import. Pass `-PmcpSdkPath=/path/to/intellij.mcpserver.jar` to use a local installation instead; `mcpserver-plugin.jar` must be next to that JAR. Neither JAR ships with the Slang plugin.
 
 To diagnose slow inspections or generic-bracket typing on large files, add `#slanglsp.editor.AnalysisTiming` to **Help → Diagnostic Tools → Debug Log Settings**. The IDE log reports analysis duration and the count and combined wait time of unused-symbol reference checks.
 

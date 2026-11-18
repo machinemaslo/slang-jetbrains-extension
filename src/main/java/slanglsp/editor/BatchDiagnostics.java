@@ -30,6 +30,10 @@ final class BatchDiagnostics {
 
 
     static List<Problem> check(BatchDiagnosticsAnnotator.Input input) throws Exception {
+        return check(input, TIMEOUT_MILLIS);
+    }
+
+    static List<Problem> check(BatchDiagnosticsAnnotator.Input input, int timeoutMillis) throws Exception {
         ProgressManager.checkCanceled();
         var project = input.file().getProject();
         var state = input.settings();
@@ -59,7 +63,7 @@ final class BatchDiagnostics {
                 .forEach(macro -> command.addParameter("-D" + macro));
         command.addParameters("--", "-");
         try (@SuppressWarnings("unused") var timing = AnalysisTiming.start("compiler execution", input.path().toString())) {
-            return run(command, input.text(), TIMEOUT_MILLIS);
+            return run(command, input.text(), timeoutMillis);
         }
     }
 
