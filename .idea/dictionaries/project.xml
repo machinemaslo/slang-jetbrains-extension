@@ -1,14 +1,28 @@
 <component name="ProjectDictionaryState">
   <dictionary name="project">
     <words>
+      <w>BRDF</w>
+      <w>CONFIGDIR</w>
+      <w>GLOBALDIR</w>
+      <w>LASTEXITCODE</w>
+      <w>Slangd's</w>
+      <w>TEXCOORD</w>
+      <w>Xmake's</w>
+      <w>aarch</w>
       <w>builddir</w>
       <w>buildir</w>
+      <w>constref</w>
+      <w>gitmodules</w>
+      <w>groupshared</w>
       <w>lsps</w>
       <w>machinemaslo</w>
       <w>penv</w>
       <w>slangc</w>
+      <w>slangd's</w>
+      <w>slangh</w>
       <w>slanglsp</w>
       <w>slnx</w>
+      <w>tbuffer</w>
       <w>xmake</w>
     </words>
   </dictionary>

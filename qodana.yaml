@@ -9,11 +9,11 @@
 #################################################################################
 version: "1.0"
 
-#Specify inspection profile for code analysis
+# Inspection profile for code analysis.
 profile:
   name: qodana.starter
 
-#Enable inspections
+# Enable inspections.
 #include:
 #  - name: <SomeEnabledInspectionId>
 
@@ -23,12 +23,12 @@ exclude:
     paths:
       - vcpkg_installed
 
-projectJDK: "21" #(Applied in CI/CD pipeline)
+projectJDK: "25" # Applied in CI.
 
-#Execute shell command before Qodana execution (Applied in CI/CD pipeline)
+# Optional CI setup command.
 #bootstrap: sh ./prepare-qodana.sh
 
-#Install IDE plugins before Qodana execution (Applied in CI/CD pipeline)
+# Optional IDE plugins to install before analysis.
 #plugins:
 #  - id: <plugin.id> #(plugin id can be found at https://plugins.jetbrains.com)
 

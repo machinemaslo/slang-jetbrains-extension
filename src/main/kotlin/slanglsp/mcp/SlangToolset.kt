@@ -1,19 +1,27 @@
 package slanglsp.mcp
 
 import com.intellij.mcpserver.McpExpectedError
+import com.intellij.mcpserver.McpToolset
 import com.intellij.mcpserver.annotations.McpDescription
 import com.intellij.mcpserver.annotations.McpTool
 import com.intellij.mcpserver.project
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.runInterruptible
-import slanglsp.editor.AgentAnalysis
 import java.io.IOException
 import java.util.concurrent.CompletionException
 import java.util.concurrent.TimeoutException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.runInterruptible
 
 /** Loaded only when JetBrains' MCP Server plugin is available. */
-class SlangToolset : CompatibleToolset() {
+class SlangToolset : McpToolset {
+    // These tools are stable; the platform default marks them experimental.
+    //noinspection SameReturnValue
+    override fun isExperimental(): Boolean = false
+
+    // Opt into the platform's always-included tool filter.
+    //noinspection SameReturnValue
+    override fun alwaysIncluded(): Boolean = true
+
     @McpTool(name = "slang_lookup")
     @McpDescription(
         "Look up Slang shader syntax, language features, intrinsics, and examples in official documentation. " +

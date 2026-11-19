@@ -53,7 +53,7 @@ jobs:
           path: |
             ${{ env.VCPKG_DOWNLOADS }}
             ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
-          key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('vcpkg.json', 'buildSrc/src/main/java/GenerateClangFormatPort.java') }}
+          key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('vcpkg.json', 'buildSrc/src/main/kotlin/GenerateClangFormatPort.kt') }}
           restore-keys: |
             vcpkg-${{ runner.os }}-${{ runner.arch }}-
       - name: Bootstrap vcpkg (Windows)
@@ -70,11 +70,15 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '25'
       - uses: gradle/actions/setup-gradle@v6
       - name: Test and build
         shell: bash
         run: ./gradlew :buildSrc:test test buildPlugin --stacktrace --console=plain
+      - name: Test bundled MCP integration
+        if: runner.os == 'Linux'
+        shell: bash
+        run: ./gradlew test -PmcpSmokeTest=true -x installTestDependencies --stacktrace --console=plain
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -98,7 +102,7 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '25'
       - uses: gradle/actions/setup-gradle@v6
       - name: Run JetBrains Plugin Verifier
         run: ./gradlew verifyPlugin --stacktrace

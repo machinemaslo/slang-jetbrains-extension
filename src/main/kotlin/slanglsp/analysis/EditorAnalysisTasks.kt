@@ -1,0 +1,48 @@
+package slanglsp.analysis
+
+import com.intellij.openapi.application.EDT
+import com.intellij.openapi.components.Service
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.NlsContexts.ProgressTitle
+import com.intellij.platform.ide.progress.withBackgroundProgress
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.withContext
+
+/** Runs blocking editor analysis with cancellable progress and delivers the result on the EDT. */
+@Service(Service.Level.PROJECT)
+internal class EditorAnalysisTasks(private val project: Project, private val scope: CoroutineScope) {
+    fun <T> launch(
+        @ProgressTitle title: String,
+        onFailure: ((Exception) -> Unit)? = null,
+        compute: () -> T,
+        onSuccess: (T) -> Unit
+    ): Job = scope.launch {
+        val result =
+            try {
+                withBackgroundProgress(project, title) {
+                    // Analysis can block on LSP futures. Keep it off the EDT and interrupt it on cancellation.
+                    runInterruptible(Dispatchers.IO, compute)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                val report = onFailure ?: throw failure
+                onEdt { report(failure) }
+                return@launch
+            }
+        onEdt { onSuccess(result) }
+    }
+
+    private suspend fun onEdt(action: () -> Unit) {
+        withContext(Dispatchers.EDT) {
+            if (!project.isDisposed) {
+                action()
+            }
+        }
+    }
+}

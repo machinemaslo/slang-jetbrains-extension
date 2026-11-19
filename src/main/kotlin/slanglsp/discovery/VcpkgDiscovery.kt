@@ -5,28 +5,29 @@ import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Locale
-import java.util.Optional
 import kotlin.streams.asSequence
+import slanglsp.discovery.buildsystems.BuildSystemDiscovery
 
 /** Bounded, read-only discovery. Never invokes vcpkg or descends into installed packages. */
 internal class VcpkgDiscovery(private val executableName: String, os: String, arch: String) {
     private val hostTriplet = "${hostCpu(arch)}-${hostSystem(os)}"
 
     @JvmOverloads
-    fun find(projectRoot: Path, environment: Map<String, String> = emptyMap()): Optional<String> =
-        Optional.ofNullable(findTool(DiscoveryContext(projectRoot, environment))?.toString())
+    fun find(projectRoot: Path, environment: Map<String, String> = emptyMap()): String? =
+        findTool(DiscoveryContext(projectRoot, environment))?.toString()
 
     private fun findTool(context: DiscoveryContext): Path? {
         // Prefer the project's conventional installations before reading build metadata.
         val configuredHost = context.environment["VCPKG_HOST_TRIPLET"]
-        conventionalInstallations.firstNotNullOfOrNull { directory ->
-            findInstalledTool(context.root.resolve(directory), configuredHost)
-        }?.let { return it }
+        conventionalInstallations
+            .firstNotNullOfOrNull { directory ->
+                findInstalledTool(context.root.resolve(directory), configuredHost)
+            }
+            ?.let {
+                return it
+            }
 
-        val adapters = listOf(
-            CmakeDiscoveryAdapter(), MsbuildDiscoveryAdapter(), XmakeDiscoveryAdapter(), MesonDiscoveryAdapter(),
-        )
-        adapters.forEach { it.discover(context) }
+        BuildSystemDiscovery.discover(context)
         findFallbackInstallations(context)
 
         return context.installations.entries.firstNotNullOfOrNull { (root, host) ->
@@ -77,25 +78,33 @@ internal class VcpkgDiscovery(private val executableName: String, os: String, ar
 
         return triplets.firstNotNullOfOrNull { triplet ->
             ports.firstNotNullOfOrNull { port ->
-                installed.resolve(triplet).resolve("tools").resolve(port).resolve(executableName)
-                    .takeIf(ExecutableLocator::isExecutable)?.toAbsolutePath()
+                installed
+                    .resolve(triplet)
+                    .resolve("tools")
+                    .resolve(port)
+                    .resolve(executableName)
+                    .takeIf(ExecutableLocator::isExecutable)
+                    ?.toAbsolutePath()
             }
         }
     }
 
-    private fun hostVariants(installed: Path): List<String> = try {
-        Files.list(installed).use { children ->
-            children.asSequence().take(256)
-                .map { it.fileName.toString() }
-                .filter { it.startsWith("$hostTriplet-") }
-                .sorted()
-                .toList()
+    private fun hostVariants(installed: Path): List<String> =
+        try {
+            Files.list(installed).use { children ->
+                children
+                    .asSequence()
+                    .take(256)
+                    .map { it.fileName.toString() }
+                    .filter { it.startsWith("$hostTriplet-") }
+                    .sorted()
+                    .toList()
+            }
+        } catch (_: IOException) {
+            emptyList()
+        } catch (_: SecurityException) {
+            emptyList()
         }
-    } catch (_: IOException) {
-        emptyList()
-    } catch (_: SecurityException) {
-        emptyList()
-    }
 
     private companion object {
         val conventionalInstallations = listOf("vcpkg_installed", "vcpkg/installed", "extern/vcpkg/installed")
@@ -104,12 +113,17 @@ internal class VcpkgDiscovery(private val executableName: String, os: String, ar
         val validTriplet = Regex("[A-Za-z0-9_-]+")
         val submodulePath = Regex("""(?m)^\s*path\s*=\s*(.+?)\s*$""")
 
-        fun hostCpu(arch: String): String = when (val cpu = arch.lowercase(Locale.ROOT)) {
-            "amd64", "x86_64" -> "x64"
-            "aarch64", "arm64" -> "arm64"
-            "x86", "i386", "i686" -> "x86"
-            else -> cpu
-        }
+        fun hostCpu(arch: String): String =
+            when (val cpu = arch.lowercase(Locale.ROOT)) {
+                "amd64",
+                "x86_64" -> "x64"
+                "aarch64",
+                "arm64" -> "arm64"
+                "x86",
+                "i386",
+                "i686" -> "x86"
+                else -> cpu
+            }
 
         fun hostSystem(os: String): String {
             val system = os.lowercase(Locale.ROOT)

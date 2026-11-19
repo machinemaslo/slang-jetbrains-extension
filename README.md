@@ -10,15 +10,15 @@ https://github.com/user-attachments/assets/f1ee4a74-58b1-4589-bf29-3fdd20842cc7
 ### Base JetBrains plugin distribution page
 https://plugins.jetbrains.com/plugin/26239-slang-unofficial-
 This plugin was forked from that one, all the props to the author, I refined it and added a lot of features that I personally needed.
-If you want any additional features, please open an issue on github and I will try to add it ASAP.
+If you want any additional features, please open an issue on GitHub and I will try to add it ASAP.
 
 ---
 
 ### To Build
-1. Install JDK 21–27 and optionally IntelliJ IDEA for development.
+1. Install JDK 25 or newer and optionally IntelliJ IDEA for development.
 2. Fetch code with `git clone --recursive https://github.com/machinemaslo/slang-jetbrains-extension.git`
-3. The minimum supported IntelliJ IDEA version is 2025.2.6.4 (platform build `252.28539.149`), which is also the default Gradle SDK. To build and test against a local IDE instead, pass `-PlocalIdePath=/path/to/intellij-idea` to Gradle. **Run Plugin (IJ)** independently uses the newest IDEA installed through Toolbox.
-4. Open the project in IDEA, select the Gradle wrapper and JDK 21–27 as the project/Gradle JVM, then run `test` and `buildPlugin` (or `./gradlew test buildPlugin` from the project directory). Tests require the native prerequisites below. Compilation targets Java 21.
+3. The minimum supported IntelliJ IDEA version is 2026.2.5 (platform build `262.12573.28`), which is also the default Gradle SDK. To build and test against a local IDE instead, pass `-PlocalIdePath=/path/to/intellij-idea` to Gradle. **Run Plugin (IJ)** independently uses the newest IDEA installed through Toolbox.
+4. Open the project in IDEA, select the Gradle wrapper and JDK 25 or newer as the project/Gradle JVM, then run `test` and `buildPlugin` (or `./gradlew test buildPlugin` from the project directory). Tests require the native prerequisites below. Compilation targets Java 25.
 5. Install the plugin ZIP from `build/distributions/`
 
 ---
@@ -55,6 +55,12 @@ Install `slangd` on PATH or use existing vcpkg tools. Native formatting is the d
 Edit `dev/playground` for lasting changes—samples and generated settings reset each launch. Extra files and dictionaries remain.
 Plugin DevKit is optional for development assistance.
 
+Use role-based names for implementation classes, such as `EditorIndentProvider` and
+`HighlightingSettingsPage`. The `Slang` prefix distinguishes language primitives and syntax
+highlighting, the MCP toolset registered alongside other toolsets, and the language's code-style
+settings. `SlangBundle` matches the registered message bundle. Keep the `SlangCodeStyleSettings`
+XML tag and registered IDs such as `SlangGotoDeclarationHandler` stable when renaming classes.
+
 ### Smart editing
 
 #### Slang tools for JetBrains Air and MCP
@@ -67,7 +73,7 @@ With JetBrains' MCP Server enabled, the plugin contributes three read-only tools
 
 Search Settings for **MCP Server** to enable it and configure clients. Newer IDEs also list the tools under **Exposed Tools**. For standalone Air connected to a running IDE, use **Clients Auto-Configuration**. Keep the IDE server disabled if you don't want to expose tools to MCP clients.
 
-Starting with IDE version 2026.2, the Slang tools are directly visible by default even in router mode.
+Slang marks its tools as always included. The IDE's MCP exposure settings still control which tools a client sees directly in router mode.
 
 The plugin compiles against the MCP Server bundled with the minimum IDEA SDK. Run `./gradlew test -PmcpSmokeTest=true` to check that the server discovers and invokes all three tools on that SDK.
 
@@ -98,7 +104,7 @@ Supported declarations offer an undoable **Remove unused** action after referenc
 ### To Run Tests
 Tests cover editor features, formatting, naming, refactoring, settings, the native language server, and real vcpkg installation and discovery.
 
-You need JDK 21–27, a bootstrapped vcpkg checkout set as `VCPKG_ROOT`, CMake, Ninja, and native build tools.
+You need JDK 25 or newer, a bootstrapped vcpkg checkout set as `VCPKG_ROOT`, CMake, Ninja, and native build tools.
 
 Select **Run Tests** in IDEA. Gradle installs Slang and prebuilt clang-format automatically, reuses cached packages, and runs every test. Missing prerequisites cause failure.
 

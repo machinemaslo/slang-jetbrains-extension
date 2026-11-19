@@ -1,45 +1,62 @@
 package slanglsp.discovery
 
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.SystemInfo
+import com.intellij.util.EnvironmentUtil
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
-import java.util.Optional
-import java.util.function.Supplier
+import slanglsp.settings.project.ProjectSettings
 
 object ExecutableLocator {
-    @JvmStatic
-    @JvmOverloads
+    internal val slangdName: String
+        get() = if (SystemInfo.isWindows) "slangd.exe" else "slangd"
+
+    internal fun findSlangd(project: Project, settings: ProjectSettings.State): String? =
+        find(
+            explicitDirectory = settings.explicitSlangdLocation,
+            useVcpkg = settings.useLocalVcpkgSlangd,
+            vcpkg = { project.getService(VcpkgDiscoveryService::class.java).findExecutable() },
+            path = EnvironmentUtil.getValue("PATH"),
+            vulkanSdk = EnvironmentUtil.getValue("VULKAN_SDK"),
+            executableName = slangdName,
+            projectBasePath = project.basePath)
+
     fun find(
         explicitDirectory: String?,
         useVcpkg: Boolean,
-        vcpkg: Supplier<Optional<String>>,
+        vcpkg: () -> String?,
         path: String?,
         vulkanSdk: String?,
         executableName: String,
         projectBasePath: String? = null,
-    ): Optional<String> {
-        val explicit = explicitDirectory?.takeUnless(String::isBlankPath)?.let {
-            resolveAgainstProject(it, projectBasePath)
+    ): String? {
+        val explicit =
+            explicitDirectory?.takeUnless(String::isBlankPath)?.let {
+                resolveAgainstProject(it, projectBasePath)
+            }
+        inDirectory(explicit, executableName)?.let {
+            return it.toString()
         }
-        inDirectory(explicit, executableName)?.let { return Optional.of(it.toString()) }
 
         if (useVcpkg) {
-            val local = vcpkg.get()
-            if (local.isPresent) {
-                return local
+            vcpkg()?.let {
+                return it
             }
         }
 
         val windowsExecutable = executableName.endsWith(".exe")
         val sdkBin = if (windowsExecutable) "Bin" else "bin"
-        inDirectory(vulkanSdk, "$sdkBin/$executableName")?.let { return Optional.of(it.toString()) }
+        inDirectory(vulkanSdk, "$sdkBin/$executableName")?.let {
+            return it.toString()
+        }
 
         val entries = path?.split(File.pathSeparatorChar).orEmpty()
         val direct = entries.firstNotNullOfOrNull { inDirectory(it, executableName) }
         if (direct != null) {
-            return Optional.of(direct.toString())
+            return direct.toString()
         }
 
         // A PATH entry can expose only the compiler symlink from a full SDK.
@@ -48,7 +65,7 @@ object ExecutableLocator {
             val compiler = inDirectory(entry, compilerName) ?: return@firstNotNullOfOrNull null
             inDirectory(realParent(compiler)?.toString(), executableName)
         }
-        return Optional.ofNullable(alongsideCompiler?.toString())
+        return alongsideCompiler?.toString()
     }
 
     private fun resolveAgainstProject(directory: String, projectBasePath: String?): String {
@@ -77,18 +94,17 @@ object ExecutableLocator {
         }
     }
 
-    @JvmStatic
-    fun isExecutable(executable: Path): Boolean =
-        Files.isRegularFile(executable) && Files.isExecutable(executable)
+    fun isExecutable(executable: Path): Boolean = Files.isRegularFile(executable) && Files.isExecutable(executable)
 }
 
 private fun String.isBlankPath() = all(Character::isWhitespace)
 
 /** Broken or inaccessible links must not block later discovery candidates. */
-internal fun realParent(executable: Path): Path? = try {
-    executable.toRealPath().parent
-} catch (_: IOException) {
-    null
-} catch (_: SecurityException) {
-    null
-}
+internal fun realParent(executable: Path): Path? =
+    try {
+        executable.toRealPath().parent
+    } catch (_: IOException) {
+        null
+    } catch (_: SecurityException) {
+        null
+    }
