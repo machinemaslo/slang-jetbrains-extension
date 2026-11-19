@@ -63,6 +63,8 @@ XML tag and registered IDs such as `SlangGotoDeclarationHandler` stable when ren
 
 ### Smart editing
 
+In the Project tool window, Slang files show an entry-point stage suffix. Stages come from explicit `[shader("…")]` attributes.
+
 #### Slang tools for JetBrains Air and MCP
 
 With JetBrains' MCP Server enabled, the plugin contributes three read-only tools.

@@ -113,6 +113,7 @@
                          implementationClass="slanglsp.editor.inspections.unused.UnusedSymbolsInspection"/>
 
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
+        <projectViewNodeDecorator implementation="slanglsp.projectview.EntryPointStageDecorator"/>
         <fileBasedIndex implementation="slanglsp.editor.typing.GenericDeclarationsIndex"/>
         <lang.formatter language="Slang" implementationClass="slanglsp.formatting.native.NativeFormattingModelBuilder"/>
 

@@ -186,7 +186,7 @@ constructor(
         override fun getValueAt(row: Int, column: Int): Any {
             val rule = rules[row]
             return if (column == 0) rule.name
-            else rule.variants.map { NamingRule.label(it.style) }.distinct().joinToString(", ")
+            else rule.variants.map(NamingRule.Variant::preview).distinct().joinToString(", ")
         }
     }
 }

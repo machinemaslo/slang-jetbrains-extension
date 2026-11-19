@@ -95,6 +95,7 @@ class VerifiedRenameHandler : RenameHandler, TitledHandler {
                     showError(
                         project, failure.message ?: SlangBundle.message("rename.slangd.could.not.verify.the.rename"))
                 },
+                serial = true,
                 compute = {
                     val source =
                         checkNotNull(ReadActions.compute(resolve)) {

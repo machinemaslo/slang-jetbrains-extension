@@ -7,21 +7,43 @@ import com.intellij.openapi.util.NlsContexts.ProgressTitle
 import com.intellij.platform.ide.progress.withBackgroundProgress
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** Runs blocking editor analysis with cancellable progress and delivers the result on the EDT. */
 @Service(Service.Level.PROJECT)
 internal class EditorAnalysisTasks(private val project: Project, private val scope: CoroutineScope) {
+    private val serialQueue = Mutex()
+
     fun <T> launch(
         @ProgressTitle title: String,
         onFailure: ((Exception) -> Unit)? = null,
+        serial: Boolean = false,
         compute: () -> T,
         onSuccess: (T) -> Unit
-    ): Job = scope.launch {
+    ): Job = scope.launch(start = if (serial) CoroutineStart.UNDISPATCHED else CoroutineStart.DEFAULT) {
+        if (serial) {
+            // Enter the queue in submission order and hold it through the EDT callback.
+            serialQueue.withLock {
+                analyzeAndApply(title, onFailure, compute, onSuccess)
+            }
+        } else {
+            analyzeAndApply(title, onFailure, compute, onSuccess)
+        }
+    }
+
+    private suspend fun <T> analyzeAndApply(
+        @ProgressTitle title: String,
+        onFailure: ((Exception) -> Unit)?,
+        compute: () -> T,
+        onSuccess: (T) -> Unit
+    ) {
         val result =
             try {
                 withBackgroundProgress(project, title) {
@@ -33,7 +55,7 @@ internal class EditorAnalysisTasks(private val project: Project, private val sco
             } catch (failure: Exception) {
                 val report = onFailure ?: throw failure
                 onEdt { report(failure) }
-                return@launch
+                return
             }
         onEdt { onSuccess(result) }
     }

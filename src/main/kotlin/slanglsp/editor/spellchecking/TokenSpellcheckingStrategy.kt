@@ -60,8 +60,12 @@ class TokenSpellcheckingStrategy : SpellcheckingStrategy() {
                         if (i < end) {
                             val escape = text[i++]
                             val digits =
-                                if (escape == 'u') 4
-                                else if (escape == 'U') 8 else if (escape == 'x') Int.MAX_VALUE else 0
+                                when (escape) {
+                                    'u' -> 4
+                                    'U' -> 8
+                                    'x' -> Int.MAX_VALUE
+                                    else -> 0
+                                }
                             if (escape in '0'..'7') {
                                 var count = 0
                                 while (count < 2 && i < end && text[i] >= '0' && text[i] <= '7') {

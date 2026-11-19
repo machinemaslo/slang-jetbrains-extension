@@ -5,7 +5,24 @@ import slanglsp.SlangBundle
 
 /** Immutable, ordered code-style rule. The first matching category wins. */
 class NamingRule(val name: String, categories: Set<Category>, variants: List<Variant>, val enabled: Boolean) {
-    @JvmRecord data class Variant(val style: Style, val prefix: String, val suffix: String)
+    @JvmRecord
+    data class Variant(val style: Style, val prefix: String, val suffix: String) {
+        internal fun preview(): String {
+            if (style == Style.ANY && prefix.isEmpty() && suffix.isEmpty()) {
+                return label(style)
+            }
+
+            val sample =
+                when (style) {
+                    Style.SNAKE_CASE -> "all_lower"
+                    Style.LOWER_CAMEL_CASE -> "lower_camel_case"
+                    Style.UPPER_CAMEL_CASE -> "upper_camel_case"
+                    Style.SCREAMING_SNAKE_CASE -> "screaming_snake_case"
+                    Style.ANY -> "sampleName"
+                }
+            return checkNotNull(format(this, sample, ""))
+        }
+    }
 
     constructor(
         name: String,
@@ -85,7 +102,7 @@ class NamingRule(val name: String, categories: Set<Category>, variants: List<Var
         private val ACRONYM_SEPARATOR = Regex("[,;\\s]+")
 
         private fun suggest(variant: Variant, identifier: String, abbreviations: String): String {
-            val (style, prefix, suffix) = variant
+            val (_, prefix, suffix) = variant
             var base = identifier
             val prefixBoundary = prefix.length > 1 || prefix == "_" || (base.getOrNull(1)?.isUpperCase() == true)
             if (prefix.isNotEmpty() && base.startsWith(prefix) && prefixBoundary) {
@@ -94,6 +111,12 @@ class NamingRule(val name: String, categories: Set<Category>, variants: List<Var
             if (suffix.isNotEmpty() && base.endsWith(suffix)) {
                 base = base.substring(0, base.length - suffix.length)
             }
+
+            return format(variant, base, abbreviations) ?: identifier
+        }
+
+        private fun format(variant: Variant, base: String, abbreviations: String): String? {
+            val (style, prefix, suffix) = variant
             val acronyms =
                 abbreviations.split(ACRONYM_SEPARATOR).filter { it.isNotEmpty() }.mapTo(hashSetOf()) { it.uppercase() }
             val words = mutableListOf<String>()
@@ -109,7 +132,7 @@ class NamingRule(val name: String, categories: Set<Category>, variants: List<Var
                 words.add(matcher.group().lowercase())
             }
             if (words.isEmpty() && style != Style.ANY) {
-                return identifier
+                return null
             }
             val converted =
                 when (style) {

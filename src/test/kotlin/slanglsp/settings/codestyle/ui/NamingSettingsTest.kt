@@ -11,12 +11,18 @@ import com.intellij.profile.codeInspection.InspectionProfileManager
 import com.intellij.psi.codeStyle.CodeStyleSettingsManager
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
 import com.intellij.testFramework.runInEdtAndWait
+import com.intellij.util.ui.UIUtil
 import java.awt.Component
 import java.awt.Container
 import javax.swing.JCheckBox
+import javax.swing.JLabel
+import javax.swing.JList
+import javax.swing.JTable
+import javax.swing.JTextField
 import org.jdom.Element
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
+import slanglsp.SlangBundle.message
 import slanglsp.editor.inspections.naming.InconsistentNamingInspection
 import slanglsp.settings.codestyle.CodeStylePresets.Slang
 import slanglsp.settings.codestyle.NamingRule
@@ -76,6 +82,59 @@ internal class NamingSettingsTest {
             val rule = NamingRule("Rule", NamingRule.Category.ALL, style, "", "")
             val suggested = rule.suggest("sampleGPUTexture2", "GPU")
             Assertions.assertEquals(suggested, rule.suggest(suggested, "GPU"), style.toString())
+        }
+    }
+
+    @Test
+    fun previewsIncludeEachVariantsAffixesAndUpdateWhileEditing() {
+        val fixture = IdeaTestFixtureFactory.getFixtureFactory().createLightFixtureBuilder("NamingPreview").fixture
+        runInEdtAndWait { fixture.setUp() }
+
+        try {
+            runInEdtAndWait {
+                val project = fixture.project
+                val settings = CodeStyleSettingsManager.getInstance(project).createSettings()
+                val rule =
+                    NamingRule(
+                        "Values",
+                        setOf(NamingRule.Category.ALL),
+                        listOf(
+                            NamingRule.Variant(NamingRule.Style.UPPER_CAMEL_CASE, "k", ""),
+                            NamingRule.Variant(NamingRule.Style.UPPER_CAMEL_CASE, "g", "_"),
+                            NamingRule.Variant(NamingRule.Style.ANY, "", "_id"),
+                        ),
+                        enabled = false,
+                    )
+                settings.getCustomSettings(SlangCodeStyleSettings::class.java).setNamingRules(listOf(rule))
+                val panel = NamingPanel(settings, project)
+                try {
+                    panel.reset(settings)
+                    val table = checkNotNull(UIUtil.findComponentOfType(panel.panel, JTable::class.java))
+                    Assertions.assertEquals("kUpperCamelCase, gUpperCamelCase_, sampleName_id", table.getValueAt(0, 1))
+                } finally {
+                    Disposer.dispose(panel)
+                }
+
+                val dialog = NamingRuleDialog(project, rule)
+                try {
+                    val content = dialog.createCenterPanel()
+                    val styles = checkNotNull(UIUtil.findComponentOfType(content, JList::class.java))
+                    val labels = UIUtil.findComponentsOfType(content, JLabel::class.java)
+                    val prefix = labels.single { it.text == message("naming.prefix") }.labelFor as JTextField
+                    val suffix = labels.single { it.text == message("naming.suffix") }.labelFor as JTextField
+
+                    Assertions.assertEquals("kUpperCamelCase", renderedStyle(styles, 0))
+                    Assertions.assertEquals("gUpperCamelCase_", renderedStyle(styles, 1))
+                    prefix.text = "m_"
+                    suffix.text = "Value"
+                    Assertions.assertEquals("m_UpperCamelCaseValue", renderedStyle(styles, 0))
+                    Assertions.assertEquals("gUpperCamelCase_", renderedStyle(styles, 1))
+                } finally {
+                    dialog.close(DialogWrapper.CANCEL_EXIT_CODE)
+                }
+            }
+        } finally {
+            runInEdtAndWait { fixture.tearDown() }
         }
     }
 
@@ -182,6 +241,12 @@ internal class NamingSettingsTest {
     }
 
     companion object {
+        private fun <T> renderedStyle(list: JList<T>, index: Int): String {
+            val cell =
+                list.cellRenderer.getListCellRendererComponent(list, list.model.getElementAt(index), index, false, false)
+            return (cell as JLabel).text
+        }
+
         private fun findCheckbox(component: Component): JCheckBox? {
             if (component is JCheckBox) {
                 return component

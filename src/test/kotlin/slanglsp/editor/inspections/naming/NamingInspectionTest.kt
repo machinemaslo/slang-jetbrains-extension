@@ -1,12 +1,15 @@
 package slanglsp.editor.inspections.naming
 
 import com.intellij.application.options.CodeStyle
+import com.intellij.codeInspection.InspectionManager
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
+import com.intellij.openapi.ui.TestDialogManager
 import com.intellij.profile.codeInspection.InspectionProfileManager
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
@@ -36,6 +39,80 @@ internal class NamingInspectionTest {
             mutableListOf<String?>("element_type", "Count", "namedValue", "scalarValue"),
             candidates.values.filterNotNull().map { it.name })
         Assertions.assertEquals(NamingRule.Category.GENERIC_PARAMETERS, candidates.values.first()?.category)
+    }
+
+    @Test
+    @Timeout(90)
+    fun appliesAllBatchNamingFixesToTheLatestDocuments() {
+        val fixture = NativeServerSupport.isolatedFixture("BatchNaming")
+        runInEdtAndWait { fixture.setUp() }
+
+        try {
+            val source = """
+                float firstFunction(float inputValue) {
+                    float localValue = inputValue;
+                    return localValue;
+                }
+                float secondFunction() { return firstFunction(1); }
+            """.trimIndent()
+            val otherSource = """
+                float otherFunction() { return 2; }
+            """.trimIndent()
+            val project = fixture.project
+            lateinit var files: List<PsiFile>
+            runInEdtAndWait {
+                fixture.enableInspections(InconsistentNamingInspection())
+                NativeServerSupport.configure(fixture, TestDependencies.slangd())
+                files = listOf(
+                    fixture.addFileToProject("first.slang", source),
+                    fixture.addFileToProject("second.slang", otherSource),
+                ).onEach { file ->
+                    CodeStyle.getSettings(file)
+                        .getCustomSettings(SlangCodeStyleSettings::class.java)
+                        .setNamingRules(defaults(false))
+                }
+            }
+            val manager = InspectionManager.getInstance(project)
+            val context = manager.createNewGlobalContext()
+            val problems = files.flatMap { InconsistentNamingInspection().checkFile(it, context, manager).asList() }
+            Assertions.assertEquals(5, problems.size, problems.joinToString { it.descriptionTemplate })
+
+            runInEdtAndWait {
+                val errors = mutableListOf<String>()
+                TestDialogManager.setTestDialog({ message ->
+                    errors.add(message)
+                    0
+                }, fixture.testRootDisposable)
+
+                val documents = files.map { checkNotNull(PsiDocumentManager.getInstance(project).getDocument(it)) }
+                val expected = listOf(
+                    source
+                        .replace("firstFunction", "first_function")
+                        .replace("secondFunction", "second_function")
+                        .replace("inputValue", "input_value")
+                        .replace("localValue", "local_value"),
+                    otherSource.replace("otherFunction", "other_function"),
+                )
+
+                // The inspection action applies all descriptors from one analysis, with no editor.
+                for (problem in problems) {
+                    problem.fixes!!.single().applyFix(project, problem)
+                }
+                PlatformTestUtil.waitWithEventsDispatching(
+                    "All naming fixes applied",
+                    { errors.isNotEmpty() || documents.map { it.text } == expected },
+                    30,
+                )
+                Assertions.assertTrue(errors.isEmpty(), errors.toString())
+                Assertions.assertEquals(expected, documents.map { it.text })
+            }
+        } finally {
+            try {
+                NativeServerSupport.stop(fixture.project)
+            } finally {
+                runInEdtAndWait { fixture.tearDown() }
+            }
+        }
     }
 
     @Test

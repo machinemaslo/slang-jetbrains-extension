@@ -37,7 +37,7 @@ internal class NamingRuleDialog(project: Project?, rule: NamingRule) : DialogWra
         styles.selectionMode = ListSelectionModel.SINGLE_SELECTION
         styles.setCellRenderer(
             textRenderer { variant: NamingRule.Variant? ->
-                NamingRule.label(variant!!.style)
+                variant!!.preview()
             })
         style.setRenderer(
             textRenderer { style: NamingRule.Style? ->
@@ -91,7 +91,7 @@ internal class NamingRuleDialog(project: Project?, rule: NamingRule) : DialogWra
         }
     }
 
-    override fun createCenterPanel(): JComponent? {
+    public override fun createCenterPanel(): JComponent {
         val toolbar =
             ToolbarDecorator.createDecorator(styles)
                 .setToolbarPosition(ActionToolbarPosition.TOP)
