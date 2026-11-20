@@ -24,6 +24,8 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+      - name: Use the compilation SDK without Toolbox
+        run: printf '\ncoreOnly=true\n' >> gradle.properties
       - name: 'Qodana Scan'
         uses: JetBrains/qodana-action@v2026.2.2
         env:

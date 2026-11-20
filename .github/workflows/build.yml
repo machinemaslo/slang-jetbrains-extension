@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  ORG_GRADLE_PROJECT_coreOnly: 'true'
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -90,12 +93,12 @@ jobs:
             buildSrc/build/test-results/
       - uses: actions/upload-artifact@v7
         with:
-          name: plugin-distribution-${{ matrix.os }}
+          name: plugin-core-distribution-${{ matrix.os }}
           path: build/distributions/*.zip
           if-no-files-found: error
 
   verify:
-    name: Verify CLion
+    name: Verify minimum IntelliJ IDEA SDK
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -109,5 +112,5 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: plugin-verifier-CL
+          name: plugin-verifier-IDEA
           path: build/reports/pluginVerifier

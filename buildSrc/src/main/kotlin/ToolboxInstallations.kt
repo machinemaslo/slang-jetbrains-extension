@@ -7,9 +7,26 @@ import java.nio.file.InvalidPathException
 import java.nio.file.Path
 import java.util.*
 import org.gradle.api.GradleException
+import org.gradle.api.file.ProjectLayout
+import org.gradle.api.provider.Provider
+import org.gradle.api.provider.ProviderFactory
 
 /** Resolves installed IDEs from Toolbox's local inventory without scanning install directories. */
 object ToolboxInstallations {
+    fun inventory(providers: ProviderFactory, layout: ProjectLayout): Provider<String> {
+        val home = providers.systemProperty("user.home").get()
+        val os = providers.systemProperty("os.name").get()
+        val dataRoot = when {
+            os.startsWith("Windows") -> providers.environmentVariable("LOCALAPPDATA").getOrElse("$home/AppData/Local")
+            os.startsWith("Mac") -> "$home/Library/Application Support"
+            else -> providers.environmentVariable("XDG_DATA_HOME").orNull?.takeIf { it.isNotBlank() }
+                ?: "$home/.local/share"
+        }
+        return providers.fileContents(layout.projectDirectory.file("$dataRoot/JetBrains/Toolbox/state.json"))
+            .asText
+            .orElse("")
+    }
+
     fun find(inventory: String, ideName: String, productCodes: List<String>): File {
         if (inventory.isBlank()) {
             throw GradleException("JetBrains Toolbox inventory not found. Open Toolbox and install $ideName.")

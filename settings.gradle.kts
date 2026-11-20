@@ -6,4 +6,6 @@ pluginManagement {
 }
 
 rootProject.name = "Unofficial-LSP-For-Slang [Refined]"
-include(":mcp-skills")
+if (!providers.gradleProperty("coreOnly").map(String::toBoolean).getOrElse(false)) {
+    include(":mcp-skills")
+}

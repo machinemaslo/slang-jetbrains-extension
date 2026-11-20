@@ -12,13 +12,8 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        // Only this optional module needs the newer SDK; the main plugin still targets IDEA 2026.2.5.
-        val skillsIdePath = providers.gradleProperty("skillsIdePath").orNull
-        if (skillsIdePath != null) {
-            local(skillsIdePath)
-        } else {
-            clion("2026.3.0.1")
-        }
+        // The core plugin still targets IDEA 2026.2.5. Never download a second IDE SDK.
+        local(ToolboxInstallations.inventory(providers, layout).map { ToolboxInstallations.find(it, "CLion", listOf("CL")) })
         bundledModule("intellij.mcpserver.skills")
     }
 }

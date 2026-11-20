@@ -19,7 +19,9 @@
         <option name="gradleJvm" value="openjdk-27" />
         <option name="modules">
           <set>
+            <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/buildSrc" />
+            <option value="$PROJECT_DIR$/mcp-skills" />
           </set>
         </option>
       </GradleProjectSettings>

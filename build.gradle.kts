@@ -1,6 +1,6 @@
 import java.util.Properties
-import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
-import org.jetbrains.intellij.platform.gradle.models.ProductRelease
+import org.jetbrains.intellij.platform.gradle.tasks.BuildPluginTask
+import org.jetbrains.intellij.platform.gradle.tasks.PatchPluginXmlTask
 import org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask
 import org.jetbrains.intellij.platform.gradle.tasks.RunIdeTask
 import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
@@ -18,6 +18,8 @@ plugins {
 
 val minimumIdeaVersion = "2026.2.5"
 val minimumIdeaBuild = "262.12573.28"
+val coreOnly = providers.gradleProperty("coreOnly").map(String::toBoolean).getOrElse(false)
+val toolboxInventory = ToolboxInstallations.inventory(providers, layout)
 
 idea {
     module {
@@ -35,7 +37,9 @@ repositories {
 }
 
 dependencies {
-    runtimeOnly(project(":mcp-skills"))
+    if (!coreOnly) {
+        runtimeOnly(project(":mcp-skills"))
+    }
     intellijPlatform {
         // Local IDEs are opt-in; release builds always use the pinned baseline.
         val localIdePath = providers.gradleProperty("localIdePath").orNull
@@ -119,20 +123,6 @@ val installTestDependencies =
         }
     }
 
-val home = providers.systemProperty("user.home").get()
-val toolboxDataRoot =
-    when (hostOs) {
-        "windows" -> providers.environmentVariable("LOCALAPPDATA").getOrElse("$home/AppData/Local")
-        "osx" -> "$home/Library/Application Support"
-        else ->
-            providers.environmentVariable("XDG_DATA_HOME").orNull?.takeIf { it.isNotBlank() } ?: "$home/.local/share"
-    }
-val toolboxInventory =
-    providers
-        .fileContents(layout.projectDirectory.file("$toolboxDataRoot/JetBrains/Toolbox/state.json"))
-        .asText
-        .orElse("")
-
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>().configureEach {
     compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
     compilerOptions.apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_4)
@@ -202,6 +192,25 @@ fun registerPluginPlayground(
 registerPluginPlayground("runPlugin", "IntelliJ IDEA", "", "IU", "IC")
 
 registerPluginPlayground("runPluginCLion", "CLion", "CLion", "CL")
+
+tasks.named<PatchPluginXmlTask>("patchPluginXml") {
+    inputs.property("coreOnly", coreOnly)
+    if (coreOnly) {
+        doLast {
+            val descriptor = outputFile.get().asFile
+            val xml = descriptor.readText()
+            val skillsModule = Regex("""<content>\s*<module name="slanglsp\.mcp\.skills" loading="optional"\s*/>\s*</content>""")
+            check(skillsModule.containsMatchIn(xml)) { "Could not remove the optional skill module from plugin.xml" }
+            descriptor.writeText(xml.replace(skillsModule, ""))
+        }
+    }
+}
+
+if (coreOnly) {
+    tasks.named<BuildPluginTask>("buildPlugin") {
+        archiveClassifier.set("core-only")
+    }
+}
 
 tasks {
     withType<JavaCompile> {
@@ -276,13 +285,10 @@ intellijPlatform {
             )
         ides {
             val verificationIdePath = providers.gradleProperty("verificationIdePath").orNull
-            if (verificationIdePath != null) {
-                local(file(verificationIdePath))
-            } else {
-                latest {
-                    types = listOf(IntelliJPlatformType.CLion)
-                    channels = listOf(ProductRelease.Channel.RELEASE)
-                }
+            when {
+                verificationIdePath != null -> local(file(verificationIdePath))
+                coreOnly -> current()
+                else -> local(toolboxInventory.map { ToolboxInstallations.find(it, "CLion", listOf("CL")) })
             }
         }
     }

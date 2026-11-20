@@ -49,7 +49,7 @@ New projects have no predefined macros. Edit project macros under **General**.
 
 ### Development playground
 
-Select **Run Plugin (IJ)** (`./gradlew runPlugin`) or **Run Plugin (CLion)** (`./gradlew runPluginCLion`). Both read JetBrains Toolbox's local inventory and launch the newest installed build of the requested IDE in a separate sandbox with sample Slang files. Install the IDE in Toolbox if it isn't listed there.
+Select **Run Plugin (IJ)** (`./gradlew runPlugin`) or **Run Plugin (CLion)** (`./gradlew runPluginCLion`). Both read JetBrains Toolbox's local inventory and launch the newest installed build of the requested IDE in a separate sandbox with sample Slang files. Neither playground installs an IDE. Install the IDE in Toolbox if it isn't listed there.
 The CLion playground disables its bundled Python plugin to avoid a startup error in some CLion builds, use `-PplaygroundPython=true` to enable it in that sandbox.
 
 The plugin requires IntelliJ IDEA 2026.2.5 or a compatible IDE with JetBrains’ bundled LSP client. That client handles `slangd` startup, semantic colors, Structure view, Parameter Info, hover documentation, declaration/usage navigation, verified rename, and live unused-symbol warnings.
@@ -94,8 +94,9 @@ Slang marks its tools as always included. The IDE's MCP exposure settings still 
 On IDEs with JetBrains’ bundled skill support, the plugin automatically registers a short **Slang tools** skill for Air
 with router syntax for all three tools. IDEA 2026.2.5 exposes the tools directly but does not load the optional skill module.
 
-The core plugin and MCP tools compile against the minimum IDEA SDK. The optional skill module compiles against
-CLion 2026.3.0.1; pass `-PskillsIdePath=/path/to/clion` to reuse a compatible local installation instead of downloading that SDK.
+Gradle may download the minimum IDEA SDK to compile the core plugin and MCP tools. The skill module and default Plugin
+Verifier target use the newest CLion already installed through Toolbox; Gradle never downloads CLion. For builds without
+Toolbox CLion, use `-PcoreOnly=true` to omit the skill module and verify against the compilation SDK, as CI does.
 Run `./gradlew test -PmcpSmokeTest=true` to check that the server discovers and invokes all three tools on the minimum SDK.
 
 To diagnose slow inspections or generic-bracket typing on large files, add `#slanglsp.editor.AnalysisTiming` to **Help → Diagnostic Tools → Debug Log Settings**. The IDE log reports analysis duration and the count and combined wait time of unused-symbol reference checks.
