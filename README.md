@@ -65,6 +65,16 @@ XML tag and registered IDs such as `SlangGotoDeclarationHandler` stable when ren
 
 In the Project tool window, Slang files show an entry-point stage suffix. Stages come from explicit `[shader("…")]` attributes.
 
+#### Find C++ Usages in CLion (experimental)
+
+Right-click the Slang **struct declaration** and choose **Find C++ Usages**. This is one action on Windows, macOS, and Linux. It uses CLion’s type index and the IDE’s word index, including for `.inc` files. An absolute `#line` mapping can identify a generated declaration even when it was renamed. A matching name and ordered field names are offered for confirmation, not treated as proof. The search can also follow explicit reflection layout checks in C++.
+
+For CMake projects, the selected CLion run target/profile supplies the build directory and include paths. The action selects the matching profile's declaration automatically instead of asking you to choose between build copies; genuinely ambiguous declarations still require a choice. Profile changes invalidate cached choices. Generated reflection files are omitted from the resulting usage view, without changing global search settings.
+
+For a renamed struct without a source map, the action can run the **already-built native generator** in a trusted project. It discovers invocations from CMake/Ninja custom commands or a `compile_commands.json` **entry for the shader**. Ordinary compiler entries for `.cpp` files are not generator invocations. Replay needs identifiable shader input and output arguments (for example, `reflect shader.slang -o generated.inc`). It passes temporary paths directly to the executable, with a temporary working directory, after showing the command. This is not an OS sandbox. No project build, project copy, or Bubblewrap installation is needed.
+
+Replay runs a baseline and two layout probes, with a scalar fallback. A unique two-probe match and agreement with the live output are required before handing the declaration to CLion’s native Find Usages. Commands with shell pipelines or hardcoded destinations are unsupported. Cached probe matches are checked against the available declared inputs and live artifact.
+
 #### Slang tools for JetBrains Air and MCP
 
 With JetBrains' MCP Server enabled, the plugin contributes three read-only tools.

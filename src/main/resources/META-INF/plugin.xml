@@ -114,6 +114,7 @@
 
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
         <projectViewNodeDecorator implementation="slanglsp.projectview.EntryPointStageDecorator"/>
+        <usageViewElementsListener implementation="slanglsp.editor.navigation.cpp.ReflectedUsageViewListener"/>
         <fileBasedIndex implementation="slanglsp.editor.typing.GenericDeclarationsIndex"/>
         <lang.formatter language="Slang" implementationClass="slanglsp.formatting.native.NativeFormattingModelBuilder"/>
 
@@ -192,6 +193,12 @@
         <listener class="slanglsp.settings.codestyle.CodeStyleChangeListener"
                   topic="com.intellij.psi.codeStyle.CodeStyleSettingsListener"/>
     </projectListeners>
+
+    <actions>
+        <action id="Slang.FindCppUsages" class="slanglsp.editor.navigation.cpp.FindCppUsagesAction">
+            <add-to-group group-id="EditorPopupMenu1.FindRefactor" anchor="after" relative-to-action="FindUsages"/>
+        </action>
+    </actions>
 
     <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
         <!-- LSP4IJ annotates bundle keys as display text; translations supply capitalization. -->

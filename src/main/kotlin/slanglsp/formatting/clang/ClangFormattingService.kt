@@ -5,6 +5,8 @@ import com.intellij.execution.process.CapturingProcessHandler
 import com.intellij.formatting.service.AsyncDocumentFormattingService
 import com.intellij.formatting.service.AsyncFormattingRequest
 import com.intellij.formatting.service.FormattingService
+import com.intellij.openapi.application.runReadActionBlocking
+import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.progress.ProcessCanceledException
@@ -14,33 +16,35 @@ import com.redhat.devtools.lsp4ij.LSPIJUtils
 import com.redhat.devtools.lsp4ij.LanguageServerItem
 import com.redhat.devtools.lsp4ij.features.formatting.LSPFormattingParams
 import com.redhat.devtools.lsp4ij.features.formatting.LSPFormattingSupport
-import java.nio.file.Files
-import java.nio.file.Path
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
+import kotlin.concurrent.atomics.AtomicBoolean
+import kotlin.concurrent.atomics.AtomicReference
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.io.path.Path
+import kotlin.io.path.isExecutable
 import org.eclipse.lsp4j.DidChangeConfigurationParams
 import org.eclipse.lsp4j.FormattingOptions
 import org.eclipse.lsp4j.TextEdit
 import slanglsp.analysis.AnalysisDeadline
-import slanglsp.analysis.ReadActions
 import slanglsp.language.SlangLanguage
 import slanglsp.server.client.FormattingSettings
 import slanglsp.server.client.ServerClient
 import slanglsp.settings.codestyle.SlangCodeStyleSettings
 
 /** Routes explicit external formatting through slangd; the platform owns edit application. */
+@OptIn(ExperimentalAtomicApi::class)
 class ClangFormattingService : AsyncDocumentFormattingService() {
     override fun getFeatures(): MutableSet<FormattingService.Feature?> {
         return mutableSetOf(FormattingService.Feature.FORMAT_FRAGMENTS)
     }
 
     override fun canFormat(file: PsiFile): Boolean {
+        val virtualFile = file.virtualFile ?: return false
+
         return file.language.isKindOf(SlangLanguage.INSTANCE) &&
-            file.virtualFile != null &&
-            file.virtualFile.isInLocalFileSystem &&
+            virtualFile.isInLocalFileSystem &&
             CodeStyle.getSettings(file)
-                .getCustomSettings<SlangCodeStyleSettings?>(SlangCodeStyleSettings::class.java)
+                .getCustomSettings(SlangCodeStyleSettings::class.java)
                 .USE_CLANG_FORMAT
     }
 
@@ -50,7 +54,7 @@ class ClangFormattingService : AsyncDocumentFormattingService() {
         val serverSettings: MutableMap<String?, Any?> = ServerClient.settings(file.project, settings)
         val executable =
             settings
-                .getCustomSettings<SlangCodeStyleSettings?>(SlangCodeStyleSettings::class.java)
+                .getCustomSettings(SlangCodeStyleSettings::class.java)
                 .clangFormatExecutable()
         val indent = settings.getIndentOptions(file.fileType)
         val options = FormattingOptions(indent.INDENT_SIZE, !indent.USE_TAB_CHARACTER)
@@ -58,38 +62,41 @@ class ClangFormattingService : AsyncDocumentFormattingService() {
         val ranges = request.formattingRanges.map { checkNotNull(it) }
         val source = file.virtualFile.toNioPath()
         val support = FormattingSupport(file)
-        val cancelled = AtomicBoolean()
-        val process = AtomicReference<CapturingProcessHandler?>()
+        val cancelled = AtomicBoolean(false)
+        val process = AtomicReference<CapturingProcessHandler?>(null)
+
         return object : FormattingTask {
             // Closing the scopes restores the deadline and server configuration.
             override fun run() {
                 try {
                     AnalysisDeadline.open().use {
-                        if (cancelled.get()) {
+                        if (cancelled.load()) {
                             return
                         }
+
                         check(!executable.isNullOrBlank()) { "Selected clang-format executable is unavailable" }
-                        check(
-                            !((executable.contains("/") || executable.contains("\\")) &&
-                                !Files.isExecutable(Path.of(executable)))) {
-                                "clang-format executable is unavailable: $executable"
-                            }
+                        val isPath = '/' in executable || '\\' in executable
+                        check(!isPath || Path(executable).isExecutable()) {
+                            "clang-format executable is unavailable: $executable"
+                        }
+
                         FormattingConfiguration.validate(source, executable, serverSettings) { handler ->
-                            process.set(handler)
-                            if (cancelled.get()) {
+                            process.store(handler)
+
+                            if (cancelled.load()) {
                                 handler.destroyProcess()
                             }
                         }
-                        val formatted: String
-                        file.project
-                            .getService<FormattingSettings?>(FormattingSettings::class.java)!!
-                            .open(serverSettings, cancelled::get)
+
+                        val formatted = file.project.service<FormattingSettings>()
+                            .open(serverSettings, cancelled::load)
                             .use {
-                                if (cancelled.get()) {
+                                if (cancelled.load()) {
                                     return
                                 }
+
                                 val servers =
-                                    AnalysisDeadline.await(ReadActions.compute { support.connect() }).orEmpty()
+                                    AnalysisDeadline.await(runReadActionBlocking { support.connect() }).orEmpty()
                                 val server =
                                     checkNotNull(
                                         servers.firstOrNull {
@@ -98,31 +105,33 @@ class ClangFormattingService : AsyncDocumentFormattingService() {
                                             "Slang language server is unavailable"
                                         }
                                 server.workspaceService.didChangeConfiguration(
-                                    DidChangeConfigurationParams(serverSettings))
-                                val edits = ArrayList<TextEdit?>()
+                                    DidChangeConfigurationParams(serverSettings),
+                                )
+
+                                val edits = linkedSetOf<TextEdit>()
                                 for (range in ranges) {
-                                    if (cancelled.get()) {
+                                    if (cancelled.load()) {
                                         return
                                     }
-                                    val selection =
-                                        if (range.startOffset == 0 && range.endOffset == document.textLength) null
-                                        else range
+
+                                    val selection = range.takeUnless {
+                                        it.startOffset == 0 && it.endOffset == document.textLength
+                                    }
                                     val params = LSPFormattingParams(selection, document, server, options)
                                     val result: MutableList<out TextEdit?>? =
                                         AnalysisDeadline.await<MutableList<out TextEdit?>?>(
-                                            ReadActions.compute { support.getFeatureData(params) })
-                                    for (edit in result.orEmpty()) {
-                                        if (edit != null &&
-                                            (selection == null || inside(edit, selection, document)) &&
-                                            edit !in edits) {
-                                            edits.add(edit)
-                                        }
+                                            runReadActionBlocking { support.getFeatureData(params) },
+                                        )
+                                    result.orEmpty().asSequence().filterNotNull().filterTo(edits) { edit ->
+                                        selection == null || inside(edit, selection, document)
                                     }
                                 }
-                                formatted = LSPIJUtils.applyEdits(document, edits)
+
+                                LSPIJUtils.applyEdits(document, edits.toMutableList())
                             }
-                        if (!cancelled.get()) {
-                            request.onTextReady(if (formatted == document.text) null else formatted)
+
+                        if (!cancelled.load()) {
+                            request.onTextReady(formatted.takeUnless { it == document.text })
                         }
                     }
                 } catch (failure: ProcessCanceledException) {
@@ -130,18 +139,19 @@ class ClangFormattingService : AsyncDocumentFormattingService() {
                     throw failure
                 } catch (failure: Exception) {
                     support.cancel()
-                    if (!cancelled.get()) {
-                        val cause: Throwable = (if (failure.cause == null) failure else failure.cause)!!
-                        request.onError(name, (if (cause.message == null) cause.toString() else cause.message)!!)
+
+                    if (!cancelled.load()) {
+                        val cause = failure.cause ?: failure
+                        request.onError(name, cause.message ?: cause.toString())
                     }
                 }
             }
 
             override fun cancel(): Boolean {
-                cancelled.set(true)
+                cancelled.store(true)
                 support.cancel()
-                val handler = process.get()
-                handler?.destroyProcess()
+                process.load()?.destroyProcess()
+
                 return true
             }
 

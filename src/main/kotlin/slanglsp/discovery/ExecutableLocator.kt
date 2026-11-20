@@ -1,28 +1,34 @@
 package slanglsp.discovery
 
+import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.util.EnvironmentUtil
 import java.io.File
 import java.io.IOException
-import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
+import kotlin.io.path.Path
+import kotlin.io.path.absolute
+import kotlin.io.path.isExecutable as hasExecutePermission
+import kotlin.io.path.isRegularFile
 import slanglsp.settings.project.ProjectSettings
 
 object ExecutableLocator {
     internal val slangdName: String
         get() = if (SystemInfo.isWindows) "slangd.exe" else "slangd"
 
-    internal fun findSlangd(project: Project, settings: ProjectSettings.State): String? =
-        find(
+    internal fun findSlangd(project: Project, settings: ProjectSettings.State): String? {
+        return find(
             explicitDirectory = settings.explicitSlangdLocation,
             useVcpkg = settings.useLocalVcpkgSlangd,
-            vcpkg = { project.getService(VcpkgDiscoveryService::class.java).findExecutable() },
+            vcpkg = { project.service<VcpkgDiscoveryService>().findExecutable() },
             path = EnvironmentUtil.getValue("PATH"),
             vulkanSdk = EnvironmentUtil.getValue("VULKAN_SDK"),
             executableName = slangdName,
-            projectBasePath = project.basePath)
+            projectBasePath = project.basePath,
+        )
+    }
 
     fun find(
         explicitDirectory: String?,
@@ -37,6 +43,7 @@ object ExecutableLocator {
             explicitDirectory?.takeUnless(String::isBlankPath)?.let {
                 resolveAgainstProject(it, projectBasePath)
             }
+
         inDirectory(explicit, executableName)?.let {
             return it.toString()
         }
@@ -49,12 +56,14 @@ object ExecutableLocator {
 
         val windowsExecutable = executableName.endsWith(".exe")
         val sdkBin = if (windowsExecutable) "Bin" else "bin"
+
         inDirectory(vulkanSdk, "$sdkBin/$executableName")?.let {
             return it.toString()
         }
 
         val entries = path?.split(File.pathSeparatorChar).orEmpty()
         val direct = entries.firstNotNullOfOrNull { inDirectory(it, executableName) }
+
         if (direct != null) {
             return direct.toString()
         }
@@ -65,6 +74,7 @@ object ExecutableLocator {
             val compiler = inDirectory(entry, compilerName) ?: return@firstNotNullOfOrNull null
             inDirectory(realParent(compiler)?.toString(), executableName)
         }
+
         return alongsideCompiler?.toString()
     }
 
@@ -74,7 +84,7 @@ object ExecutableLocator {
         }
 
         return try {
-            Path.of(projectBasePath).resolve(directory).normalize().toString()
+            Path(projectBasePath).resolve(directory).normalize().toString()
         } catch (_: InvalidPathException) {
             directory
         }
@@ -86,7 +96,7 @@ object ExecutableLocator {
         }
 
         return try {
-            Path.of(directory).resolve(executableName).takeIf(::isExecutable)?.toAbsolutePath()
+            Path(directory).resolve(executableName).takeIf(::isExecutable)?.absolute()
         } catch (_: InvalidPathException) {
             null
         } catch (_: SecurityException) {
@@ -94,17 +104,20 @@ object ExecutableLocator {
         }
     }
 
-    fun isExecutable(executable: Path): Boolean = Files.isRegularFile(executable) && Files.isExecutable(executable)
+    fun isExecutable(executable: Path): Boolean {
+        return executable.isRegularFile() && executable.hasExecutePermission()
+    }
 }
 
 private fun String.isBlankPath() = all(Character::isWhitespace)
 
 /** Broken or inaccessible links must not block later discovery candidates. */
-internal fun realParent(executable: Path): Path? =
-    try {
+internal fun realParent(executable: Path): Path? {
+    return try {
         executable.toRealPath().parent
     } catch (_: IOException) {
         null
     } catch (_: SecurityException) {
         null
     }
+}

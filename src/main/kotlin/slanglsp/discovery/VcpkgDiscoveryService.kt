@@ -4,28 +4,27 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.util.EnvironmentUtil
-import java.nio.file.Path
-import java.util.concurrent.TimeUnit
+import kotlin.io.path.Path
+import kotlin.time.Duration.Companion.minutes
 import slanglsp.discovery.ExecutableLocator.isExecutable
 import slanglsp.server.ServerRecovery
 
 @Service(Service.Level.PROJECT)
 class VcpkgDiscoveryService(project: Project) : Disposable {
-    private val cache: DiscoveryCache =
-        DiscoveryCache(
-            discover = {
-                project.basePath?.let { base ->
-                    VcpkgDiscovery(
-                            ExecutableLocator.slangdName, System.getProperty("os.name"), System.getProperty("os.arch"))
-                        .find(Path.of(base), EnvironmentUtil.getEnvironmentMap())
-                }
-            },
-            clock = System::nanoTime,
-            lifetime = TimeUnit.MINUTES.toNanos(1))
+    private val cache = DiscoveryCache(
+        discover = {
+            project.basePath?.let { base ->
+                VcpkgDiscovery(ExecutableLocator.slangdName, SystemInfo.OS_NAME, SystemInfo.OS_ARCH)
+                    .find(Path(base), EnvironmentUtil.getEnvironmentMap())
+            }
+        },
+        lifetime = 1.minutes,
+    )
 
     init {
         // The fallback expiry also handles excluded/external build directories not refreshed by VFS.
@@ -36,55 +35,21 @@ class VcpkgDiscoveryService(project: Project) : Disposable {
                 VirtualFileManager.VFS_CHANGES,
                 object : BulkFileListener {
                     override fun after(events: MutableList<out VFileEvent>) {
-                        for (event in events) {
-                            val path = event.getPath().replace('\\', '/')
-                            val base = project.basePath
-                            val inProject = base != null && path.startsWith(base.replace('\\', '/') + "/")
-                            // External caches/imports can also supply the selected installation root.
-                            if (path.endsWith("/CMakeCache.txt") ||
-                                path.endsWith(".props") ||
-                                path.endsWith(".targets") ||
-                                path.endsWith("/compile_commands.json") ||
-                                path.endsWith("/xmake.conf") ||
-                                path.endsWith("/intro-dependencies.json") ||
-                                (inProject &&
-                                    (path.endsWith(".json") ||
-                                        path.endsWith(".slnx") ||
-                                        path.endsWith(".sln") ||
-                                        path.endsWith(".vcxproj") ||
-                                        path.endsWith(".csproj") ||
-                                        path.endsWith(".mk") ||
-                                        path.endsWith("/Makefile") ||
-                                        path.endsWith("/makefile") ||
-                                        path.endsWith("/GNUmakefile") ||
-                                        path.endsWith("/workspace.xml") ||
-                                        path.endsWith("/cmake.xml") ||
-                                        path.endsWith("/.gitmodules") ||
-                                        path.endsWith("/xmake.lua") ||
-                                        path.endsWith("/meson.build") ||
-                                        path.endsWith("/vcpkg_installed") ||
-                                        path.endsWith("/installed"))) ||
-                                path.endsWith("/slangd") ||
-                                path.endsWith("/slangd.exe") ||
-                                path.endsWith("/slangc") ||
-                                path.endsWith("/slangc.exe") ||
-                                path.endsWith("/tools/shader-slang") ||
-                                path.endsWith("/tools/slang") ||
-                                path.contains("/tools/shader-slang/") ||
-                                path.contains("/tools/slang/")) {
-                                cache.invalidate()
-                                ServerRecovery.retryIfMissing(project)
-                                break
-                            }
+                        val projectPrefix = project.basePath?.replace('\\', '/')?.plus("/")
+
+                        if (events.any { affectsDiscovery(it.path.replace('\\', '/'), projectPrefix) }) {
+                            cache.invalidate()
+                            ServerRecovery.retryIfMissing(project)
                         }
                     }
-                })
+                },
+            )
     }
 
     fun findExecutable(): String? {
         val found = cache.get()
 
-        if (found != null && !isExecutable(Path.of(found))) {
+        if (found != null && !isExecutable(Path(found))) {
             cache.invalidate()
 
             return cache.get()
@@ -97,5 +62,50 @@ class VcpkgDiscoveryService(project: Project) : Disposable {
         cache.invalidate()
     }
 
-    override fun dispose() {}
+    override fun dispose() {
+        // The message bus disconnects the listener when this service is disposed.
+    }
+
+    private companion object {
+        // External caches/imports can also supply the selected installation root.
+        val metadataSuffixes = listOf(
+            "/CMakeCache.txt",
+            ".props",
+            ".targets",
+            "/compile_commands.json",
+            "/xmake.conf",
+            "/intro-dependencies.json",
+        )
+
+        val projectSuffixes = listOf(
+            ".json",
+            ".slnx",
+            ".sln",
+            ".vcxproj",
+            ".csproj",
+            ".mk",
+            "/Makefile",
+            "/makefile",
+            "/GNUmakefile",
+            "/workspace.xml",
+            "/cmake.xml",
+            "/.gitmodules",
+            "/xmake.lua",
+            "/meson.build",
+            "/vcpkg_installed",
+            "/installed",
+        )
+
+        val executableSuffixes = listOf("/slangd", "/slangd.exe", "/slangc", "/slangc.exe")
+        val toolDirectories = listOf("/tools/shader-slang", "/tools/slang")
+
+        fun affectsDiscovery(path: String, projectPrefix: String?): Boolean {
+            val inProject = projectPrefix != null && path.startsWith(projectPrefix)
+
+            return metadataSuffixes.any { path.endsWith(it) } ||
+                (inProject && projectSuffixes.any { path.endsWith(it) }) ||
+                executableSuffixes.any { path.endsWith(it) } ||
+                toolDirectories.any { path.endsWith(it) || "$it/" in path }
+        }
+    }
 }

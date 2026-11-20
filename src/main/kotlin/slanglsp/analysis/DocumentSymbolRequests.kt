@@ -1,5 +1,7 @@
 package slanglsp.analysis
 
+import com.intellij.openapi.application.runReadActionBlocking
+import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.util.Key
@@ -9,6 +11,7 @@ import com.redhat.devtools.lsp4ij.features.documentSymbol.DocumentSymbolData
 import com.redhat.devtools.lsp4ij.features.documentSymbol.LSPDocumentSymbolSupport
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.seconds
 import org.eclipse.lsp4j.DocumentSymbolParams
 import org.eclipse.lsp4j.TextDocumentIdentifier
 import slanglsp.server.client.ServerClient
@@ -16,33 +19,34 @@ import slanglsp.server.protocol.DocumentUris
 
 /** Coalesces document symbols for naming, unused declarations, and rename. */
 internal object DocumentSymbolRequests {
-    private val LIVE = Key.create<Slot?>("slang.symbolRequests.live")
-    private val BATCH = Key.create<Slot?>("slang.symbolRequests.batch")
+    private val LIVE_REQUEST_TIMEOUT = 10.seconds
+    private val LIVE = Key.create<Slot>("slang.symbolRequests.live")
+    private val BATCH = Key.create<Slot>("slang.symbolRequests.batch")
     private val SLOT_LOCK = Any()
 
     fun get(
         file: PsiFile,
         document: Document,
         stamp: Long,
-        batch: Boolean
+        batch: Boolean,
     ): CompletableFuture<MutableList<DocumentSymbolData?>?>? {
-        return ReadActions.compute {
+        return runReadActionBlocking {
             if (!file.isValid || document.modificationStamp != stamp) {
                 throw ProcessCanceledException()
             }
+
             val project = file.project
-            val revision =
-                Revision(
-                    document,
-                    stamp,
-                    PsiModificationTracker.getInstance(project).modificationCount,
-                    ServerClient.analysisGeneration(project))
+            val revision = Revision(
+                document,
+                stamp,
+                PsiModificationTracker.getInstance(project).modificationCount,
+                ServerClient.analysisGeneration(project),
+            )
             val slot = slot(file, if (batch) BATCH else LIVE)
+
             slot.share(revision) {
                 if (batch) {
-                    project
-                        .getService<BatchAnalysisService?>(BatchAnalysisService::class.java)!!
-                        .symbols(file, document)
+                    project.service<BatchAnalysisService>().symbols(file, document)
                 } else {
                     requestLive(file)
                 }
@@ -50,37 +54,39 @@ internal object DocumentSymbolRequests {
         }
     }
 
-    private fun slot(file: PsiFile, key: Key<Slot?>): Slot {
+    private fun slot(file: PsiFile, key: Key<Slot>): Slot {
         file.getUserData(key)?.let {
             return it
         }
+
         return synchronized(SLOT_LOCK) {
-            file.getUserData(key)
-                ?: Slot().also {
-                    file.putUserData(key, it)
-                }
+            file.getUserData(key) ?: Slot().also {
+                file.putUserData(key, it)
+            }
         }
     }
 
     private fun requestLive(file: PsiFile): CompletableFuture<MutableList<DocumentSymbolData?>?> {
         val support = LSPDocumentSymbolSupport(file)
-        val params = DocumentSymbolParams(TextDocumentIdentifier(DocumentUris.fileUri(file.virtualFile).toString()))
+        val identifier = TextDocumentIdentifier(DocumentUris.fileUri(file.virtualFile).toString())
+        val params = DocumentSymbolParams(identifier)
         val source = support.getDocumentSymbols(params)
-        val bounded = source.copy().orTimeout(10, TimeUnit.SECONDS)
+        val bounded = source.copy().orTimeout(LIVE_REQUEST_TIMEOUT.inWholeMilliseconds, TimeUnit.MILLISECONDS)
+
         bounded.whenComplete { _, failure ->
             if (failure != null && !source.isDone) {
                 support.cancel()
             }
         }
+
         return bounded
     }
 
-    @JvmRecord
     internal data class Revision(
         val document: Document?,
         val documentStamp: Long,
         val projectStamp: Long,
-        val serverStamp: Long
+        val serverStamp: Long,
     )
 
     internal class Slot {
@@ -90,22 +96,20 @@ internal object DocumentSymbolRequests {
         @Synchronized
         fun share(
             current: Revision,
-            start: () -> CompletableFuture<MutableList<DocumentSymbolData?>?>
+            start: () -> CompletableFuture<MutableList<DocumentSymbolData?>?>,
         ): CompletableFuture<MutableList<DocumentSymbolData?>?>? {
-            val existing = request
-            val shared =
-                if (existing != null &&
-                    current == revision &&
-                    (!existing.isDone || (!existing.isCompletedExceptionally() && existing.getNow(null) != null))) {
-                    existing
-                } else {
-                    val next = start()
-                    request = next
-                    revision = current
-                    next
-                }
+            val existing = request?.takeIf { current == revision && it.isReusable() }
+            val shared = existing ?: start().also { next ->
+                request = next
+                revision = current
+            }
+
             // One consumer timing out or being canceled must not cancel another consumer's request.
             return shared.copy()
+        }
+
+        private fun <T> CompletableFuture<T?>.isReusable(): Boolean {
+            return !isDone || (!isCompletedExceptionally && getNow(null) != null)
         }
     }
 }

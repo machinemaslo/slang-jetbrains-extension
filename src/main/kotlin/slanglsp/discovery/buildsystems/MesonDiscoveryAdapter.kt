@@ -5,13 +5,10 @@ import java.nio.file.Path
 import slanglsp.discovery.DiscoveryContext
 
 /** Meson's saved introspection replies are usable without invoking build scripts. */
-internal class MesonDiscoveryAdapter : DiscoveryAdapter {
-    override fun discover(context: DiscoveryContext) {
-        if (context.read(context.root.resolve("meson.build")).isBlank()) {
-            return
-        }
-
+internal class MesonDiscoveryAdapter : DiscoveryAdapter(projectMarker = "meson.build") {
+    override fun discoverMetadata(context: DiscoveryContext) {
         context.buildDirectory(context.root, "builddir")
+
         for (directory in context.buildDirectories) {
             val data = context.json(directory.resolve("meson-info/intro-dependencies.json"))
             for (dependency in data.items().filterIsInstance<JsonObject>()) {
@@ -29,7 +26,7 @@ internal class MesonDiscoveryAdapter : DiscoveryAdapter {
             listOf("compile_args", "link_args").flatMap { key ->
                 dependency[key].items().mapNotNull { it.literal() }
             }
-        DependencyPathDiscovery.paths(context, directory, arguments, mutableSetOf())
+        DependencyPathDiscovery.registerPaths(context, directory, arguments)
     }
 }
 
@@ -39,33 +36,28 @@ private object DependencyPathDiscovery {
 
     private val PATH_PREFIXES = listOf("-isystem", "/external:I", "-imsvc", "-I", "-L", "/I", "/LIBPATH:")
 
-    fun paths(context: DiscoveryContext, base: Path?, arguments: List<String>, seen: MutableSet<String?>) {
+    fun registerPaths(context: DiscoveryContext, base: Path, arguments: List<String>) {
+        val seen = mutableSetOf<String>()
         var index = 0
+
         while (index < arguments.size) {
-            val argument = arguments[index]
-            var value: String? = null
-
-            if (SEPARATE_PATH_FLAGS.contains(argument)) {
-                if (index + 1 < arguments.size) {
-                    value = arguments[++index]
+            val argument = arguments[index++]
+            val value =
+                if (argument in SEPARATE_PATH_FLAGS) {
+                    arguments.getOrNull(index++)
+                } else {
+                    attachedPath(argument)
                 }
-            } else {
-                value = attachedPath(argument)
-            }
 
-            if (value != null && seen.size < 256 && seen.add(base.toString() + "\n" + value)) {
+            if (value != null && seen.size < 256 && seen.add(value)) {
                 context.dependencyPath(base, value)
             }
-            index++
         }
     }
 
     private fun attachedPath(argument: String): String? {
-        for (prefix in PATH_PREFIXES) {
-            if (argument.startsWith(prefix) && argument.length > prefix.length) {
-                return argument.substring(prefix.length)
-            }
-        }
-        return null
+        return PATH_PREFIXES
+            .firstOrNull { argument.startsWith(it) && argument.length > it.length }
+            ?.let { argument.removePrefix(it) }
     }
 }

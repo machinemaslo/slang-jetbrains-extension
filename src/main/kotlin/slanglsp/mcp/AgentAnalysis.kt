@@ -1,5 +1,6 @@
 package slanglsp.mcp
 
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.progress.ProcessCanceledException
@@ -21,7 +22,6 @@ import java.time.Duration
 import kotlin.math.min
 import slanglsp.analysis.AnalysisDeadline
 import slanglsp.analysis.ProjectTrust
-import slanglsp.analysis.ReadActions
 import slanglsp.editor.inspections.diagnostics.BatchDiagnostics
 import slanglsp.editor.inspections.diagnostics.BatchDiagnosticsAnnotator
 import slanglsp.editor.navigation.UsageSearch
@@ -50,7 +50,7 @@ object AgentAnalysis {
             ProgressManager.checkCanceled()
             val relative = root.relativize(path).toString()
             val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(path)
-            val input = ReadActions.compute {
+            val input = runReadActionBlocking {
                 val file = if (virtualFile == null) null else PsiManager.getInstance(project).findFile(virtualFile)
                 if (file == null || file.fileType !== SlangFileType) {
                     null
@@ -102,7 +102,7 @@ object AgentAnalysis {
     fun symbol(project: Project, path: String, line: Int, column: Int, references: Boolean): String {
         val root = root(project)
         val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(resolve(root, path))
-        val source = ReadActions.compute {
+        val source = runReadActionBlocking {
             val file = if (virtualFile == null) null else PsiManager.getInstance(project).findFile(virtualFile)
             val document = if (file == null) null else PsiDocumentManager.getInstance(project).getDocument(file)
             require(
@@ -142,7 +142,7 @@ object AgentAnalysis {
                 output.append("Additional definitions omitted.\n")
             }
             if (references) {
-                val element = ReadActions.compute {
+                val element = runReadActionBlocking {
                     val leaf = source.file.findElementAt(source.offset)
                     if (isSlangIdentifier(leaf)) {
                         leaf
@@ -159,14 +159,14 @@ object AgentAnalysis {
                             element,
                             GlobalSearchScope.projectScope(project),
                             Processor { usage: UsageInfo? ->
-                                val reference = ReadActions.compute {
+                                val reference = runReadActionBlocking {
                                     val target = usage!!.element
                                     val hint = target?.containingFile
                                     val targetFile = hint?.virtualFile
                                     val document = hint?.let(PsiDocumentManager.getInstance(project)::getDocument)
                                     val offset = usage.navigationOffset
                                     if (targetFile == null || document == null || offset !in 0..document.textLength) {
-                                        return@compute null
+                                        return@runReadActionBlocking null
                                     }
                                     val row = document.getLineNumber(offset)
                                     val path = display(root, DocumentUris.fileUri(targetFile).toString())
@@ -232,12 +232,12 @@ object AgentAnalysis {
                 return ""
             }
             val file = LocalFileSystem.getInstance().findFileByNioFile(path)
-            return ReadActions.compute {
+            return runReadActionBlocking {
                 val document =
                     if (file == null || file.fileType !== SlangFileType) null
                     else FileDocumentManager.getInstance().getDocument(file)
                 if (document == null || line < 0 || line >= document.lineCount) {
-                    return@compute ""
+                    return@runReadActionBlocking ""
                 }
                 val start = document.getLineStartOffset(line)
                 val end = min(document.getLineEndOffset(line), start + 180)

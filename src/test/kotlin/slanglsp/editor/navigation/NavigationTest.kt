@@ -1,5 +1,6 @@
 package slanglsp.editor.navigation
 
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.event.CaretEvent
 import com.intellij.openapi.editor.event.CaretListener
@@ -22,7 +23,6 @@ import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import slanglsp.TestDependencies
-import slanglsp.analysis.ReadActions.compute
 import slanglsp.editor.NativeServerSupport
 import slanglsp.editor.documentation.HoverDocumentationProvider
 import slanglsp.editor.navigation.UsageSearch.candidateFiles
@@ -75,7 +75,7 @@ internal class NavigationTest {
             }
             // Wait for process initialization, not a document connection. Hover must still open the file itself.
             Assertions.assertNotNull(wrapper(fixture.project).initializedServer.get(15, TimeUnit.SECONDS))
-            val firstHover = compute {
+            val firstHover = runReadActionBlocking {
                 HoverDocumentationProvider().generateDoc(files[0]!!.findElementAt(code.indexOf("sharedValue")), null)
             }
             Assertions.assertNotNull(firstHover, "Documentation must connect the file before any navigation request")
@@ -84,7 +84,7 @@ internal class NavigationTest {
             val candidates = candidateFiles(fixture.project, scope, "sharedValue")
             Assertions.assertEquals(2, candidates.size, "Comment-only files must not become search candidates")
             Assertions.assertTrue(candidates.contains(files[1]!!.virtualFile), "Unsaved occurrence must be included")
-            val declaration = compute { files[0]!!.findElementAt(code.indexOf("sharedValue")) }
+            val declaration = runReadActionBlocking { files[0]!!.findElementAt(code.indexOf("sharedValue")) }
             val usages = ArrayList<UsageInfo?>()
             ProgressManager.getInstance()
                 .runProcess(
@@ -109,7 +109,7 @@ internal class NavigationTest {
                 })
 
             // Exercise more than one request window and downstream early termination.
-            val doc = compute { PsiDocumentManager.getInstance(fixture.project).getDocument(files[0]!!) }
+            val doc = runReadActionBlocking { PsiDocumentManager.getInstance(fixture.project).getDocument(files[0]!!) }
             val offsets = List(19) { code.lastIndexOf("sharedValue") }
             val verified = AtomicInteger()
             ProgressManager.getInstance()
@@ -172,7 +172,7 @@ internal class NavigationTest {
                 runInEdtAndWait { fixture.editor.caretModel.removeCaretListener(caretListener) }
             }
 
-            val builtin = compute {
+            val builtin = runReadActionBlocking {
                 val source = files[0]!!.findElementAt(code.indexOf("sin("))
                 Assertions.assertNotNull(source)
                 SymbolDeclarationHandler().definitions(source!!, code.indexOf("sin("))
@@ -188,19 +188,19 @@ internal class NavigationTest {
             val service = fixture.project.getService(BuiltinFiles::class.java)
             Assertions.assertSame(file, service.resolve((file as BuiltinFile).uri().toString()))
             Assertions.assertTrue(
-                compute {
+                runReadActionBlocking {
                     builtin[0].text.contains("sin")
                 })
 
             // Exercise the same rendering hook used by both LSP hover and Ctrl-hover.
-            val bufferDocs = compute {
+            val bufferDocs = runReadActionBlocking {
                 HoverDocumentationProvider()
                     .generateDoc(files[0]!!.findElementAt(code.indexOf("StructuredBuffer")), null)
             }
             Assertions.assertNotNull(bufferDocs)
             Assertions.assertTrue(bufferDocs!!.contains("read-only structured buffer"), bufferDocs)
             Assertions.assertTrue(bufferDocs.contains("The element type of the buffer"), bufferDocs)
-            val sineDocs = compute {
+            val sineDocs = runReadActionBlocking {
                 HoverDocumentationProvider().generateDoc(files[0]!!.findElementAt(code.indexOf("sin(")), null)
             }
             Assertions.assertNotNull(sineDocs)
@@ -211,7 +211,7 @@ internal class NavigationTest {
                     MarkupKind.MARKDOWN,
                     "```\nstruct StructuredBuffer<T>\n```\n\nServer-provided explanation.\n\nDefined in core(21016)\n")
             @Suppress("UnstableApiUsage") // Deliberately exercise the registered LSP4IJ hover extension.
-            val suppliedDocs = compute {
+            val suppliedDocs = runReadActionBlocking {
                 ServerFactory().createClientFeatures().hoverFeature.getContent(documented, files[0]!!)
             }
             Assertions.assertNotNull(suppliedDocs)

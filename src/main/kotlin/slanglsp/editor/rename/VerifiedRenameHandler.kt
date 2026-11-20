@@ -3,6 +3,7 @@ package slanglsp.editor.rename
 import com.intellij.ide.TitledHandler
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.DumbService.Companion.isDumb
@@ -31,7 +32,6 @@ import javax.swing.JPanel
 import javax.swing.event.DocumentEvent
 import slanglsp.SlangBundle
 import slanglsp.analysis.EditorAnalysisTasks
-import slanglsp.analysis.ReadActions
 import slanglsp.editor.navigation.isSlangIdentifier
 import slanglsp.language.SlangLanguage
 import slanglsp.server.BuiltinFiles.BuiltinFile
@@ -98,7 +98,7 @@ class VerifiedRenameHandler : RenameHandler, TitledHandler {
                 serial = true,
                 compute = {
                     val source =
-                        checkNotNull(ReadActions.compute(resolve)) {
+                        checkNotNull(runReadActionBlocking(resolve)) {
                             SlangBundle.message("rename.the.symbol.changed.run.rename.again")
                         }
                     RenamePlan.collect(source, replacement)

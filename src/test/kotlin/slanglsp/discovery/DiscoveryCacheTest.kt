@@ -1,5 +1,7 @@
 package slanglsp.discovery
 
+import kotlin.time.Duration.Companion.nanoseconds
+import kotlin.time.TestTimeSource
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
@@ -7,25 +9,26 @@ import org.junit.jupiter.api.Test
 class DiscoveryCacheTest {
     @Test
     fun cachesMissesAndHitsUntilExpiryOrInvalidation() {
-        var now = 0L
+        val clock = TestTimeSource()
         var executable: String? = null
         var lookups = 0
-        val cache =
-            DiscoveryCache(
-                discover = {
-                    lookups++
-                    executable
-                },
-                clock = { now },
-                lifetime = 10L)
+
+        val cache = DiscoveryCache(
+            discover = {
+                lookups++
+                executable
+            },
+            lifetime = 10.nanoseconds,
+            clock = clock,
+        )
 
         assertNull(cache.get())
         executable = "first"
-        now = 9
+        clock += 9.nanoseconds
         assertNull(cache.get())
         assertEquals(1, lookups)
 
-        now = 10
+        clock += 1.nanoseconds
         assertEquals("first", cache.get())
         executable = "second"
         assertEquals("first", cache.get())

@@ -1,5 +1,6 @@
 package slanglsp.editor.navigation
 
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.progress.ProcessCanceledException
@@ -28,7 +29,6 @@ import slanglsp.SlangBundle
 import slanglsp.analysis.AnalysisDeadline
 import slanglsp.analysis.AnalysisTiming
 import slanglsp.analysis.BatchAnalysisService
-import slanglsp.analysis.ReadActions
 import slanglsp.language.SlangFileType
 import slanglsp.server.BuiltinFiles.BuiltinFile
 import slanglsp.server.client.ClientFeatureAccess
@@ -44,7 +44,7 @@ internal object UsageSearch {
         val virtualFile = source.file.virtualFile
 
         if (virtualFile is BuiltinFile) {
-            val position = ReadActions.compute { LSPIJUtils.toPosition(source.offset, source.document) }
+            val position = runReadActionBlocking { LSPIJUtils.toPosition(source.offset, source.document) }
             declarations.add(SymbolLocation(virtualFile.uri(), position.line, position.character))
         } else {
             val references = references(source)
@@ -63,7 +63,7 @@ internal object UsageSearch {
         // slangd returns null for some declaration-site definition requests (including globals).
         // In that case use the source location; candidates still require semantic confirmation.
         if (declarations.isEmpty()) {
-            val position = ReadActions.compute { LSPIJUtils.toPosition(source.offset, source.document) }
+            val position = runReadActionBlocking { LSPIJUtils.toPosition(source.offset, source.document) }
             declarations.add(SymbolLocation(fileUri(virtualFile), position.line, position.character))
         }
 
@@ -94,14 +94,14 @@ internal object UsageSearch {
             return references.isEmpty()
         }
 
-        val declaration = ReadActions.compute {
+        val declaration = runReadActionBlocking {
             val position = LSPIJUtils.toPosition(source.offset, source.document)
             SymbolLocation(fileUri(source.file.virtualFile), position.line, position.character)
         }
         val scope = GlobalSearchScope.projectScope(source.file.project)
 
         for (file in candidateFiles(source.file.project, scope, source.name)) {
-            val candidate = ReadActions.compute {
+            val candidate = runReadActionBlocking {
                 val psi = PsiManager.getInstance(source.file.project).findFile(file)
                 val doc = FileDocumentManager.getInstance().getDocument(file)
                 if (psi == null || doc == null) {
@@ -115,7 +115,7 @@ internal object UsageSearch {
                 return false
             }
 
-            val offsets = ReadActions.compute {
+            val offsets = runReadActionBlocking {
                 UsageCandidates.find(candidate.document.text, source.name).filter { offset ->
                     file != source.file.virtualFile || offset != source.offset
                 }
@@ -147,14 +147,14 @@ internal object UsageSearch {
         if (element == null) {
             return null
         }
-        return ReadActions.compute {
+        return runReadActionBlocking {
             if (!element.isValid) {
-                return@compute null
+                return@runReadActionBlocking null
             }
-            val file = element.containingFile ?: return@compute null
-            val document = LSPIJUtils.getDocument(file) ?: return@compute null
-            val leaf = file.findElementAt(element.textOffset) ?: return@compute null
-            val name = leaf.text ?: return@compute null
+            val file = element.containingFile ?: return@runReadActionBlocking null
+            val document = LSPIJUtils.getDocument(file) ?: return@runReadActionBlocking null
+            val leaf = file.findElementAt(element.textOffset) ?: return@runReadActionBlocking null
+            val name = leaf.text ?: return@runReadActionBlocking null
             Source(file, document, document.modificationStamp, leaf.textOffset, name)
         }
     }
@@ -174,7 +174,7 @@ internal object UsageSearch {
             val target = ClientFeatureAccess.toPsiElement(reference, project)
 
             if (target != null && seen.add(reference.location().toString())) {
-                val usage = ReadActions.compute {
+                val usage = runReadActionBlocking {
                     if (PsiSearchScopeUtil.isInScope(scope, target)) {
                         UsageInfo(target)
                     } else {
@@ -211,7 +211,7 @@ internal object UsageSearch {
                 indicator.fraction = (visited++).toDouble() / max(1, files.size)
             }
 
-            val candidate = ReadActions.compute {
+            val candidate = runReadActionBlocking {
                 val psi = PsiManager.getInstance(project).findFile(file)
                 val doc = FileDocumentManager.getInstance().getDocument(file)
                 if (psi == null || doc == null) {
@@ -225,10 +225,10 @@ internal object UsageSearch {
                 continue
             }
 
-            val offsets = ReadActions.compute {
+            val offsets = runReadActionBlocking {
                 UsageCandidates.find(candidate.document.text, source.name)
             }
-            val inScopeOffsets = ReadActions.compute {
+            val inScopeOffsets = runReadActionBlocking {
                 offsets.filter { offset ->
                     val position = LSPIJUtils.toPosition(offset, candidate.document)
                     val location = SymbolLocation(fileUri(file), position.line, position.character)
@@ -252,7 +252,7 @@ internal object UsageSearch {
                         if (targets.none { SymbolLocation.from(it.location()) in declarations }) {
                             return@processDefinitions true
                         }
-                        val usage = ReadActions.compute {
+                        val usage = runReadActionBlocking {
                             UsageInfo(candidate.file, offset, offset + source.name.length)
                         }
                         consumer.process(usage)
@@ -268,7 +268,7 @@ internal object UsageSearch {
 
     @JvmStatic
     fun candidateFiles(project: Project, scope: SearchScope, name: String): MutableSet<VirtualFile> {
-        return ReadActions.compute {
+        return runReadActionBlocking {
             val files: MutableSet<VirtualFile?> = LinkedHashSet()
             if (scope is LocalSearchScope) {
                 for (element in scope.scope) {
@@ -321,7 +321,7 @@ internal object UsageSearch {
         }
         val support = LSPReferenceSupport(source.file)
         val future =
-            ReadActions.compute<CompletableFuture<MutableList<LocationData?>?>> {
+            runReadActionBlocking<CompletableFuture<MutableList<LocationData?>?>> {
                 val params =
                     LSPReferenceParams(
                         TextDocumentIdentifier(), LSPIJUtils.toPosition(source.offset, source.document), source.offset)
@@ -341,7 +341,7 @@ internal object UsageSearch {
     private fun requestDefinition(file: PsiFile, document: Document, offset: Int): DefinitionRequest {
         if (BatchAnalysisService.isBatch) {
             val name =
-                ReadActions.compute<@NlsSafe String?> {
+                runReadActionBlocking<@NlsSafe String?> {
                     val leaf = file.findElementAt(offset)
                     if (isSlangIdentifier(leaf)) {
                         leaf?.text
@@ -362,13 +362,13 @@ internal object UsageSearch {
 
         try {
             val future =
-                ReadActions.compute<CompletableFuture<MutableList<LocationData?>?>?> {
+                runReadActionBlocking<CompletableFuture<MutableList<LocationData?>?>?> {
                     support.getDefinitions(
                         LSPDefinitionParams(TextDocumentIdentifier(), LSPIJUtils.toPosition(offset, document), offset))
                 }
 
             val name =
-                ReadActions.compute<@NlsSafe String?> {
+                runReadActionBlocking<@NlsSafe String?> {
                     val leaf = file.findElementAt(offset)
                     if (isSlangIdentifier(leaf)) {
                         leaf?.text
@@ -408,13 +408,13 @@ internal object UsageSearch {
 
                 for (i in start..<end) {
                     ProgressManager.checkCanceled()
-                    ReadActions.run(check)
+                    runReadActionBlocking(check)
                     requests.add(requestDefinition(file, document, offsets[i]))
                 }
 
                 for (i in requests.indices) {
                     val targets = requests[i].await()
-                    ReadActions.run(check)
+                    runReadActionBlocking(check)
 
                     if (!consumer(offsets[start + i], targets)) {
                         return false

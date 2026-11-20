@@ -4,20 +4,18 @@ import java.nio.file.Path
 import slanglsp.discovery.DiscoveryContext
 
 /** Reads Xmake's serialized config without loading or executing Lua. */
-internal class XmakeDiscoveryAdapter : DiscoveryAdapter {
-    override fun discover(context: DiscoveryContext) {
-        if (context.read(context.root.resolve("xmake.lua")).isBlank()) {
-            return
-        }
-
+internal class XmakeDiscoveryAdapter : DiscoveryAdapter(projectMarker = "xmake.lua") {
+    override fun discoverMetadata(context: DiscoveryContext) {
         val configRoot = context.resolve(context.root, context.environment["XMAKE_CONFIGDIR"]) ?: context.root
+
         // Only Xmake's host/architecture config locations, not arbitrary project directories.
         val configurations =
             context
                 .children(configRoot.resolve(".xmake"), "*")
                 .asSequence()
-                .flatMap { host -> context.children(host, "*").asSequence() }
+                .flatMap { host -> context.children(host, "*") }
                 .take(16)
+
         for (architecture in configurations) {
             readConfig(context, architecture.resolve("xmake.conf"))
         }
@@ -30,9 +28,12 @@ internal class XmakeDiscoveryAdapter : DiscoveryAdapter {
 
     private fun readConfig(context: DiscoveryContext, file: Path) {
         val text = context.read(file)
+
         for ((key, setting) in settings) {
             val match = setting.find(text) ?: continue
-            val value = match.groupValues[1].replace("\\\\", "\\")
+            val (serializedValue) = match.destructured
+            val value = serializedValue.replace("\\\\", "\\")
+
             if (key == "vcpkg") {
                 context.vcpkgRoot(context.root, value)
             } else {

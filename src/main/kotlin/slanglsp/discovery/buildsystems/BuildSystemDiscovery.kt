@@ -12,11 +12,7 @@ internal object BuildSystemDiscovery {
                 XmakeDiscoveryAdapter(),
                 MesonDiscoveryAdapter(),
             )
+
         adapters.forEach { it.discover(context) }
     }
-}
-
-/** Reads saved build-system metadata; must not configure, install, or build anything. */
-internal interface DiscoveryAdapter {
-    fun discover(context: DiscoveryContext)
 }

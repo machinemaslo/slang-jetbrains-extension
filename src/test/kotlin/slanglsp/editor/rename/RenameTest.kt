@@ -2,6 +2,7 @@ package slanglsp.editor.rename
 
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.editor.Document
@@ -23,7 +24,6 @@ import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import slanglsp.TestDependencies
-import slanglsp.analysis.ReadActions.compute
 import slanglsp.editor.NativeServerSupport
 import slanglsp.editor.rename.RenamePlan.Companion.collect
 import slanglsp.editor.rename.RenamePlan.Companion.validName
@@ -214,7 +214,7 @@ internal class RenameTest {
 
     companion object {
         private fun collect(file: PsiFile?, offset: Int, newName: String): RenamePlan? {
-            val element = compute { file!!.findElementAt(offset) }
+            val element = runReadActionBlocking { file!!.findElementAt(offset) }
             val result = arrayOfNulls<RenamePlan>(1)
             ProgressManager.getInstance()
                 .runProcess({ result[0] = collect(element, newName) }, EmptyProgressIndicator())

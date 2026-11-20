@@ -2,6 +2,7 @@ package slanglsp.projectview
 
 import com.intellij.ide.projectView.ViewSettings
 import com.intellij.ide.projectView.impl.nodes.PsiFileNode
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
@@ -11,7 +12,6 @@ import com.intellij.ui.SimpleTextAttributes
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import slanglsp.analysis.ReadActions
 
 internal class EntryPointStageDecoratorTest {
     @Test
@@ -25,9 +25,9 @@ internal class EntryPointStageDecoratorTest {
             runInEdtAndWait {
                 file = fixture.addFileToProject("lighting.slang", """[shader("compute")] void main() {}""")
             }
-            val node = ReadActions.compute { PsiFileNode(fixture.project, file, ViewSettings.DEFAULT) }
+            val node = runReadActionBlocking { PsiFileNode(fixture.project, file, ViewSettings.DEFAULT) }
 
-            fun labels(): List<Pair<String, SimpleTextAttributes>> = ReadActions.compute {
+            fun labels(): List<Pair<String, SimpleTextAttributes>> = runReadActionBlocking {
                 node.update()
                 assertEquals("lighting.slang", node.presentation.presentableText)
                 node.presentation.coloredText.map { it.text to it.attributes }

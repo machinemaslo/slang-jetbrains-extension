@@ -1,6 +1,10 @@
 package slanglsp.formatting.native
 
-import com.intellij.formatting.*
+import com.intellij.formatting.Block
+import com.intellij.formatting.FormatTextRanges
+import com.intellij.formatting.FormatterEx
+import com.intellij.formatting.FormattingDocumentModel
+import com.intellij.formatting.FormattingModel
 import com.intellij.lang.ASTNode
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.impl.DocumentImpl
@@ -12,25 +16,29 @@ import slanglsp.language.SlangLanguage
 
 /** Runs the same JetBrains formatting engine on a private document for background inspections. */
 internal object NativeFormatting {
-    @JvmStatic
     fun format(text: String, settings: CodeStyleSettings): String {
         val model = SnapshotModel(text, NativeFormattingBlock(text, settings))
+
         // The private model has no PSI node from which the engine can infer a right margin.
         val effective = CodeStyleSettingsManager.getInstance().cloneSettings(settings)
         effective.setRightMargin(null, settings.getRightMargin(SlangLanguage.INSTANCE))
+
         FormatterEx.getInstance()
             .format(
                 model,
                 effective,
                 settings.getIndentOptions(SlangFileType),
-                FormatTextRanges(TextRange(0, text.length), true))
-        return model.document.getText()
+                FormatTextRanges(TextRange(0, text.length), true),
+            )
+
+        return model.getDocument().text
     }
 
-    @JvmRecord
-    private data class SnapshotModel(val document: Document, val root: Block) :
-        FormattingModel, FormattingDocumentModel {
-        constructor(text: String, root: Block) : this(DocumentImpl(text, true), root)
+    private class SnapshotModel(
+        text: String,
+        private val root: Block,
+    ) : FormattingModel, FormattingDocumentModel {
+        private val snapshot = DocumentImpl(text, true)
 
         override fun getRootBlock(): Block {
             return root
@@ -41,27 +49,27 @@ internal object NativeFormatting {
         }
 
         override fun getDocument(): Document {
-            return document
+            return snapshot
         }
 
         override fun getLineNumber(offset: Int): Int {
-            return document.getLineNumber(offset)
+            return snapshot.getLineNumber(offset)
         }
 
         override fun getLineStartOffset(line: Int): Int {
-            return document.getLineStartOffset(line)
+            return snapshot.getLineStartOffset(line)
         }
 
         override fun getText(range: TextRange): CharSequence {
-            return document.getText(range)
+            return snapshot.getText(range)
         }
 
         override fun getTextLength(): Int {
-            return document.getTextLength()
+            return snapshot.textLength
         }
 
         override fun containsWhiteSpaceSymbolsOnly(start: Int, end: Int): Boolean {
-            return document.getText(TextRange(start, end)).chars().allMatch(Character::isWhitespace)
+            return snapshot.getText(TextRange(start, end)).all(Character::isWhitespace)
         }
 
         override fun adjustWhiteSpaceIfNecessary(
@@ -69,13 +77,14 @@ internal object NativeFormatting {
             start: Int,
             end: Int,
             node: ASTNode?,
-            changed: Boolean
+            changed: Boolean,
         ): CharSequence {
             return text
         }
 
         override fun replaceWhiteSpace(range: TextRange, whitespace: String): TextRange {
-            document.replaceString(range.startOffset, range.endOffset, whitespace)
+            snapshot.replaceString(range.startOffset, range.endOffset, whitespace)
+
             return TextRange(range.startOffset, range.startOffset + whitespace.length)
         }
 
@@ -84,6 +93,8 @@ internal object NativeFormatting {
             return range
         }
 
-        override fun commitChanges() {}
+        override fun commitChanges() {
+            // The snapshot has no PSI to commit.
+        }
     }
 }

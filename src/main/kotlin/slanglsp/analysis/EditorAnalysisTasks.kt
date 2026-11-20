@@ -18,31 +18,40 @@ import kotlinx.coroutines.withContext
 
 /** Runs blocking editor analysis with cancellable progress and delivers the result on the EDT. */
 @Service(Service.Level.PROJECT)
-internal class EditorAnalysisTasks(private val project: Project, private val scope: CoroutineScope) {
+internal class EditorAnalysisTasks(
+    private val project: Project,
+    private val scope: CoroutineScope,
+) {
     private val serialQueue = Mutex()
 
     fun <T> launch(
-        @ProgressTitle title: String,
+        @ProgressTitle
+        title: String,
         onFailure: ((Exception) -> Unit)? = null,
         serial: Boolean = false,
         compute: () -> T,
-        onSuccess: (T) -> Unit
-    ): Job = scope.launch(start = if (serial) CoroutineStart.UNDISPATCHED else CoroutineStart.DEFAULT) {
-        if (serial) {
-            // Enter the queue in submission order and hold it through the EDT callback.
+        onSuccess: (T) -> Unit,
+    ): Job {
+        if (!serial) {
+            return scope.launch {
+                analyzeAndApply(title, onFailure, compute, onSuccess)
+            }
+        }
+
+        // Enter the queue in submission order and hold the lock through the EDT callback.
+        return scope.launch(start = CoroutineStart.UNDISPATCHED) {
             serialQueue.withLock {
                 analyzeAndApply(title, onFailure, compute, onSuccess)
             }
-        } else {
-            analyzeAndApply(title, onFailure, compute, onSuccess)
         }
     }
 
     private suspend fun <T> analyzeAndApply(
-        @ProgressTitle title: String,
+        @ProgressTitle
+        title: String,
         onFailure: ((Exception) -> Unit)?,
         compute: () -> T,
-        onSuccess: (T) -> Unit
+        onSuccess: (T) -> Unit,
     ) {
         val result =
             try {
@@ -54,10 +63,16 @@ internal class EditorAnalysisTasks(private val project: Project, private val sco
                 throw cancelled
             } catch (failure: Exception) {
                 val report = onFailure ?: throw failure
-                onEdt { report(failure) }
+
+                onEdt {
+                    report(failure)
+                }
                 return
             }
-        onEdt { onSuccess(result) }
+
+        onEdt {
+            onSuccess(result)
+        }
     }
 
     private suspend fun onEdt(action: () -> Unit) {

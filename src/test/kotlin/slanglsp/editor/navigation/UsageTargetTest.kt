@@ -2,6 +2,7 @@ package slanglsp.editor.navigation
 
 import com.intellij.codeInsight.TargetElementUtil
 import com.intellij.find.findUsages.FindUsagesOptions
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
@@ -16,7 +17,6 @@ import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import slanglsp.TestDependencies
-import slanglsp.analysis.ReadActions.compute
 import slanglsp.editor.NativeServerSupport
 import slanglsp.editor.inspections.unused.UnusedSymbolsAnnotator
 import slanglsp.editor.navigation.UsageSearch.isUnused
@@ -124,7 +124,7 @@ internal class UsageTargetTest {
                 .runProcess(
                     {
                         val handler = IndexedFindUsagesHandlerFactory().createFindUsagesHandler(target[0]!!, false)
-                        val options = compute { FindUsagesOptions(fixture.project) }
+                        val options = runReadActionBlocking { FindUsagesOptions(fixture.project) }
                         options.searchScope = GlobalSearchScope.projectScope(fixture.project)
                         val usages = ArrayList<UsageInfo?>()
 
@@ -147,7 +147,9 @@ internal class UsageTargetTest {
                         Assertions.assertFalse(isUnused(target[1]), "A used declaration must not be grayed out")
 
                         val annotator = UnusedSymbolsAnnotator()
-                        val input = compute { annotator.collectInformation(target[1]!!.containingFile) }
+                        val input = runReadActionBlocking {
+                            annotator.collectInformation(target[1]!!.containingFile)
+                        }
                         Assertions.assertNotNull(input)
 
                         val result = annotator.doAnnotate(checkNotNull(input))

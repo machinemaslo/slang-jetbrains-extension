@@ -3,40 +3,47 @@ package slanglsp.formatting.clang
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.util.SystemInfo
-import java.nio.file.Files
 import java.nio.file.Path
+import kotlin.io.path.Path
+import kotlin.io.path.isExecutable
+import kotlin.io.path.isRegularFile
 
 /** Finds the binary without depending on CLion/Rider's proprietary plugin APIs. */
 object BundledClangFormat {
-    @JvmStatic
     fun executable(): String? {
         return Holder.EXECUTABLE
     }
 
-    @JvmStatic
     fun locate(home: Path, productCode: String): String? {
         val roots =
             when (productCode) {
-                "CL" -> mutableListOf("plugins/clion-radler/DotFiles", "bin")
-                "RD" -> mutableListOf("lib/ReSharperHost", "plugins/rider/lib/ReSharperHost", "bin")
-                else -> mutableListOf()
+                "CL" -> listOf("plugins/clion-radler/DotFiles", "bin")
+                "RD" -> listOf("lib/ReSharperHost", "plugins/rider/lib/ReSharperHost", "bin")
+                else -> return null
             }
+
         val name = if (SystemInfo.isWindows) "clang-format.exe" else "clang-format"
-        val os = if (SystemInfo.isWindows) "windows" else if (SystemInfo.isMac) "macos" else "linux"
-        val arch = if (System.getProperty("os.arch").matches("aarch64|arm64".toRegex())) "arm64" else "x64"
-        for (root in roots) {
-            for (suffix in listOf("$os-$arch/$name", name)) {
+        val os = when {
+            SystemInfo.isWindows -> "windows"
+            SystemInfo.isMac -> "macos"
+            else -> "linux"
+        }
+        val arch = when (SystemInfo.OS_ARCH) {
+            "aarch64", "arm64" -> "arm64"
+            else -> "x64"
+        }
+        val suffixes = listOf("$os-$arch/$name", name)
+
+        return roots.firstNotNullOfOrNull { root ->
+            suffixes.firstNotNullOfOrNull { suffix ->
                 val candidate = home.resolve(root).resolve(suffix)
-                if (Files.isRegularFile(candidate) && Files.isExecutable(candidate)) {
-                    return candidate.toString()
-                }
+                candidate.takeIf { it.isRegularFile() && it.isExecutable() }?.toString()
             }
         }
-        return null
     }
 
     private object Holder {
         val EXECUTABLE: String? =
-            locate(Path.of(PathManager.getHomePath()), ApplicationInfo.getInstance().build.productCode)
+            locate(Path(PathManager.getHomePath()), ApplicationInfo.getInstance().build.productCode)
     }
 }

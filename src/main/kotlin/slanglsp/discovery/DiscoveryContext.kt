@@ -16,6 +16,10 @@ import javax.xml.stream.XMLStreamConstants
 import kotlin.math.min
 import org.w3c.dom.Document
 import org.xml.sax.helpers.DefaultHandler
+import kotlin.io.path.isRegularFile
+import kotlin.io.path.fileSize
+import kotlin.io.path.inputStream
+import kotlin.io.path.name
 
 /** Shared, bounded metadata reads. Adapters never execute project code or walk directory trees. */
 internal class DiscoveryContext(root: Path, environment: Map<String, String>) {
@@ -48,11 +52,11 @@ internal class DiscoveryContext(root: Path, environment: Map<String, String>) {
         val limit = min(remainingBytes, 2 * 1024 * 1024)
 
         try {
-            if (!Files.isRegularFile(file) || Files.size(file) > limit) {
+            if (!file.isRegularFile() || file.fileSize() > limit) {
                 return ""
             }
 
-            Files.newInputStream(file).use { stream ->
+            file.inputStream().use { stream ->
                 val bytes = stream.readNBytes(limit + 1)
                 remainingBytes -= bytes.size
                 if (bytes.size <= 2 * 1024 * 1024 && remainingBytes >= 0) {
@@ -66,12 +70,10 @@ internal class DiscoveryContext(root: Path, environment: Map<String, String>) {
         return ""
     }
 
-    fun json(file: Path): JsonElement? {
-        return try {
-            JsonParser.parseString(read(file))
-        } catch (_: RuntimeException) {
-            JsonNull.INSTANCE
-        }
+    fun json(file: Path): JsonElement = try {
+        JsonParser.parseString(read(file))
+    } catch (_: RuntimeException) {
+        JsonNull.INSTANCE
     }
 
     fun xml(file: Path): Document? {
@@ -118,69 +120,59 @@ internal class DiscoveryContext(root: Path, environment: Map<String, String>) {
         }
     }
 
-    fun children(directory: Path, glob: String): List<Path> {
-        try {
-            Files.newDirectoryStream(directory, glob).use { files ->
-                val result = ArrayList<Path>()
-                for (file in files) {
-                    if (result.size == 256) {
-                        break
-                    }
-
-                    result.add(file)
-                }
-
-                result.sortBy(Path::toString)
-                return result
-            }
-        } catch (_: IOException) {
-            return emptyList()
-        } catch (_: SecurityException) {
-            return emptyList()
+    fun children(directory: Path, glob: String): List<Path> = try {
+        Files.newDirectoryStream(directory, glob).use { files ->
+            files.asSequence()
+                .take(256)
+                .sortedBy(Path::toString)
+                .toList()
         }
+    } catch (_: IOException) {
+        emptyList()
+    } catch (_: SecurityException) {
+        emptyList()
     }
 
     fun resolve(base: Path?, value: String?): Path? {
-        if (value.isNullOrBlank() ||
-            value.contains("$") ||
-            value.contains("%(") ||
-            value.contains("%") ||
-            value.startsWith("~") ||
-            value.contains("\n")) {
+        if (base == null || value.isNullOrBlank() ||
+            value.startsWith('~') || value.any { it in "$%\n" }
+        ) {
             return null
         }
 
         return try {
-            base!!.resolve(value.replace('\\', '/')).toAbsolutePath().normalize()
+            base.resolve(value.replace('\\', '/'))
+                .toAbsolutePath()
+                .normalize()
         } catch (_: InvalidPathException) {
             null
         }
     }
 
     fun installed(base: Path?, value: String?, host: String?) {
-        val path = resolve(base, value)
+        val path = resolve(base, value) ?: return
 
-        if (path != null && installations.size < 128) {
+        if (installations.size < 128) {
             installations.putIfAbsent(path, host)
         }
     }
 
     fun vcpkgRoot(base: Path?, value: String?) {
         val path = resolve(base, value) ?: return
-        val filename = path.fileName?.toString()
         val installationRoot =
-            if ((filename == "vcpkg" || filename == "vcpkg.exe") && Files.isRegularFile(path)) {
+            if (path.name in listOf("vcpkg", "vcpkg.exe") && path.isRegularFile()) {
                 path.parent
             } else {
                 path
             }
+
         installed(installationRoot, "installed", null)
     }
 
     fun buildDirectory(base: Path?, value: String?) {
-        val path = resolve(base, value)
+        val path = resolve(base, value) ?: return
 
-        if (path != null && buildDirectories.size < 32) {
+        if (buildDirectories.size < 32) {
             buildDirectories.add(path)
         }
     }
@@ -188,11 +180,11 @@ internal class DiscoveryContext(root: Path, environment: Map<String, String>) {
     fun variables(base: Path?, values: Map<String, String?>) {
         val host = values["VCPKG_HOST_TRIPLET"]
 
-        for (key in mutableListOf("VCPKG_INSTALLED_DIR", "_VCPKG_INSTALLED_DIR")) {
+        for (key in listOf("VCPKG_INSTALLED_DIR", "_VCPKG_INSTALLED_DIR")) {
             installed(base, expand(values[key], values), host)
         }
 
-        for (key in mutableListOf("VCPKG_ROOT", "VCPKG_INSTALLATION_ROOT")) {
+        for (key in listOf("VCPKG_ROOT", "VCPKG_INSTALLATION_ROOT")) {
             vcpkgRoot(base, expand(values[key], values))
         }
 
@@ -206,17 +198,12 @@ internal class DiscoveryContext(root: Path, environment: Map<String, String>) {
 
     // Compilation metadata supplies a triplet include/lib path, including custom installation roots.
     fun dependencyPath(base: Path?, value: String) {
-        var path = resolve(base, value)
+        val path = generateSequence(resolve(base, value)) { it.parent }
+            .take(6)
+            .firstOrNull { it.resolve("vcpkg/status").isRegularFile() }
+            ?: return
 
-        var i = 0
-        while (path != null && i < 6) {
-            if (Files.isRegularFile(path.resolve("vcpkg/status"))) {
-                installed(path, ".", null)
-                return
-            }
-            i++
-            path = path.parent
-        }
+        installed(path, ".", null)
     }
 
     companion object {

@@ -1,5 +1,6 @@
 package slanglsp.editor.navigation
 
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
@@ -20,7 +21,6 @@ import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import slanglsp.TestDependencies
-import slanglsp.analysis.ReadActions.compute
 import slanglsp.editor.NativeServerSupport
 import slanglsp.editor.navigation.OverloadMatcher.isFunctionDeclaration
 import slanglsp.editor.navigation.OverloadMatcher.signature
@@ -108,10 +108,10 @@ internal class OverloadMatcherTest {
             ProgressManager.getInstance()
                 .runProcess(
                     {
-                        val document = compute { LSPIJUtils.getDocument(files[1]!!) }
+                        val document = runReadActionBlocking { LSPIJUtils.getDocument(files[1]!!) }
                         Assertions.assertNotNull(document)
 
-                        val declarationsDocument = compute { LSPIJUtils.getDocument(files[0]!!) }
+                        val declarationsDocument = runReadActionBlocking { LSPIJUtils.getDocument(files[0]!!) }
                         Assertions.assertNotNull(declarationsDocument)
 
                         val declarationOffsets = find(declarations, "calculate")
@@ -123,7 +123,7 @@ internal class OverloadMatcherTest {
                             val callOffset = callOffsets[i]
                             val chosen = if (i == 0) 0 else 1
                             val expectedOffset = declarationOffsets[chosen]
-                            val expected = compute {
+                            val expected = runReadActionBlocking {
                                 LSPIJUtils.toRange(
                                     TextRange(expectedOffset, expectedOffset + "calculate".length),
                                     declarationsDocument)
@@ -151,7 +151,7 @@ internal class OverloadMatcherTest {
                             }
                         }
                         for ((i, offset) in declarationOffsets.withIndex()) {
-                            val declaration = compute { files[0]!!.findElementAt(offset) }
+                            val declaration = runReadActionBlocking { files[0]!!.findElementAt(offset) }
                             val usages = ArrayList<UsageInfo?>()
 
                             Assertions.assertTrue(

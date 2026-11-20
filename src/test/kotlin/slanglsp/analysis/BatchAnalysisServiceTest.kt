@@ -1,5 +1,6 @@
 package slanglsp.analysis
 
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.psi.PsiDocumentManager
@@ -16,7 +17,6 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import org.junit.jupiter.api.*
 import slanglsp.TestDependencies
-import slanglsp.analysis.ReadActions.compute
 import slanglsp.editor.NativeServerSupport
 import slanglsp.replaceAllText
 import slanglsp.server.BatchConnection.wrapper
@@ -62,7 +62,7 @@ internal class BatchAnalysisServiceTest {
             source.set(fixture!!.addFileToProject("shared.slang", "float first() { return 1; }\n"))
         }
         val file = source.get()
-        val document = compute { PsiDocumentManager.getInstance(fixture!!.project).getDocument(file) }
+        val document = runReadActionBlocking { PsiDocumentManager.getInstance(fixture!!.project).getDocument(file) }
         Assertions.assertNotNull(document)
         val service = fixture!!.project.getService(BatchAnalysisService::class.java)
         Assertions.assertEquals(
@@ -91,14 +91,14 @@ internal class BatchAnalysisServiceTest {
         Assertions.assertSame(synchronizer, Objects.requireNonNull(wrapper.getOpenedDocument(uri))!!.synchronizer)
         Assertions.assertEquals(1, wrapper.getOpenedDocuments().size)
         Assertions.assertTrue(
-            compute {
+            runReadActionBlocking {
                 com.intellij.openapi.fileEditor.FileDocumentManager.getInstance().isDocumentUnsaved(document)
             })
         val text = document.text
         val references = service.references(file, document, text.indexOf("second")).get(10, TimeUnit.SECONDS)
         // Check against LSP4IJ directly rather than reusing the production capability adapter.
         @Suppress("UnstableApiUsage")
-        val supportsReferences = compute { wrapper.clientFeatures.referencesFeature.isSupported(file) }
+        val supportsReferences = runReadActionBlocking { wrapper.clientFeatures.referencesFeature.isSupported(file) }
         if (supportsReferences) {
             Assertions.assertNotNull(references)
             Assertions.assertFalse(references!!.isEmpty())

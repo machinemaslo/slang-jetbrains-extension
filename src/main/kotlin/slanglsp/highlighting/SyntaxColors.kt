@@ -5,7 +5,7 @@ import com.intellij.openapi.editor.colors.TextAttributesKey
 
 /** Semantic categories inherit the active scheme; bundled schemes supply Slang defaults. */
 object SyntaxColors {
-    private fun key(name: String, fallback: TextAttributesKey?): TextAttributesKey {
+    private fun key(name: String, fallback: TextAttributesKey): TextAttributesKey {
         return TextAttributesKey.createTextAttributesKey(name, fallback)
     }
 
@@ -18,8 +18,7 @@ object SyntaxColors {
     // The server has one function category and no declaration/call modifiers.
     val FUNCTION: TextAttributesKey =
         key("SLANG_FUNCTION_DECLARATION", DefaultLanguageHighlighterColors.FUNCTION_DECLARATION)
-    val FUNCTION_CALL: TextAttributesKey = FUNCTION
-    val FUNCTION_DECLARATION: TextAttributesKey = FUNCTION
+
     val METHOD: TextAttributesKey = key("SLANG_METHOD", DefaultLanguageHighlighterColors.INSTANCE_METHOD)
     val VARIABLE: TextAttributesKey = key("SLANG_VARIABLE", DefaultLanguageHighlighterColors.LOCAL_VARIABLE)
     val PARAMETER: TextAttributesKey = key("SLANG_PARAMETER", DefaultLanguageHighlighterColors.PARAMETER)

@@ -1,17 +1,19 @@
 package slanglsp.formatting.native
 
-import com.intellij.formatting.*
+import com.intellij.formatting.Alignment
+import com.intellij.formatting.Block
+import com.intellij.formatting.BlockEx
+import com.intellij.formatting.ChildAttributes
+import com.intellij.formatting.Indent
+import com.intellij.formatting.Spacing
+import com.intellij.formatting.Wrap
+import com.intellij.formatting.WrapType
 import com.intellij.lang.Language
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.TokenType
 import com.intellij.psi.codeStyle.CodeStyleSettings
-import com.intellij.psi.codeStyle.CommonCodeStyleSettings
 import com.intellij.psi.tree.IElementType
-import java.util.regex.Matcher
-import java.util.regex.Pattern
-import kotlin.math.max
-import kotlin.math.min
 import slanglsp.language.SlangFileType
 import slanglsp.language.SlangLanguage
 import slanglsp.language.SlangLexer
@@ -22,13 +24,23 @@ import slanglsp.settings.codestyle.SlangCodeStyleSettings
  * The parser exposes token-level PSI. Virtual formatting blocks retain exact token ranges, so formatting never rewrites
  * strings, comments, directives, or the PSI structure.
  */
-internal open class NativeFormattingBlock(private val source: String, settings: CodeStyleSettings) : BlockEx {
-    private val children: MutableList<Block?> = ArrayList()
-    private val newLineBraces: Boolean
-    private val common: CommonCodeStyleSettings = settings.getCommonSettings(SlangLanguage.INSTANCE)
-    private val custom: SlangCodeStyleSettings =
-        settings.getCustomSettings<SlangCodeStyleSettings>(SlangCodeStyleSettings::class.java)
-    private val functionStarts: MutableSet<Int?> = HashSet()
+internal open class NativeFormattingBlock(
+    private val source: String,
+    settings: CodeStyleSettings,
+) : BlockEx {
+    private val children = mutableListOf<Leaf>()
+    private val common = settings.getCommonSettings(SlangLanguage.INSTANCE)
+    private val custom = settings.getCustomSettings(SlangCodeStyleSettings::class.java)
+    private val newLineBraces = custom.BRACES_ON_NEW_LINE
+    private val functionStarts = mutableSetOf<Int>()
+
+    private class Parenthesis(
+        val control: String,
+        val wrap: Wrap?,
+        val alignment: Alignment?,
+    )
+
+    private class Brace(val parentheses: Int, val kind: BraceKind)
 
     private enum class BraceKind {
         NONE,
@@ -58,7 +70,6 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
     }
 
     init {
-        newLineBraces = custom.BRACES_ON_NEW_LINE
         if (!custom.DISABLE_FORMAT) {
             buildChildren(settings)
         }
@@ -66,18 +77,16 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
 
     private fun buildChildren(settings: CodeStyleSettings) {
         val indent = settings.getIndentOptions(SlangFileType)
-        val generic = if (source.indexOf('<') < 0) null else GenericContext(source)
+        val generic = if ('<' in source) GenericContext(source) else null
         val lexer = SlangLexer()
         lexer.start(source)
+
         var braces = 0
         var namespaces = 0
         var parentheses = 0
         var unbraced = 0
-        val parenKinds = ArrayList<String?>()
-        val parameterWraps = ArrayList<Wrap?>()
-        val parameterAlignments = ArrayList<Alignment?>()
-        val braceParens = ArrayList<Int?>()
-        val braceKinds: ArrayList<BraceKind?> = ArrayList()
+        val parenStack = ArrayDeque<Parenthesis>()
+        val braceStack = ArrayDeque<Brace>()
         var pendingDeclaration = BraceKind.NONE
         var pendingFunction = false
         var pendingSwitch = false
@@ -85,27 +94,32 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
         var caseLabel = false
         var formattingOff = false
         var caseDepth = -1
-        while (lexer.tokenType != null) {
+
+        while (true) {
+            val type = lexer.tokenType ?: break
             ProgressManager.checkCanceled()
-            val type = lexer.tokenType
             val start = lexer.tokenStart
             var end = lexer.tokenEnd
+
             if (type === TokenType.WHITE_SPACE) {
                 lexer.advance()
                 continue
             }
+
             val directive = type === SlangLexer.DIRECTIVE
             if (directive) {
                 end = directiveEnd(source, start)
             }
+
             var text = source.substring(start, end)
             val preserveGap = formattingOff
             if (type === SlangLexer.COMMENT || type === SlangLexer.BLOCK_COMMENT) {
-                val marker: Matcher = FORMAT_MARKER.matcher(text)
-                if (marker.find()) {
-                    formattingOff = marker.group(1) == "off"
+                FORMAT_MARKER.find(text)?.let { marker ->
+                    val (mode) = marker.destructured
+                    formattingOff = mode == "off"
                 }
             }
+
             val angle =
                 generic != null &&
                     ((text == "<" && generic.isOpening(generic.tokenAt(start))) ||
@@ -117,15 +131,17 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
                         continue
                     }
                     val operator = source.substring(start, start + length)
-                    if (OPERATORS.contains(operator)) {
+                    if (operator in OPERATORS) {
                         text = operator
                         end = start + length
                         break
                     }
                 }
             }
-            val previous = children.lastOrNull() as Leaf?
+
+            val previous = children.lastOrNull()
             val before = previous?.text ?: ""
+
             if (text == "{" && before == "spirv_asm") {
                 // Embedded SPIR-V has its own grammar. Keep the whole body as one leaf.
                 var depth = 1
@@ -144,6 +160,7 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
                 }
                 text = source.substring(start, end)
             }
+
             var closesControl = false
             var braceKind = BraceKind.NONE
             pendingDeclaration =
@@ -158,19 +175,16 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
                     "extension" -> BraceKind.TYPE
                     else -> pendingDeclaration
                 }
+
             if (text == "=") {
                 statementAssignment = true
             }
+
             if (text == ")") {
-                parentheses = max(0, parentheses - 1)
-                val control: String = (if (parenKinds.isEmpty()) "" else parenKinds.removeLast())!!
+                parentheses = (parentheses - 1).coerceAtLeast(0)
+                val control = parenStack.removeLastOrNull()?.control.orEmpty()
                 closesControl = control.isNotEmpty()
-                if (parameterWraps.isNotEmpty()) {
-                    parameterWraps.removeLast()
-                }
-                if (parameterAlignments.isNotEmpty()) {
-                    parameterAlignments.removeLast()
-                }
+
                 if (parentheses == 0) {
                     pendingSwitch = control == "switch"
                     if (!closesControl && !statementAssignment) {
@@ -178,14 +192,14 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
                     }
                 }
             }
+
             if (text == "}") {
-                braces = max(0, braces - 1)
-                if (braceParens.isNotEmpty()) {
-                    parentheses = braceParens.removeLast()!!
+                braces = (braces - 1).coerceAtLeast(0)
+                braceStack.removeLastOrNull()?.let {
+                    parentheses = it.parentheses
+                    braceKind = it.kind
                 }
-                if (braceKinds.isNotEmpty()) {
-                    braceKind = braceKinds.removeLast()!!
-                }
+
                 if (braceKind == BraceKind.NAMESPACE) {
                     namespaces--
                 }
@@ -194,6 +208,7 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
                     caseDepth = -1
                 }
             }
+
             if (text == "case" || text == "default") {
                 caseLabel = true
                 caseDepth = braces
@@ -202,11 +217,12 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
             val unindentedNamespaces =
                 when (custom.NAMESPACE_INDENTATION) {
                     1 -> namespaces
-                    2 -> min(1, namespaces)
+                    2 -> namespaces.coerceAtMost(1)
                     else -> 0
                 }
             var columns =
-                ((braces - unindentedNamespaces) * indent.INDENT_SIZE + parentheses * indent.CONTINUATION_INDENT_SIZE)
+                (braces - unindentedNamespaces) * indent.INDENT_SIZE + parentheses * indent.CONTINUATION_INDENT_SIZE
+
             if (unbraced > 0 && (text != "{") && (text != "else")) {
                 columns += indent.INDENT_SIZE
             }
@@ -221,41 +237,38 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
                     columns -= indent.INDENT_SIZE
                 }
             }
+
             val prefix =
-                mutableSetOf<String?>("!", "~").contains(text) ||
-                    (mutableSetOf<String?>("+", "-", "++", "--", "*", "&").contains(text) &&
+                text == "!" || text == "~" ||
+                    (text in PREFIX_OPERATORS &&
                         (previous == null ||
-                            mutableSetOf<String?>("(", "[", "{", "=", ",", ";", "return", ":", "?").contains(before) ||
+                            before in PREFIX_CONTEXTS ||
                             previous.prefix ||
                             previous.type === SlangLexer.OPERATOR &&
                                 !previous.angle &&
-                                !mutableSetOf<String?>("++", "--").contains(before)))
+                                before !in INCREMENT_OPERATORS))
             var wrap: Wrap? = null
             var alignment: Alignment? = null
-            if ((before == "," || before == "(") && (text != ")") && parameterWraps.isNotEmpty()) {
-                wrap = parameterWraps.last()
-                alignment = parameterAlignments.last()
+            val paren = parenStack.lastOrNull()
+
+            if ((before == "," || before == "(") && text != ")" && paren != null) {
+                wrap = paren.wrap
+                alignment = paren.alignment
             } else if (before == "=" && common.ASSIGNMENT_WRAP != 0) {
                 wrap = Wrap.createWrap(WrapType.byLegacyRepresentation(common.ASSIGNMENT_WRAP), true)
             }
+
             if (text == "{") {
-                braceKind =
-                    if (pendingDeclaration != BraceKind.NONE) {
-                        pendingDeclaration
-                    } else if (previous != null && previous.labelColon) {
-                        BraceKind.CASE
-                    } else if (pendingSwitch) {
-                        BraceKind.SWITCH
-                    } else if (before == "=") {
-                        BraceKind.INITIALIZER
-                    } else {
-                        if (pendingFunction) {
-                            BraceKind.FUNCTION
-                        } else {
-                            BraceKind.CONTROL
-                        }
-                    }
+                braceKind = when {
+                    pendingDeclaration != BraceKind.NONE -> pendingDeclaration
+                    previous?.labelColon == true -> BraceKind.CASE
+                    pendingSwitch -> BraceKind.SWITCH
+                    before == "=" -> BraceKind.INITIALIZER
+                    pendingFunction -> BraceKind.FUNCTION
+                    else -> BraceKind.CONTROL
+                }
             }
+
             children.add(
                 Leaf(
                     text,
@@ -265,20 +278,23 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
                     parentheses,
                     braces,
                     braceKind,
-                    braces == 0 || braceKinds.isNotEmpty() && braceKinds.last()!!.isDeclaration,
+                    braces == 0 || braceStack.lastOrNull()?.kind?.isDeclaration == true,
                     directive,
                     angle,
                     prefix,
                     labelColon,
                     preserveGap,
                     if (preserveGap) null else wrap,
-                    if (preserveGap) null else alignment))
+                    if (preserveGap) null else alignment,
+                ),
+            )
+
             if (text == "{") {
                 if (braceKind == BraceKind.FUNCTION && braces == 0) {
                     var first = children.size - 2
                     while (first >= 0) {
-                        val token = children[first] as Leaf
-                        if (mutableSetOf<String?>(";", "}").contains(token.text) ||
+                        val token = children[first]
+                        if (token.text == ";" || token.text == "}" ||
                             token.directive ||
                             token.type === SlangLexer.COMMENT ||
                             token.type === SlangLexer.BLOCK_COMMENT) {
@@ -286,31 +302,34 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
                         }
                         first--
                     }
-                    functionStarts.add(children[first + 1]!!.textRange.startOffset)
+                    functionStarts.add(children[first + 1].range.startOffset)
                 }
+
                 braces++
                 if (braceKind == BraceKind.NAMESPACE) {
                     namespaces++
                 }
-                braceParens.add(parentheses)
-                braceKinds.add(braceKind)
+                braceStack.addLast(Brace(parentheses, braceKind))
                 parentheses = 0
                 unbraced = 0
             } else if (text == "(") {
                 parentheses++
-                parenKinds.add(if (CONTROL.contains(before)) before else "")
-                parameterWraps.add(
-                    if (!CONTROL.contains(before) &&
-                        before.matches("[A-Za-z_][A-Za-z_0-9]*".toRegex()) &&
-                        common.CALL_PARAMETERS_WRAP != 0)
+                val control = before.takeIf { it in CONTROL }.orEmpty()
+                val call = control.isEmpty() && IDENTIFIER.matches(before)
+                val callWrap =
+                    if (call && common.CALL_PARAMETERS_WRAP != 0) {
                         Wrap.createWrap(WrapType.byLegacyRepresentation(common.CALL_PARAMETERS_WRAP), true)
-                    else null)
-                parameterAlignments.add(
-                    if (!CONTROL.contains(before) &&
-                        before.matches("[A-Za-z_][A-Za-z_0-9]*".toRegex()) &&
-                        common.ALIGN_MULTILINE_PARAMETERS_IN_CALLS)
+                    } else {
+                        null
+                    }
+                val callAlignment =
+                    if (call && common.ALIGN_MULTILINE_PARAMETERS_IN_CALLS) {
                         Alignment.createAlignment()
-                    else null)
+                    } else {
+                        null
+                    }
+
+                parenStack.addLast(Parenthesis(control, callWrap, callAlignment))
             } else if (closesControl) {
                 var next = end
                 while (next < source.length && Character.isWhitespace(source[next])) {
@@ -322,15 +341,18 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
             } else if (text == ";" && parentheses == 0) {
                 unbraced = 0
             }
-            if (mutableSetOf<String?>(";", "{", "}").contains(text)) {
+
+            if (text in STATEMENT_BOUNDARIES) {
                 pendingDeclaration = BraceKind.NONE
                 pendingFunction = false
                 pendingSwitch = false
                 statementAssignment = false
             }
+
             if (labelColon) {
                 caseLabel = false
             }
+
             do {
                 lexer.advance()
             } while (lexer.tokenType != null && lexer.tokenStart < end)
@@ -341,30 +363,34 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
         if (child1 !is Leaf || child2 !is Leaf) {
             return null
         }
+
         if (child2.preserveGap) {
             return Spacing.getReadOnlySpacing()
         }
+
         val a = child1.text
         val b = child2.text
-        val gap = source.substring(child1.range.endOffset, child2.range.startOffset)
         val keptBlankLines =
             if (child1.declarationContext) common.KEEP_BLANK_LINES_IN_DECLARATIONS else common.KEEP_BLANK_LINES_IN_CODE
+
         if (child1.directive || child2.directive || child1.type === SlangLexer.COMMENT) {
             return lines(1, keptBlankLines)
         }
         if (child2.type === SlangLexer.COMMENT ||
             child2.type === SlangLexer.BLOCK_COMMENT ||
-            child1.type === SlangLexer.BLOCK_COMMENT) {
+            child1.type === SlangLexer.BLOCK_COMMENT
+        ) {
             return spaces(1, true)
         }
-        if (functionStarts.contains(child2.range.startOffset) && common.BLANK_LINES_AROUND_METHOD > 0) {
+
+        if (child2.range.startOffset in functionStarts && common.BLANK_LINES_AROUND_METHOD > 0) {
             return lines(common.BLANK_LINES_AROUND_METHOD + 1, common.KEEP_BLANK_LINES_IN_DECLARATIONS)
         }
         if (a == "{" && b == "}") {
             return spaces(0, false)
         }
         if (b == "{") {
-            return when (bracePlacement(child2.braceKind!!)) {
+            return when (bracePlacement(child2.braceKind)) {
                 2 -> line()
                 3 -> spaces(0, false)
                 else -> spaces(1, false)
@@ -377,8 +403,11 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
             return lines(1, if (custom.KEEP_BLANK_LINES_AFTER_LBRACE) common.KEEP_BLANK_LINES_IN_CODE else 0)
         }
         if (a == ";") {
-            return if (child1.parentheses == 0) lines(1, keptBlankLines)
-            else spaces(if (common.SPACE_AFTER_SEMICOLON) 1 else 0, false)
+            return if (child1.parentheses == 0) {
+                lines(1, keptBlankLines)
+            } else {
+                spaces(if (common.SPACE_AFTER_SEMICOLON) 1 else 0, false)
+            }
         }
         if (child1.labelColon) {
             return line()
@@ -387,9 +416,10 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
             return spaces(0, false)
         }
         if (a == "}") {
-            if (mutableSetOf<String?>(";", ",", ")", "]", ".", "(", "::").contains(b)) {
+            if (b in ATTACHED_AFTER_BRACE) {
                 return spaces(0, false)
             }
+
             when (b) {
                 "else" -> {
                     return if (common.ELSE_ON_NEW_LINE) line() else spaces(1, false)
@@ -403,13 +433,15 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
                     return if (common.WHILE_ON_NEW_LINE) line() else spaces(1, false)
                 }
 
-                else -> {}
             }
+
             if (child1.braceKind == BraceKind.FUNCTION && child1.braces == 0) {
                 return lines(common.BLANK_LINES_AROUND_METHOD + 1, common.KEEP_BLANK_LINES_IN_DECLARATIONS)
             }
+
             return lines(1, keptBlankLines)
         }
+
         if (b == ",") {
             return spaces(if (common.SPACE_BEFORE_COMMA) 1 else 0, false)
         }
@@ -419,16 +451,19 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
         if (a == "[" || b == "]") {
             return spaces(if (a == "[" && b == "]") 0 else if (common.SPACE_WITHIN_BRACKETS) 1 else 0, false)
         }
-        if (mutableSetOf<String?>(";", ".", "::", "->").contains(b) ||
-            mutableSetOf<String?>(".", "::", "->").contains(a)) {
+        if (b == ";" || b in MEMBER_OPERATORS || a in MEMBER_OPERATORS) {
             return spaces(0, false)
         }
         if (b == "(") {
             return spaces(if (spaceBeforeParentheses(a)) 1 else 0, false)
         }
-        if (a == "]" && gap.contains("\n")) {
+
+        // Keep shader attribute lines separate.
+        if (a == "]" &&
+            (child1.range.endOffset..<child2.range.startOffset).any { source[it] == '\n' }
+        ) {
             return line()
-        } // Keep shader attribute lines separate.
+        }
 
         if (b == "[") {
             return spaces(if (a == "]") 1 else 0, true)
@@ -451,12 +486,13 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
             val space = child2.type === SlangLexer.OPERATOR || a == "!" && custom.SPACE_AFTER_LOGICAL_NOT
             return spaces(if (space) 1 else 0, false)
         }
-        if (mutableSetOf<String?>("++", "--").contains(b) && !child2.prefix) {
+        if (b in INCREMENT_OPERATORS && !child2.prefix) {
             return spaces(0, false)
         }
+
         // Pointer declarations and dereferences need semantic information.
         // Preserve ambiguous gaps rather than inventing a different token sequence.
-        if (mutableSetOf<String?>("*", "&").contains(a) || mutableSetOf<String?>("*", "&").contains(b)) {
+        if (a in POINTER_OPERATORS || b in POINTER_OPERATORS) {
             return Spacing.getReadOnlySpacing()
         }
         if (child1.type === SlangLexer.OPERATOR || child2.type === SlangLexer.OPERATOR) {
@@ -468,10 +504,6 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
             }
             return spaces(if (space) 1 else 0, true)
         }
-        if (a == "]" && gap.contains("\n")) {
-            return line()
-        } // Attributes preceding declarations.
-
         return spaces(1, true)
     }
 
@@ -505,10 +537,14 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
     }
 
     private fun operatorSpace(token: String, before: Boolean): Boolean {
-        if (ASSIGNMENTS.contains(token)) {
-            return if (custom.SPACE_BEFORE_ASSIGNMENT < 0) common.SPACE_AROUND_ASSIGNMENT_OPERATORS
-            else !before || custom.SPACE_BEFORE_ASSIGNMENT == 1
+        if (token in ASSIGNMENTS) {
+            return if (custom.SPACE_BEFORE_ASSIGNMENT < 0) {
+                common.SPACE_AROUND_ASSIGNMENT_OPERATORS
+            } else {
+                !before || custom.SPACE_BEFORE_ASSIGNMENT == 1
+            }
         }
+
         return when (token) {
             "&&",
             "||" -> common.SPACE_AROUND_LOGICAL_OPERATORS
@@ -528,7 +564,12 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
 
     private fun spaces(count: Int, keepBreaks: Boolean): Spacing? {
         return Spacing.createSpacing(
-            count, count, 0, keepBreaks && common.KEEP_LINE_BREAKS, common.KEEP_BLANK_LINES_IN_CODE)
+            count,
+            count,
+            0,
+            keepBreaks && common.KEEP_LINE_BREAKS,
+            common.KEEP_BLANK_LINES_IN_CODE,
+        )
     }
 
     private fun line(): Spacing? {
@@ -543,7 +584,7 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
         return SlangLanguage.INSTANCE
     }
 
-    override fun getSubBlocks(): MutableList<Block?> {
+    override fun getSubBlocks(): List<Block> {
         return children
     }
 
@@ -571,23 +612,22 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
         return children.isEmpty()
     }
 
-    @JvmRecord
     private data class Leaf(
         val text: String,
-        val type: IElementType?,
+        val type: IElementType,
         val range: TextRange,
         val columns: Int,
         val parentheses: Int,
         val braces: Int,
-        val braceKind: BraceKind?,
+        val braceKind: BraceKind,
         val declarationContext: Boolean,
         val directive: Boolean,
         val angle: Boolean,
         val prefix: Boolean,
         val labelColon: Boolean,
         val preserveGap: Boolean,
-        val wrap: Wrap?,
-        val alignment: Alignment?
+        private val tokenWrap: Wrap?,
+        private val tokenAlignment: Alignment?,
     ) : BlockEx {
         override fun getTextRange(): TextRange {
             return range
@@ -597,12 +637,12 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
             return SlangLanguage.INSTANCE
         }
 
-        override fun getSubBlocks(): MutableList<Block?> {
-            return mutableListOf()
+        override fun getSubBlocks(): List<Block> {
+            return emptyList()
         }
 
         override fun getWrap(): Wrap? {
-            return wrap
+            return tokenWrap
         }
 
         override fun getIndent(): Indent? {
@@ -610,7 +650,7 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
         }
 
         override fun getAlignment(): Alignment? {
-            return alignment
+            return tokenAlignment
         }
 
         override fun getSpacing(left: Block?, right: Block): Spacing? {
@@ -631,12 +671,21 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
     }
 
     companion object {
-        private val CONTROL = mutableSetOf<String?>("if", "for", "while", "switch", "catch")
+        private val CONTROL = setOf("if", "for", "while", "switch", "catch")
+        private val IDENTIFIER = Regex("[A-Za-z_][A-Za-z_0-9]*")
+        private val PREFIX_OPERATORS = setOf("+", "-", "++", "--", "*", "&")
+        private val PREFIX_CONTEXTS = setOf("(", "[", "{", "=", ",", ";", "return", ":", "?")
+        private val INCREMENT_OPERATORS = setOf("++", "--")
+        private val STATEMENT_BOUNDARIES = setOf(";", "{", "}")
+        private val ATTACHED_AFTER_BRACE = setOf(";", ",", ")", "]", ".", "(", "::")
+        private val MEMBER_OPERATORS = setOf(".", "::", "->")
+        private val POINTER_OPERATORS = setOf("*", "&")
         private val ASSIGNMENTS =
-            mutableSetOf<String?>("=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=")
-        private val FORMAT_MARKER: Pattern = Pattern.compile("^(?://|/\\*)\\s*clang-format (off|on)\\b")
+            setOf("=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=")
+        private val FORMAT_MARKER = Regex("""^(?://|/\*)\s*clang-format (off|on)\b""")
+
         private val OPERATORS =
-            mutableSetOf<String?>(
+            setOf(
                 "==",
                 "!=",
                 "<=",
@@ -658,10 +707,12 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
                 "<<=",
                 ">>=",
                 "->",
-                "::")
+                "::",
+            )
 
         private fun directiveEnd(source: String, start: Int): Int {
             var end = start
+
             while (end < source.length) {
                 val newline = source.indexOf('\n', end)
                 if (newline < 0) {
@@ -684,7 +735,7 @@ internal open class NativeFormattingBlock(private val source: String, settings: 
         }
 
         private fun lines(count: Int, keepBlankLines: Int): Spacing? {
-            return Spacing.createSpacing(0, 0, max(1, count), true, max(0, keepBlankLines))
+            return Spacing.createSpacing(0, 0, count.coerceAtLeast(1), true, keepBlankLines.coerceAtLeast(0))
         }
     }
 }

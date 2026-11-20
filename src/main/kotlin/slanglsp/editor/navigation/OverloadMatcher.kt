@@ -1,5 +1,6 @@
 package slanglsp.editor.navigation
 
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
@@ -11,7 +12,6 @@ import com.redhat.devtools.lsp4ij.LanguageServerItem
 import com.redhat.devtools.lsp4ij.features.documentation.LSPDocumentationHelper
 import java.util.regex.Pattern
 import org.eclipse.lsp4j.*
-import slanglsp.analysis.ReadActions
 import slanglsp.editor.documentation.HoverRequests
 import slanglsp.language.SlangLexer
 
@@ -110,8 +110,8 @@ internal object OverloadMatcher {
         declarations: List<Range>,
         server: LanguageServerItem
     ): Range? {
-        val sourceDocument = ReadActions.compute { LSPIJUtils.getDocument(source) }
-        val targetDocument = ReadActions.compute { LSPIJUtils.getDocument(target) }
+        val sourceDocument = runReadActionBlocking { LSPIJUtils.getDocument(source) }
+        val targetDocument = runReadActionBlocking { LSPIJUtils.getDocument(target) }
 
         if (sourceDocument == null || targetDocument == null) {
             return null
@@ -125,7 +125,7 @@ internal object OverloadMatcher {
 
         for (declaration in declarations) {
             ProgressManager.checkCanceled()
-            val declarationOffset = ReadActions.compute {
+            val declarationOffset = runReadActionBlocking {
                 LSPIJUtils.toOffset(declaration.start, targetDocument)
             }
             val signature =
@@ -202,7 +202,7 @@ internal object OverloadMatcher {
 
     private fun signatureAt(file: PsiFile, offset: Int, name: String, expectedServer: LanguageServerItem): String? {
         val position =
-            ReadActions.compute {
+            runReadActionBlocking {
                 LSPIJUtils.getDocument(file)?.let { LSPIJUtils.toPosition(offset, it) }
             } ?: return null
 

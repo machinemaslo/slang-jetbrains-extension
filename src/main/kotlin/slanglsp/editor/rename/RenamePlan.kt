@@ -1,5 +1,6 @@
 package slanglsp.editor.rename
 
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.command.CommandProcessor
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.Document
@@ -21,7 +22,6 @@ import com.redhat.devtools.lsp4ij.LSPIJUtils
 import java.net.URI
 import org.jetbrains.annotations.PropertyKey
 import slanglsp.SlangBundle
-import slanglsp.analysis.ReadActions
 import slanglsp.editor.navigation.SymbolLocation
 import slanglsp.editor.navigation.UsageCandidates
 import slanglsp.editor.navigation.UsageSearch
@@ -77,7 +77,7 @@ private constructor(
     )
 
     fun usages(): Array<UsageInfo> {
-        return ReadActions.compute {
+        return runReadActionBlocking {
             validate()
             edits
                 .map { edit ->
@@ -89,7 +89,7 @@ private constructor(
 
     fun requiresPreview(): Boolean {
         val usages = usages()
-        return ReadActions.compute {
+        return runReadActionBlocking {
             UsageViewUtil.reportNonRegularUsages(usages, project) ||
                 UsageViewUtil.hasReadOnlyUsages(usages) ||
                 edits.any { !it.source!!.document.isWritable } ||
@@ -175,7 +175,7 @@ private constructor(
             }
 
             val project = element!!.project
-            val name = ReadActions.compute<@NlsSafe String?> { element.text }
+            val name = runReadActionBlocking<@NlsSafe String?> { element.text }
 
             if (!validName(name) || name == newName) {
                 throw invalidRename("rename.choose.a.different.identifier")
@@ -186,7 +186,7 @@ private constructor(
             val edits: MutableList<Edit> = collectEdits(sources, declaration, name)
             val plan = RenamePlan(project, name, newName!!, sources, edits)
 
-            ReadActions.run { plan.validate() }
+            runReadActionBlocking { plan.validate() }
 
             return plan
         }
@@ -195,7 +195,7 @@ private constructor(
             val scope = GlobalSearchScope.projectScope(project)
             val candidates = UsageSearch.candidateFiles(project, scope, name)
 
-            return ReadActions.compute {
+            return runReadActionBlocking {
                 val result = ArrayList<Source>()
                 for (file in projectFiles(project)) {
                     ProgressManager.checkCanceled()
@@ -214,13 +214,13 @@ private constructor(
         }
 
         private fun resolveDeclaration(element: PsiElement, sources: MutableList<Source>, name: String): Declaration {
-            val origin = ReadActions.compute {
+            val origin = runReadActionBlocking {
                 val file = element.containingFile
                 sources.firstOrNull { it.file === file }
                     ?: throw invalidRename("rename.only.symbols.declared.in.this.project.s.slang.files.can.be.renamed")
             }
 
-            val originOffset = ReadActions.compute { element.textOffset }
+            val originOffset = runReadActionBlocking { element.textOffset }
             val targets: MutableSet<SymbolLocation?> = definitions(origin, originOffset)
 
             if (targets.size > 1) {
@@ -229,7 +229,7 @@ private constructor(
 
             val symbol: SymbolLocation =
                 (if (targets.isEmpty())
-                    ReadActions.compute {
+                    runReadActionBlocking {
                         origin.symbol(originOffset)
                     }
                 else checkNotNull(targets.single()))
@@ -252,11 +252,11 @@ private constructor(
         }
 
         private fun declarationOffset(source: Source, symbol: SymbolLocation, name: String): Int {
-            return ReadActions.compute {
+            return runReadActionBlocking {
                 source.check()
 
                 if (symbol.line < 0 || symbol.line >= source.document.lineCount) {
-                    return@compute -1
+                    return@runReadActionBlocking -1
                 }
 
                 val offset: Int = source.document.getLineStartOffset(symbol.line) + symbol.character
@@ -321,9 +321,9 @@ private constructor(
         }
 
         private fun definitions(source: Source, offset: Int): MutableSet<SymbolLocation?> {
-            ReadActions.run { source.check() }
+            runReadActionBlocking { source.check() }
             val locations = UsageSearch.definitions(source.file, source.document, offset)
-            ReadActions.run { source.check() }
+            runReadActionBlocking { source.check() }
             val result: MutableSet<SymbolLocation?> = HashSet()
             locations.mapTo(result) { SymbolLocation.from(it.location()) }
 

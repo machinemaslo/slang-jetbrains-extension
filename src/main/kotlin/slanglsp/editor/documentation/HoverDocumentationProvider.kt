@@ -1,6 +1,7 @@
 package slanglsp.editor.documentation
 
 import com.intellij.lang.documentation.AbstractDocumentationProvider
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.DumbService.Companion.isDumb
 import com.intellij.psi.PsiElement
@@ -10,7 +11,6 @@ import com.redhat.devtools.lsp4ij.features.documentation.LSPDocumentationHelper
 import java.time.Duration
 import java.util.concurrent.CompletionException
 import slanglsp.analysis.AnalysisDeadline
-import slanglsp.analysis.ReadActions
 import slanglsp.language.SlangLanguage
 
 /** Connects Ctrl+hover on Slang PSI to the same LSP hover used by Quick Documentation. */
@@ -62,7 +62,7 @@ class HoverDocumentationProvider : AbstractDocumentationProvider() {
 
     private fun documentationAt(file: PsiFile, offset: Int): MutableList<String?> {
         val position =
-            ReadActions.compute {
+            runReadActionBlocking {
                 val document = LSPIJUtils.getDocument(file)
                 if (document == null || file.virtualFile == null || offset !in 0..document.textLength) {
                     null

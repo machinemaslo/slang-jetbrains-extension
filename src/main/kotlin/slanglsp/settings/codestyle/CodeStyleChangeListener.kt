@@ -7,10 +7,15 @@ import slanglsp.server.client.ServerClient
 
 class CodeStyleChangeListener : CodeStyleSettingsListener {
     override fun codeStyleSettingsChanged(event: CodeStyleSettingsChangeEvent) {
-        ServerClient.notifySettingsChanged(event.project)
         val project = event.project
-        if (!project.isDisposed) {
-            DaemonCodeAnalyzer.getInstance(project).settingsChanged()
+
+        // The IDE also fires this event when it finishes computing a file's effective code style.
+        // That does not change the project settings sent to slangd.
+        if (project.isDisposed || event.virtualFile != null) {
+            return
         }
+
+        ServerClient.notifySettingsChanged(project)
+        DaemonCodeAnalyzer.getInstance(project).settingsChanged()
     }
 }

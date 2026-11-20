@@ -41,7 +41,7 @@ internal class SemanticTokensFeature : LSPSemanticTokensFeature() {
             "variable" -> if (modifiers.contains("readonly")) SyntaxColors.CONSTANT else SyntaxColors.VARIABLE
             "property" -> SyntaxColors.FIELD
             "enumMember" -> SyntaxColors.CONSTANT
-            "function" -> SyntaxColors.FUNCTION_DECLARATION
+            "function" -> SyntaxColors.FUNCTION
             "method" -> SyntaxColors.METHOD
             "macro" -> SyntaxColors.MACRO_KEYWORD
             "keyword",

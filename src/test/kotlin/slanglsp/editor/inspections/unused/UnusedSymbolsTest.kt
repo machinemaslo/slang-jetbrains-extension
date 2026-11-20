@@ -1,5 +1,6 @@
 package slanglsp.editor.inspections.unused
 
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.editor.colors.CodeInsightColors
 import com.intellij.openapi.fileEditor.FileDocumentManager
@@ -15,7 +16,6 @@ import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import slanglsp.TestDependencies
-import slanglsp.analysis.ReadActions.compute
 import slanglsp.editor.AnnotationRecorder
 import slanglsp.editor.NativeServerSupport
 import slanglsp.editor.inspections.naming.InconsistentNamingInspection
@@ -89,7 +89,7 @@ internal class UnusedSymbolsTest {
             }
 
             val annotator = UnusedSymbolsAnnotator()
-            val input = compute { annotator.collectInformation(file[0]!!) }
+            val input = runReadActionBlocking { annotator.collectInformation(file[0]!!) }
             Assertions.assertNotNull(input)
 
             ProgressManager.getInstance()
@@ -137,7 +137,7 @@ internal class UnusedSymbolsTest {
                     }
                 Assertions.assertEquals(CodeInsightColors.NOT_USED_ELEMENT_ATTRIBUTES, struct.forcedTextAttributesKey)
             }
-            val removalInput = compute { annotator.collectForEditor(file[0]!!) }
+            val removalInput = runReadActionBlocking { annotator.collectForEditor(file[0]!!) }
             val removal = arrayOfNulls<UnusedSymbolsAnnotator.Result>(1)
             ProgressManager.getInstance()
                 .runProcess({ removal[0] = annotator.doAnnotate(checkNotNull(removalInput)) }, EmptyProgressIndicator())

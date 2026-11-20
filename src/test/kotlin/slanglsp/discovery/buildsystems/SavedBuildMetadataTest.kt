@@ -3,12 +3,15 @@ package slanglsp.discovery.buildsystems
 import java.nio.file.Files
 import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import slanglsp.discovery.DiscoveryContext
 
 class SavedBuildMetadataTest {
-    @TempDir lateinit var directory: Path
+    @TempDir
+    lateinit var directory: Path
 
     @Test
     fun cmakeKeepsParentOrderAndDistinguishesPresetFromParentEnvironment() {
@@ -117,6 +120,34 @@ class SavedBuildMetadataTest {
                 .map(directory::resolve),
             context.installations.keys.toList(),
         )
+    }
+
+    @Test
+    fun xmakeAndMesonIgnoreSavedMetadataWhenTheirProjectMarkersAreMissingOrBlank() {
+        write(".xmake/host/arch/xmake.conf", "vcpkg = \"project-sdk\"")
+        write("home/.xmake/xmake.conf", "vcpkg = \"global-sdk\"")
+        write("deps/vcpkg/status", "")
+        write(
+            "builddir/meson-info/intro-dependencies.json",
+            """[{"include_directories": ["../deps/x64-linux/include"]}]""",
+        )
+
+        fun assertMetadataSkipped() {
+            val context = DiscoveryContext(directory, mapOf("XMAKE_GLOBALDIR" to "home"))
+
+            XmakeDiscoveryAdapter().discover(context)
+            MesonDiscoveryAdapter().discover(context)
+
+            assertTrue(context.installations.isEmpty())
+            assertFalse(directory.resolve("builddir") in context.buildDirectories)
+        }
+
+        assertMetadataSkipped()
+
+        write("xmake.lua", " \n")
+        write("meson.build", "\n")
+
+        assertMetadataSkipped()
     }
 
     private fun write(file: String, text: String) {

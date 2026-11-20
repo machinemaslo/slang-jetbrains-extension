@@ -1,16 +1,41 @@
 package slanglsp.formatting.clang
 
+import com.intellij.testFramework.fixtures.IdeaProjectTestFixture
+import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
+import com.intellij.testFramework.runInEdtAndWait
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicInteger
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import slanglsp.TestDependencies
 import slanglsp.formatting.clang.FormattingConfiguration.validate
 
 internal class FormattingConfigurationCacheTest {
+    private lateinit var fixture: IdeaProjectTestFixture
+
+    @BeforeEach
+    fun setUp() {
+        fixture = IdeaTestFixtureFactory.getFixtureFactory()
+            .createLightFixtureBuilder("FormattingConfigurationCache")
+            .fixture
+
+        runInEdtAndWait {
+            fixture.setUp()
+        }
+    }
+
+    @AfterEach
+    fun tearDown() {
+        runInEdtAndWait {
+            fixture.tearDown()
+        }
+    }
+
     @Test
     @Throws(Exception::class)
     fun validatesOnceUntilParentConfigChangesAndDoesNotCacheFailure(@TempDir root: Path) {

@@ -5,6 +5,7 @@ import com.intellij.codeInspection.ProblemHighlightType
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.ExternalAnnotator
 import com.intellij.lang.annotation.HighlightSeverity
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.Editor
@@ -26,7 +27,6 @@ import slanglsp.analysis.AnalysisDeadline
 import slanglsp.analysis.AnalysisTiming
 import slanglsp.analysis.BatchAnalysisService
 import slanglsp.analysis.DocumentSymbolRequests
-import slanglsp.analysis.ReadActions
 import slanglsp.editor.inspections.naming.NamingAnnotator
 import slanglsp.editor.navigation.UsageSearch
 import slanglsp.server.client.ServerClient
@@ -149,7 +149,7 @@ class UnusedSymbolsAnnotator : ExternalAnnotator<UnusedSymbolsAnnotator.Input, U
             }
         }
         if (result != null && !input.batchOnly) {
-            ReadActions.run {
+            runReadActionBlocking<Unit> {
                 Analysis.check(input)
                 input.file.putUserData(Analysis.REVISION_CACHE, CachedResult(serverStamp, result))
             }
@@ -171,7 +171,7 @@ class UnusedSymbolsAnnotator : ExternalAnnotator<UnusedSymbolsAnnotator.Input, U
             }
 
             val candidates: MutableList<Candidate> = ArrayList()
-            ReadActions.run {
+            runReadActionBlocking<Unit> {
                 Analysis.check(input)
                 for (symbol in symbols) {
                     Analysis.collect(input, symbol?.documentSymbol, candidates, externallyUsed = false, member = false)
@@ -182,7 +182,7 @@ class UnusedSymbolsAnnotator : ExternalAnnotator<UnusedSymbolsAnnotator.Input, U
 
             for (candidate in candidates) {
                 ProgressManager.checkCanceled()
-                val element = ReadActions.compute {
+                val element = runReadActionBlocking {
                     Analysis.check(input)
                     input.file.findElementAt(candidate.range.startOffset)
                 }

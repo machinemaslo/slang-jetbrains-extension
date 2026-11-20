@@ -7,6 +7,6 @@ import com.intellij.openapi.vfs.VirtualFile
 
 class SlangSyntaxHighlighterFactory : SyntaxHighlighterFactory() {
     override fun getSyntaxHighlighter(project: Project?, virtualFile: VirtualFile?): SyntaxHighlighter {
-        return SlangSyntaxHighlighter()
+        return SlangSyntaxHighlighter
     }
 }

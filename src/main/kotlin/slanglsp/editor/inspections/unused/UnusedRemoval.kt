@@ -2,6 +2,7 @@ package slanglsp.editor.inspections.unused
 
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.codeInsight.intention.IntentionAction
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Editor
@@ -14,7 +15,6 @@ import com.intellij.psi.TokenType
 import com.intellij.psi.util.PsiModificationTracker
 import slanglsp.SlangBundle
 import slanglsp.analysis.EditorAnalysisTasks
-import slanglsp.analysis.ReadActions
 import slanglsp.editor.navigation.UsageSearch
 import slanglsp.language.SlangLexer
 
@@ -182,7 +182,7 @@ private class RemoveUnusedFix(
         project.service<EditorAnalysisTasks>().launch(
             text,
             compute = {
-                val element = ReadActions.compute {
+                val element = runReadActionBlocking {
                     if (current()) {
                         input.file.findElementAt(candidate.range.startOffset)
                     } else {

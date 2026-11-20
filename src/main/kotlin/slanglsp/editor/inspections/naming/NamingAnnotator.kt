@@ -6,6 +6,7 @@ import com.intellij.codeInsight.intention.IntentionAction
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.ExternalAnnotator
 import com.intellij.lang.annotation.HighlightSeverity
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.colors.CodeInsightColors
@@ -30,7 +31,6 @@ import slanglsp.analysis.AnalysisDeadline
 import slanglsp.analysis.AnalysisTiming
 import slanglsp.analysis.BatchAnalysisService
 import slanglsp.analysis.DocumentSymbolRequests
-import slanglsp.analysis.ReadActions
 import slanglsp.editor.inspections.unused.UnusedDeclarations
 import slanglsp.editor.inspections.unused.UnusedSymbolsAnnotator
 import slanglsp.editor.rename.RenamePlan
@@ -112,9 +112,9 @@ class NamingAnnotator : ExternalAnnotator<NamingAnnotator.Input, NamingAnnotator
                         check(!input.batchOnly) { SlangBundle.message("analysis.server.unavailable") }
                         return null
                     }
-                    val candidates = ReadActions.compute {
+                    val candidates = runReadActionBlocking {
                         if (source.document.modificationStamp != source.stamp) {
-                            return@compute null
+                            return@runReadActionBlocking null
                         }
                         val collected: MutableMap<Int?, Candidate?> = LinkedHashMap()
                         for (symbol in symbols) {
@@ -129,7 +129,7 @@ class NamingAnnotator : ExternalAnnotator<NamingAnnotator.Input, NamingAnnotator
                     val unusedInput =
                         if (input.batchOnly) null
                         else
-                            ReadActions.compute {
+                            runReadActionBlocking {
                                 unusedAnnotator.collectForEditor(source.file)
                             }
                     val unusedMessages = mutableMapOf<Int, String>()

@@ -2,13 +2,15 @@ package slanglsp.discovery.buildsystems
 
 import com.google.gson.JsonObject
 import java.nio.file.Path
+import kotlin.io.path.name
 import slanglsp.discovery.DiscoveryContext
 
-internal class CmakeDiscoveryAdapter : DiscoveryAdapter {
-    override fun discover(context: DiscoveryContext) {
+internal class CmakeDiscoveryAdapter : DiscoveryAdapter() {
+    override fun discoverMetadata(context: DiscoveryContext) {
         val presets = PresetCatalog(context).visiblePresets()
         findBuildDirectories(context, presets)
         readCaches(context)
+
         // Resolved caches take precedence over initial preset values.
         for (preset in presets) {
             readPresetInstallation(context, preset)
@@ -63,8 +65,9 @@ internal class CmakeDiscoveryAdapter : DiscoveryAdapter {
             }
 
             context.variables(directory, cache)
+
             if (cache.isNotEmpty()) {
-                context.installed(directory, "vcpkg_installed", cache["VCPKG_HOST_TRIPLET"])
+                context.registerDefaultVcpkgInstallation(directory, cache["VCPKG_HOST_TRIPLET"])
             }
         }
     }
@@ -73,8 +76,9 @@ internal class CmakeDiscoveryAdapter : DiscoveryAdapter {
         val values = preset.installationVariables()
         val build = context.resolve(context.root, preset.binaryDir)
         context.variables(build ?: context.root, values)
+
         if (build != null) {
-            context.installed(build, "vcpkg_installed", values["VCPKG_HOST_TRIPLET"])
+            context.registerDefaultVcpkgInstallation(build, values["VCPKG_HOST_TRIPLET"])
         }
     }
 
@@ -141,30 +145,34 @@ internal class CmakeDiscoveryAdapter : DiscoveryAdapter {
 
     private class Preset(context: DiscoveryContext, name: String, private val definition: JsonObject) {
         private val expansion = PresetExpansion(context, name, definition["environment"] as? JsonObject)
+
         val binaryDir = expansion.expand(definition["binaryDir"].literal())
 
         fun installationVariables(): Map<String, String> = buildMap {
             val variables = definition["cacheVariables"] as? JsonObject
-            for ((key, entry) in variables?.entrySet().orEmpty()) {
+            for ((key, entry) in variables?.asMap().orEmpty()) {
                 val value = if (entry is JsonObject) entry["value"] else entry
                 expansion.expand(value.literal())?.let { put(key, it) }
             }
+
             expansion.expand(definition["toolchainFile"].literal())?.let { put("CMAKE_TOOLCHAIN_FILE", it) }
         }
     }
 
     private class PresetExpansion(context: DiscoveryContext, name: String, overrides: JsonObject?) {
         private val parentEnvironment = context.environment
+
         private val environment = buildMap {
             putAll(parentEnvironment)
-            for ((key, entry) in overrides?.entrySet().orEmpty()) {
+            for ((key, entry) in overrides?.asMap().orEmpty()) {
                 entry.literal()?.let { put(key, it) }
             }
         }
+
         private val macros = buildMap {
             put("sourceDir", context.root.toString())
             context.root.parent?.let { put("sourceParentDir", it.toString()) }
-            context.root.fileName?.let { put("sourceDirName", it.toString()) }
+            context.root.name.takeIf { it.isNotEmpty() }?.let { put("sourceDirName", it) }
             put("presetName", name)
         }
 
@@ -194,8 +202,9 @@ internal class CmakeDiscoveryAdapter : DiscoveryAdapter {
         val environmentMacro = Regex("""\$(p?env)\{([^}]+)}""")
 
         fun JsonObject.overlay(source: JsonObject) {
-            for ((key, value) in source.entrySet()) {
+            for ((key, value) in source.asMap()) {
                 val previous = this[key]
+
                 if (previous is JsonObject && value is JsonObject) {
                     previous.overlay(value)
                 } else {

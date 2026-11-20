@@ -102,7 +102,7 @@ internal abstract class SettingsPreviewPanel(
     final override fun getPreviewText() = sample ?: " "
 
     final override fun createHighlighter(scheme: EditorColorsScheme) =
-        LexerEditorHighlighter(SlangSyntaxHighlighter(), scheme)
+        LexerEditorHighlighter(SlangSyntaxHighlighter, scheme)
 
     override fun updatePreview(useDefaultSample: Boolean) {
         if (sample != null) {

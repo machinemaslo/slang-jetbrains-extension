@@ -1,12 +1,14 @@
 package slanglsp.discovery.buildsystems
 
 import java.nio.file.Path
+import kotlin.io.path.name
 import slanglsp.discovery.DiscoveryContext
 
 /** Reads literal MSBuild properties and imports without evaluating conditions or property functions. */
-internal class MsbuildDiscoveryAdapter : DiscoveryAdapter {
-    override fun discover(context: DiscoveryContext) {
+internal class MsbuildDiscoveryAdapter : DiscoveryAdapter() {
+    override fun discoverMetadata(context: DiscoveryContext) {
         val projects = findProjects(context).ifEmpty { setOf(context.root.resolve("Directory.Build.props")) }
+
         for (project in projects.take(32)) {
             findInstallations(context, project.parent, readProjectProperties(context, project))
         }
@@ -26,7 +28,8 @@ internal class MsbuildDiscoveryAdapter : DiscoveryAdapter {
 
         for (solution in context.children(context.root, "*.sln")) {
             for (match in solutionProject.findAll(context.read(solution)).takeWhile { size < 32 }) {
-                context.resolve(solution.parent, match.groupValues[1])?.let(::add)
+                val (projectPath) = match.destructured
+                context.resolve(solution.parent, projectPath)?.let(::add)
             }
         }
     }
@@ -58,22 +61,26 @@ internal class MsbuildDiscoveryAdapter : DiscoveryAdapter {
         fun expanded(key: String) = DiscoveryContext.expand(properties[key], properties)
 
         val host = properties["VcpkgHostTriplet"]
+
         context.resolve(directory, expanded("VcpkgInstalledDir"))?.let { installed ->
             // MSBuild manifest mode includes the target triplet in this path.
             val target = properties["VcpkgTriplet"]
             val root =
-                if (target != null && installed.fileName?.toString() == target) {
+                if (!target.isNullOrEmpty() && installed.name == target) {
                     installed.parent
                 } else {
                     installed
                 }
             context.installed(root, ".", host)
         }
+
         context.installed(directory, expanded("VcpkgManifestInstalledBaseDir"), host)
+
         context.resolve(directory, expanded("VcpkgManifestRoot"))?.let { manifest ->
-            context.installed(manifest, "vcpkg_installed", host)
+            context.registerDefaultVcpkgInstallation(manifest, host)
         }
-        context.installed(directory, "vcpkg_installed", host)
+
+        context.registerDefaultVcpkgInstallation(directory, host)
         context.vcpkgRoot(directory, expanded("VcpkgRoot"))
     }
 

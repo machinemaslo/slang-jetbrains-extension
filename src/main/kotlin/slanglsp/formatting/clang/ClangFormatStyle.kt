@@ -25,32 +25,34 @@ object ClangFormatStyle {
             .replace('\n', ' ')
             .trim { it <= ' ' }
 
-    @JvmField val DEFAULT_STYLE: String = style(4, 4, 4, false, 100, true)
+    val DEFAULT_STYLE: String = style(4, 4, 4, false, 100, true)
 
-    @JvmStatic
     fun clangFormatStyle(settings: CodeStyleSettings): String {
         val indent = settings.getIndentOptions(SlangFileType)
         val custom = settings.getCustomSettings(SlangCodeStyleSettings::class.java)
+
         return style(
             indent.INDENT_SIZE,
             indent.CONTINUATION_INDENT_SIZE,
             indent.TAB_SIZE,
             indent.USE_TAB_CHARACTER,
             settings.getRightMargin(SlangLanguage.INSTANCE),
-            custom.BRACES_ON_NEW_LINE)
+            custom.BRACES_ON_NEW_LINE,
+        )
     }
 
     /** Export only options with a meaningful mapping, using keys accepted by clang-format. */
-    @JvmStatic
     fun export(settings: CodeStyleSettings): String {
         val indent = settings.getIndentOptions(SlangFileType)
         val common = settings.getCommonSettings(SlangLanguage.INSTANCE)
         val custom = settings.getCustomSettings(SlangCodeStyleSettings::class.java)
         val yaml = StringBuilder()
+
         option(yaml, "BasedOnStyle", "LLVM")
         if (custom.DISABLE_FORMAT) {
             option(yaml, "DisableFormat", true)
         }
+
         option(yaml, "IndentWidth", indent.INDENT_SIZE)
         option(yaml, "ContinuationIndentWidth", indent.CONTINUATION_INDENT_SIZE)
         option(yaml, "TabWidth", indent.TAB_SIZE)
@@ -65,34 +67,42 @@ object ClangFormatStyle {
                 1 -> "None"
                 2 -> "Inner"
                 else -> "All"
-            })
+            },
+        )
         option(yaml, "MaxEmptyLinesToKeep", common.KEEP_BLANK_LINES_IN_CODE)
         option(yaml, "KeepEmptyLinesAtTheStartOfBlocks", custom.KEEP_BLANK_LINES_AFTER_LBRACE)
         option(
             yaml,
             "SpaceBeforeAssignmentOperators",
-            if (custom.SPACE_BEFORE_ASSIGNMENT < 0) common.SPACE_AROUND_ASSIGNMENT_OPERATORS
-            else custom.SPACE_BEFORE_ASSIGNMENT == 1)
+            if (custom.SPACE_BEFORE_ASSIGNMENT < 0) {
+                common.SPACE_AROUND_ASSIGNMENT_OPERATORS
+            } else {
+                custom.SPACE_BEFORE_ASSIGNMENT == 1
+            },
+        )
         option(yaml, "SpacesInSquareBrackets", common.SPACE_WITHIN_BRACKETS)
         option(yaml, "SpacesInParentheses", common.SPACE_WITHIN_PARENTHESES)
         option(yaml, "SpacesInAngles", if (custom.SPACE_WITHIN_GENERIC_ANGLES) "Always" else "Never")
         option(yaml, "SpaceAfterLogicalNot", custom.SPACE_AFTER_LOGICAL_NOT)
+
         val controls = common.SPACE_BEFORE_IF_PARENTHESES
         if (controls == common.SPACE_BEFORE_FOR_PARENTHESES &&
             controls == common.SPACE_BEFORE_WHILE_PARENTHESES &&
             controls == common.SPACE_BEFORE_SWITCH_PARENTHESES &&
-            controls == common.SPACE_BEFORE_CATCH_PARENTHESES) {
-            if (controls || !common.SPACE_BEFORE_METHOD_CALL_PARENTHESES) {
-                option(
-                    yaml,
-                    "SpaceBeforeParens",
-                    if (controls) if (common.SPACE_BEFORE_METHOD_CALL_PARENTHESES) "Always" else "ControlStatements"
-                    else "Never")
+            controls == common.SPACE_BEFORE_CATCH_PARENTHESES
+        ) {
+            val beforeParens = when {
+                controls && common.SPACE_BEFORE_METHOD_CALL_PARENTHESES -> "Always"
+                controls -> "ControlStatements"
+                !common.SPACE_BEFORE_METHOD_CALL_PARENTHESES -> "Never"
+                else -> null
             }
+            beforeParens?.let { option(yaml, "SpaceBeforeParens", it) }
         }
+
         option(yaml, "SpaceBeforeCpp11BracedList", custom.INITIALIZER_BRACES != 3)
         option(yaml, "BreakBeforeBraces", "Custom")
-        yaml.append("BraceWrapping:\n")
+        yaml.appendLine("BraceWrapping:")
         brace(yaml, "AfterFunction", startsNewLine(custom, custom.FUNCTION_BRACES, 0))
         brace(yaml, "AfterNamespace", startsNewLine(custom, custom.NAMESPACE_BRACES, custom.TYPE_BRACES))
         brace(yaml, "AfterStruct", startsNewLine(custom, custom.STRUCT_BRACES, custom.TYPE_BRACES))
@@ -103,6 +113,7 @@ object ClangFormatStyle {
         brace(yaml, "BeforeElse", common.ELSE_ON_NEW_LINE)
         brace(yaml, "BeforeCatch", common.CATCH_ON_NEW_LINE)
         brace(yaml, "BeforeWhile", common.WHILE_ON_NEW_LINE)
+
         return yaml.toString()
     }
 
@@ -112,7 +123,7 @@ object ClangFormatStyle {
     }
 
     private fun option(yaml: StringBuilder, key: String, value: Any) {
-        yaml.append(key).append(": ").append(value).append('\n')
+        yaml.appendLine("$key: $value")
     }
 
     private fun brace(yaml: StringBuilder, key: String, value: Any) {
@@ -120,21 +131,18 @@ object ClangFormatStyle {
         option(yaml, key, value)
     }
 
-    private fun style(indent: Int, continuation: Int, tab: Int, tabs: Boolean, margin: Int, newLine: Boolean): String {
-        return ("{" +
-            BASE +
-            ", IndentWidth: " +
-            indent +
-            ", ContinuationIndentWidth: " +
-            continuation +
-            ", TabWidth: " +
-            tab +
-            ", UseTab: " +
-            (if (tabs) "ForIndentation" else "Never") +
-            ", ColumnLimit: " +
-            margin +
-            ", BreakBeforeBraces: " +
-            (if (newLine) "Allman" else "Attach") +
-            "}")
+    private fun style(
+        indent: Int,
+        continuation: Int,
+        tab: Int,
+        tabs: Boolean,
+        margin: Int,
+        newLine: Boolean,
+    ): String {
+        val useTab = if (tabs) "ForIndentation" else "Never"
+        val braces = if (newLine) "Allman" else "Attach"
+
+        return "{$BASE, IndentWidth: $indent, ContinuationIndentWidth: $continuation, " +
+            "TabWidth: $tab, UseTab: $useTab, ColumnLimit: $margin, BreakBeforeBraces: $braces}"
     }
 }

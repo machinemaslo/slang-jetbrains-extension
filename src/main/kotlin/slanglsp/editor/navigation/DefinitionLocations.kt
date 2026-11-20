@@ -1,5 +1,6 @@
 package slanglsp.editor.navigation
 
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.redhat.devtools.lsp4ij.LSPIJUtils
@@ -8,7 +9,6 @@ import java.net.URI
 import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.Range
-import slanglsp.analysis.ReadActions
 import slanglsp.language.SlangFileType
 import slanglsp.server.BuiltinFiles.BuiltinFile
 import slanglsp.server.protocol.DocumentUris
@@ -24,13 +24,13 @@ internal object DefinitionLocations {
 
         for (data in locations) {
             val location = data.location()
-            val target = ReadActions.compute {
+            val target = runReadActionBlocking {
                 val file = LSPIJUtils.findResourceFor(location.uri)
                 if (file == null || file is BuiltinFile || file.fileType !== SlangFileType) {
-                    return@compute null
+                    return@runReadActionBlocking null
                 }
 
-                val psi = PsiManager.getInstance(source.project).findFile(file) ?: return@compute null
+                val psi = PsiManager.getInstance(source.project).findFile(file) ?: return@runReadActionBlocking null
                 val range = location.range?.let { identifierRange(psi, name, it) }
                 val declarations =
                     identifierRanges(psi, name, location.range).filter {

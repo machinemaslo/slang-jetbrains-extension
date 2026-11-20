@@ -15,7 +15,7 @@ class HighlightingSettingsPage : ColorSettingsPage {
     }
 
     override fun getHighlighter(): SyntaxHighlighter {
-        return SlangSyntaxHighlighter()
+        return SlangSyntaxHighlighter
     }
 
     override fun getDisplayName(): String {
@@ -30,20 +30,8 @@ class HighlightingSettingsPage : ColorSettingsPage {
         return ColorDescriptor.EMPTY_ARRAY
     }
 
-    override fun getAdditionalHighlightingTagToDescriptorMap(): MutableMap<String?, TextAttributesKey?> {
-        return mutableMapOf(
-            "type" to SyntaxColors.TYPE_NAME,
-            "interface" to SyntaxColors.INTERFACE,
-            "enum" to SyntaxColors.ENUM,
-            "typeparam" to SyntaxColors.TYPE_PARAMETER,
-            "namespace" to SyntaxColors.NAMESPACE,
-            "decl" to SyntaxColors.FUNCTION_DECLARATION,
-            "call" to SyntaxColors.FUNCTION_CALL,
-            "param" to SyntaxColors.PARAMETER,
-            "field" to SyntaxColors.FIELD,
-            "constant" to SyntaxColors.CONSTANT,
-            "method" to SyntaxColors.METHOD,
-            "macro" to SyntaxColors.MACRO_KEYWORD)
+    override fun getAdditionalHighlightingTagToDescriptorMap(): Map<String, TextAttributesKey> {
+        return Colors.tags
     }
 
     override fun getDemoText(): String {
@@ -72,17 +60,36 @@ class HighlightingSettingsPage : ColorSettingsPage {
     }
 
     private object Colors {
+        val tags = mapOf(
+            "type" to SyntaxColors.TYPE_NAME,
+            "interface" to SyntaxColors.INTERFACE,
+            "enum" to SyntaxColors.ENUM,
+            "typeparam" to SyntaxColors.TYPE_PARAMETER,
+            "namespace" to SyntaxColors.NAMESPACE,
+            "decl" to SyntaxColors.FUNCTION,
+            "call" to SyntaxColors.FUNCTION,
+            "param" to SyntaxColors.PARAMETER,
+            "field" to SyntaxColors.FIELD,
+            "constant" to SyntaxColors.CONSTANT,
+            "method" to SyntaxColors.METHOD,
+            "macro" to SyntaxColors.MACRO_KEYWORD,
+        )
+
         val descriptors =
             arrayOf<AttributesDescriptor?>(
                 AttributesDescriptor(SlangBundle.message("color.keyword"), SyntaxColors.KEYWORD),
                 AttributesDescriptor(
-                    SlangBundle.message("color.types.class.struct.and.built.in.type"), SyntaxColors.TYPE_NAME),
+                    SlangBundle.message("color.types.class.struct.and.built.in.type"),
+                    SyntaxColors.TYPE_NAME,
+                ),
                 AttributesDescriptor(SlangBundle.message("color.types.interface"), SyntaxColors.INTERFACE),
                 AttributesDescriptor(SlangBundle.message("color.types.enum"), SyntaxColors.ENUM),
                 AttributesDescriptor(SlangBundle.message("color.types.type.parameter"), SyntaxColors.TYPE_PARAMETER),
                 AttributesDescriptor(SlangBundle.message("color.namespace.or.module"), SyntaxColors.NAMESPACE),
                 AttributesDescriptor(
-                    SlangBundle.message("color.function.declarations.and.calls"), SyntaxColors.FUNCTION),
+                    SlangBundle.message("color.function.declarations.and.calls"),
+                    SyntaxColors.FUNCTION,
+                ),
                 AttributesDescriptor(SlangBundle.message("color.method"), SyntaxColors.METHOD),
                 AttributesDescriptor(SlangBundle.message("color.local.variable"), SyntaxColors.VARIABLE),
                 AttributesDescriptor(SlangBundle.message("color.parameter"), SyntaxColors.PARAMETER),
@@ -100,6 +107,7 @@ class HighlightingSettingsPage : ColorSettingsPage {
                 AttributesDescriptor(SlangBundle.message("color.string"), SyntaxColors.STRING),
                 AttributesDescriptor(SlangBundle.message("color.number"), SyntaxColors.NUMBER),
                 AttributesDescriptor(SlangBundle.message("color.line.comment"), SyntaxColors.LINE_COMMENT),
-                AttributesDescriptor(SlangBundle.message("color.block.comment"), SyntaxColors.BLOCK_COMMENT))
+                AttributesDescriptor(SlangBundle.message("color.block.comment"), SyntaxColors.BLOCK_COMMENT),
+            )
     }
 }

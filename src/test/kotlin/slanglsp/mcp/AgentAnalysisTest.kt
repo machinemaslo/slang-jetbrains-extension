@@ -1,6 +1,7 @@
 package slanglsp.mcp
 
 import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
@@ -14,7 +15,6 @@ import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import slanglsp.TestDependencies
-import slanglsp.analysis.ReadActions.compute
 import slanglsp.editor.NativeServerSupport
 import slanglsp.mcp.AgentAnalysis.checkFiles
 import slanglsp.mcp.AgentAnalysis.symbol
@@ -45,7 +45,7 @@ internal class AgentAnalysisTest {
 
             val file = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(source)
             Assertions.assertNotNull(file)
-            val document = compute { FileDocumentManager.getInstance().getDocument(file!!) }
+            val document = runReadActionBlocking { FileDocumentManager.getInstance().getDocument(file!!) }
             Assertions.assertNotNull(document)
             runInEdtAndWait {
                 WriteAction.run<RuntimeException?> {

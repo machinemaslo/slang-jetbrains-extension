@@ -5,6 +5,7 @@ import com.intellij.codeInspection.InspectionManager
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.application.PathManager
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
@@ -30,7 +31,6 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import org.junit.jupiter.api.*
 import slanglsp.TestDependencies
-import slanglsp.analysis.ReadActions.compute
 import slanglsp.editor.NativeServerSupport
 import slanglsp.editor.inspections.diagnostics.BatchDiagnostics.run
 import slanglsp.editor.inspections.naming.InconsistentNamingInspection
@@ -144,7 +144,7 @@ internal class BatchDiagnosticsTest {
             },
             errors.toString())
 
-        val input = checkNotNull(compute { BatchDiagnosticsAnnotator().collectInformation(file) })
+        val input = checkNotNull(runReadActionBlocking { BatchDiagnosticsAnnotator().collectInformation(file) })
         settings.loadState(original)
         val failure = Assertions.assertThrows(IOException::class.java) { BatchDiagnostics.check(input) }
         Assertions.assertTrue(failure.message.orEmpty().contains("Slang compiler not found"), failure.message)
@@ -188,8 +188,8 @@ internal class BatchDiagnosticsTest {
         val file = source("names.slang", "int BadName(int BadParameter){return BadParameter;}\n")
         val naming = NamingAnnotator()
         val unused = UnusedSymbolsAnnotator()
-        val namingInput = compute { naming.collectInformation(file) }
-        val unusedInput = compute { unused.collectInformation(file) }
+        val namingInput = runReadActionBlocking { naming.collectInformation(file) }
+        val unusedInput = runReadActionBlocking { unused.collectInformation(file) }
         Assertions.assertNotNull(namingInput)
         Assertions.assertNotNull(unusedInput)
         Assertions.assertTimeout(Duration.ofSeconds(1)) {
@@ -201,7 +201,7 @@ internal class BatchDiagnosticsTest {
     @Test
     fun cancelledBatchDoesNotReportSuccess() {
         val file = source("cancel.slang", "int f(){return 0;}\n")
-        val input = compute { BatchDiagnosticsAnnotator().collectInformation(file) }
+        val input = runReadActionBlocking { BatchDiagnosticsAnnotator().collectInformation(file) }
         val indicator = ProgressIndicatorBase()
         indicator.cancel()
         Assertions.assertThrows<ProcessCanceledException?>(ProcessCanceledException::class.java) {

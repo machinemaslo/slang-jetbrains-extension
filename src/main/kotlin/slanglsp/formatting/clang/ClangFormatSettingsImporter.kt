@@ -28,37 +28,38 @@ import slanglsp.settings.codestyle.SlangCodeStyleSettings
  */
 @Suppress("UnstableApiUsage")
 class ClangFormatSettingsImporter : CodeStyleSettingsModifier {
-    @JvmRecord private data class ParsedConfig(val stamp: Long, val options: Map<String, Any?>)
+    private data class ParsedConfig(val stamp: Long, val options: Map<String, Any?>)
 
     override fun modifySettings(settings: TransientCodeStyleSettings, file: PsiFile): Boolean {
         if (!file.language.isKindOf(SlangLanguage.INSTANCE)) {
             return false
         }
+
         val custom = settings.getCustomSettings(SlangCodeStyleSettings::class.java)
+
         if (!custom.READ_CLANG_FORMAT || custom.USE_CLANG_FORMAT) {
             return false
         }
+
         settings.addDependency(VirtualFileManager.getInstance())
-        var source = file.getUserData<PsiFile?>(PsiFileFactory.ORIGINAL_FILE)
-        if (source == null) {
-            source = file
-        }
-        if (source.virtualFile == null) {
-            return false
-        }
-        try {
-            val values = Options.find(source.virtualFile.parent)
+        val source = file.getUserData(PsiFileFactory.ORIGINAL_FILE) ?: file
+        val sourceFile = source.virtualFile ?: return false
+
+        return try {
+            val values = Options.find(sourceFile.parent)
+
             if (values.isEmpty()) {
                 return false
             }
+
             Options.apply(values, settings)
-            return true
+            true
         } catch (failure: IOException) {
             Options.LOG.warn("Cannot read Slang .clang-format settings", failure)
-            return false
+            false
         } catch (failure: YAMLException) {
             Options.LOG.warn("Cannot read Slang .clang-format settings", failure)
-            return false
+            false
         }
     }
 
@@ -72,84 +73,87 @@ class ClangFormatSettingsImporter : CodeStyleSettingsModifier {
 
     internal object Options {
         val LOG = Logger.getInstance(ClangFormatSettingsImporter::class.java)
-        private val PARSED_CONFIG: Key<ParsedConfig?> = Key.create("slang.clangFormat.parsedConfig")
+        private val PARSED_CONFIG = Key.create<ParsedConfig>("slang.clangFormat.parsedConfig")
+        private val CONFIG_NAMES = listOf(".clang-format", "_clang-format")
+        private val TAB_MODES = setOf("ForIndentation", "ForContinuationAndIndentation", "AlignWithSpaces", "Always")
+        private const val MAX_CONFIG_BYTES = 1_000_000L
 
-        @Throws(IOException::class)
         fun find(directory: VirtualFile?): Map<String, Any?> {
-            var current = directory
-            while (current != null) {
-                var config = current.findChild(".clang-format")
-                if (config == null || config.isDirectory) {
-                    config = current.findChild("_clang-format")
-                }
-                if (config == null || config.isDirectory) {
-                    current = current.parent
-                    continue
-                }
-                if (config.length > 1000000) {
+            for (current in generateSequence(directory) { it.parent }) {
+                val config = CONFIG_NAMES.firstNotNullOfOrNull { name ->
+                    current.findChild(name)?.takeUnless { it.isDirectory }
+                } ?: continue
+
+                if (config.length > MAX_CONFIG_BYTES) {
                     return emptyMap()
                 }
+
                 val values = readOptions(config)
-                if ("InheritParentConfig" == values["BasedOnStyle"]) {
-                    val merged = find(current.parent).toMutableMap()
-                    val overrides = values.toMutableMap()
-                    overrides.remove("BasedOnStyle")
-                    mergeOptions(merged, overrides)
-                    return merged
+
+                if (values["BasedOnStyle"] != "InheritParentConfig") {
+                    return values
                 }
-                return values
+
+                return find(current.parent).toMutableMap().apply {
+                    mergeOptions(this, values - "BasedOnStyle")
+                }
             }
+
             return emptyMap()
         }
 
-        @JvmStatic
-        @Throws(IOException::class)
         fun readOptions(config: VirtualFile): Map<String, Any?> {
             val stamp = config.modificationStamp
-            val cached: ParsedConfig? = config.getUserData(PARSED_CONFIG)
-            if (cached != null && cached.stamp == stamp) {
-                return cached.options
+
+            config.getUserData(PARSED_CONFIG)?.takeIf { it.stamp == stamp }?.let {
+                return it.options
             }
+
             val options = parse(VfsUtilCore.loadText(config))
+
             if (config.modificationStamp == stamp) {
                 config.putUserData(PARSED_CONFIG, ParsedConfig(stamp, options))
             }
+
             return options
         }
 
-        @JvmStatic
         fun parse(yaml: String): Map<String, Any?> {
             val defaults = mutableMapOf<String, Any?>()
             val cpp = mutableMapOf<String, Any?>()
             val slang = mutableMapOf<String, Any?>()
+
             for (document in Yaml(SafeConstructor(LoaderOptions())).loadAll(yaml)) {
                 if (document !is Map<*, *>) {
                     continue
                 }
+
                 when (document["Language"].toString()) {
                     "null" -> mergeOptions(defaults, document)
                     "Cpp" -> mergeOptions(cpp, document)
                     "Slang" -> mergeOptions(slang, document)
-                    else -> {}
                 }
             }
+
             mergeOptions(defaults, cpp)
             mergeOptions(defaults, slang)
             return defaults
         }
 
         private fun mergeOptions(target: MutableMap<String, Any?>, source: Map<*, *>) {
-            source.forEach { (key: Any?, value: Any?) ->
+            for ((key, value) in source) {
                 if (key !is String || key == "Language") {
-                    return@forEach
+                    continue
                 }
+
                 val previous = target[key]
-                if (previous is Map<*, *> && value is Map<*, *>) {
-                    val combined: LinkedHashMap<Any?, Any?> = LinkedHashMap(previous)
-                    combined.putAll(value)
-                    target[key] = combined
+                target[key] = if (previous is Map<*, *> && value is Map<*, *>) {
+                    buildMap<Any?, Any?> {
+                        putAll(previous)
+                        putAll(value)
+                    }
                 } else {
-                    target[key] = value
+                    value
                 }
             }
         }
@@ -157,50 +161,44 @@ class ClangFormatSettingsImporter : CodeStyleSettingsModifier {
         fun apply(values: Map<String, Any?>, settings: CodeStyleSettings) {
             val indent = settings.getIndentOptions(SlangFileType)
             val custom = settings.getCustomSettings(SlangCodeStyleSettings::class.java)
-            val base = values["BasedOnStyle"]
-            if (base != null) {
-                when (base.toString().lowercase()) {
-                    "llvm",
-                    "google",
-                    "chromium",
-                    "mozilla",
-                    "gnu" -> {
-                        indent.INDENT_SIZE = 2
-                        indent.CONTINUATION_INDENT_SIZE = 4
-                        indent.TAB_SIZE = 8
-                        indent.USE_TAB_CHARACTER = false
-                        settings.setRightMargin(SlangLanguage.INSTANCE, 80)
-                        custom.BRACES_ON_NEW_LINE = "GNU".equals(base.toString(), ignoreCase = true)
-                    }
+            val base = values["BasedOnStyle"]?.toString()?.lowercase()
 
-                    "microsoft" -> {
-                        indent.INDENT_SIZE = 4
-                        indent.CONTINUATION_INDENT_SIZE = 4
-                        indent.TAB_SIZE = 4
-                        indent.USE_TAB_CHARACTER = false
-                        settings.setRightMargin(SlangLanguage.INSTANCE, 120)
-                        custom.BRACES_ON_NEW_LINE = true
-                    }
+            when (base) {
+                "llvm",
+                "google",
+                "chromium",
+                "mozilla",
+                "gnu" -> {
+                    indent.INDENT_SIZE = 2
+                    indent.CONTINUATION_INDENT_SIZE = 4
+                    indent.TAB_SIZE = 8
+                    indent.USE_TAB_CHARACTER = false
+                    settings.setRightMargin(SlangLanguage.INSTANCE, 80)
+                    custom.BRACES_ON_NEW_LINE = base == "gnu"
+                }
 
-                    else -> {}
+                "microsoft" -> {
+                    indent.INDENT_SIZE = 4
+                    indent.CONTINUATION_INDENT_SIZE = 4
+                    indent.TAB_SIZE = 4
+                    indent.USE_TAB_CHARACTER = false
+                    settings.setRightMargin(SlangLanguage.INSTANCE, 120)
+                    custom.BRACES_ON_NEW_LINE = true
                 }
             }
+
             indent.INDENT_SIZE = number(values, "IndentWidth", indent.INDENT_SIZE, false)
             indent.CONTINUATION_INDENT_SIZE =
                 number(values, "ContinuationIndentWidth", indent.CONTINUATION_INDENT_SIZE, false)
             indent.TAB_SIZE = number(values, "TabWidth", indent.TAB_SIZE, false)
-            val margin: Int = number(values, "ColumnLimit", settings.getRightMargin(SlangLanguage.INSTANCE), true)
+            val margin = number(values, "ColumnLimit", settings.getRightMargin(SlangLanguage.INSTANCE), true)
             settings.setRightMargin(SlangLanguage.INSTANCE, if (margin == 0) Int.MAX_VALUE else margin)
-            if (values.containsKey("UseTab")) {
-                val tabs = values["UseTab"].toString()
-                if (tabs == "Never") {
-                    indent.USE_TAB_CHARACTER = false
-                } else if (mutableSetOf<String?>(
-                        "ForIndentation", "ForContinuationAndIndentation", "AlignWithSpaces", "Always")
-                    .contains(tabs)) {
-                    indent.USE_TAB_CHARACTER = true
-                }
+
+            when (values["UseTab"].toString()) {
+                "Never" -> indent.USE_TAB_CHARACTER = false
+                in TAB_MODES -> indent.USE_TAB_CHARACTER = true
             }
+
             val common = settings.getCommonSettings(SlangLanguage.INSTANCE)
             custom.DISABLE_FORMAT = flag(values, "DisableFormat", custom.DISABLE_FORMAT)
             applyBraceStyle(values, custom, common)
@@ -223,15 +221,17 @@ class ClangFormatSettingsImporter : CodeStyleSettingsModifier {
                 flag(
                     options(values["KeepEmptyLines"]),
                     "AtStartOfBlock",
-                    flag(values, "KeepEmptyLinesAtTheStartOfBlocks", custom.KEEP_BLANK_LINES_AFTER_LBRACE))
+                    flag(values, "KeepEmptyLinesAtTheStartOfBlocks", custom.KEEP_BLANK_LINES_AFTER_LBRACE),
+                )
         }
 
         private fun applyBraceStyle(
             values: Map<String, Any?>,
             custom: SlangCodeStyleSettings,
-            common: CommonCodeStyleSettings
+            common: CommonCodeStyleSettings,
         ) {
             val style = values["BreakBeforeBraces"].toString()
+
             when (style) {
                 "Allman",
                 "GNU",
@@ -270,14 +270,13 @@ class ClangFormatSettingsImporter : CodeStyleSettingsModifier {
                 "Stroustrup",
                 "WebKit" -> custom.FUNCTION_BRACES = 2
                 "Custom" -> applyBraceWrapping(options(values["BraceWrapping"]), custom, common)
-                else -> {}
             }
         }
 
         private fun applyBraceWrapping(
             wrapping: Map<*, *>,
             custom: SlangCodeStyleSettings,
-            common: CommonCodeStyleSettings
+            common: CommonCodeStyleSettings,
         ) {
             custom.FUNCTION_BRACES = placement(wrapping, "AfterFunction")
             custom.NAMESPACE_BRACES = placement(wrapping, "AfterNamespace")
@@ -285,10 +284,12 @@ class ClangFormatSettingsImporter : CodeStyleSettingsModifier {
             custom.CLASS_BRACES = placement(wrapping, "AfterClass")
             custom.ENUM_BRACES = placement(wrapping, "AfterEnum")
             custom.CASE_BRACES = placement(wrapping, "AfterCaseLabel")
+
             if ("Always" == wrapping["AfterControlStatement"] || flag(wrapping, "AfterControlStatement", false)) {
                 custom.SWITCH_BRACES = 2
                 custom.CONTROL_BRACES = custom.SWITCH_BRACES
             }
+
             // ClangFormat does not use AfterControlStatement for initializer lists or case label blocks.
             custom.INITIALIZER_BRACES = 1
             common.ELSE_ON_NEW_LINE = flag(wrapping, "BeforeElse", false)
@@ -299,28 +300,33 @@ class ClangFormatSettingsImporter : CodeStyleSettingsModifier {
         private fun applySpacing(
             values: Map<String, Any?>,
             custom: SlangCodeStyleSettings,
-            common: CommonCodeStyleSettings
+            common: CommonCodeStyleSettings,
         ) {
             val before = values["SpaceBeforeAssignmentOperators"]
+
             if (before is Boolean) {
                 custom.SPACE_BEFORE_ASSIGNMENT = if (before) 1 else 0
             }
+
             when (values["SpacesInAngles"].toString()) {
                 "Always",
                 "true" -> custom.SPACE_WITHIN_GENERIC_ANGLES = true
                 "Never",
                 "false" -> custom.SPACE_WITHIN_GENERIC_ANGLES = false
-                else -> {}
             }
+
             val beforeInitializer = values["SpaceBeforeCpp11BracedList"]
             if (beforeInitializer is Boolean &&
                 custom.INITIALIZER_BRACES != 2 &&
-                (custom.INITIALIZER_BRACES != 0 || !custom.BRACES_ON_NEW_LINE && custom.CONTROL_BRACES != 2)) {
+                (custom.INITIALIZER_BRACES != 0 || !custom.BRACES_ON_NEW_LINE && custom.CONTROL_BRACES != 2)
+            ) {
                 custom.INITIALIZER_BRACES = if (beforeInitializer) 1 else 3
             }
+
             common.SPACE_WITHIN_BRACKETS = flag(values, "SpacesInSquareBrackets", common.SPACE_WITHIN_BRACKETS)
             custom.SPACE_AFTER_LOGICAL_NOT = flag(values, "SpaceAfterLogicalNot", custom.SPACE_AFTER_LOGICAL_NOT)
             common.SPACE_WITHIN_PARENTHESES = flag(values, "SpacesInParentheses", common.SPACE_WITHIN_PARENTHESES)
+
             if ("Never" == values["SpacesInParens"]) {
                 common.SPACE_WITHIN_PARENTHESES = false
             }
@@ -360,9 +366,8 @@ class ClangFormatSettingsImporter : CodeStyleSettingsModifier {
         }
 
         private fun number(values: Map<String, Any?>, key: String, fallback: Int, zero: Boolean): Int {
-            val value = values[key]
-            return if (value is Number && value.toInt() >= (if (zero) 0 else 1) && value.toInt() <= 10000) value.toInt()
-            else fallback
+            val minimum = if (zero) 0 else 1
+            return (values[key] as? Number)?.toInt()?.takeIf { it in minimum..10_000 } ?: fallback
         }
     }
 }
