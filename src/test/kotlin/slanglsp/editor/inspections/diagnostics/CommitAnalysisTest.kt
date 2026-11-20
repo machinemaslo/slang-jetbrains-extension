@@ -118,7 +118,7 @@ internal class CommitAnalysisTest {
                     runInEdtAndWait {
                         Assertions.assertTrue(
                             progress.runProcessWithProgressSynchronously(
-                                checkCommit, "Commit inspections", true, fixture.project,
+                                checkCommit, "Commit Inspections", true, fixture.project,
                             ),
                         )
                     }

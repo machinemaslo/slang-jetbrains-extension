@@ -1,14 +1,12 @@
 import java.io.ByteArrayInputStream
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.function.ToLongFunction
 import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilder
 import javax.xml.parsers.DocumentBuilderFactory
 import javax.xml.stream.XMLInputFactory
 import javax.xml.stream.XMLStreamConstants
 import javax.xml.stream.XMLStreamException
-import javax.xml.transform.Transformer
 import javax.xml.transform.TransformerFactory
 import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
@@ -28,73 +26,75 @@ abstract class SyncSandboxAppearance : DefaultTask() {
     @get:Internal abstract val sandboxConfigDirectory: DirectoryProperty
 
     @TaskAction
-    @Throws(Exception::class)
     fun sync() {
-        val root: Path = Path.of(this.userConfigRoot.get())
+        val root = Path.of(userConfigRoot.get())
         if (!Files.isDirectory(root)) {
             return
         }
+
         // Prefer the most recently used IDEA configuration (including Community).
-        val source =
-            Files.list(root).use { directories ->
-                directories
-                    .filter { path: Path ->
-                        path.fileName.toString().matches("(IntelliJIdea|IdeaIC)\\d.*".toRegex())
-                    }
-                    .filter { path: Path -> Files.isRegularFile(path.resolve("options/other.xml")) }
-                    .max(
-                        Comparator.comparingLong(
-                            ToLongFunction { path: Path ->
-                                path.resolve("options/other.xml").toFile().lastModified()
-                            }))
-                    .orElse(null)
-            } ?: return
-        val target: Path = this.sandboxConfigDirectory.get().asFile.toPath()
-        val builder =
-            DocumentBuilderFactory.newDefaultInstance()
-                .apply {
-                    setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "")
-                    setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "")
-                }
-                .newDocumentBuilder()
-        for (file in listOf("other.xml", "ui.lnf.xml", "laf.xml", "editor-font.xml", "console-font.xml")) {
-            val input = source.resolve("options").resolve(file)
+        val source = Files.list(root).use { directories ->
+            directories
+                .filter { it.fileName.toString().matches(ideaConfigName) }
+                .filter { Files.isRegularFile(it.resolve("options/other.xml")) }
+                .max(compareBy { Files.getLastModifiedTime(it.resolve("options/other.xml")).toMillis() })
+                .orElse(null)
+        } ?: return
+        val target = sandboxConfigDirectory.get().asFile.toPath()
+        val builder = DocumentBuilderFactory.newDefaultInstance().apply {
+            setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "")
+            setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "")
+        }.newDocumentBuilder()
+
+        for (file in appearanceFiles) {
+            val input = source.resolve("options/$file")
             if (!Files.isRegularFile(input)) {
                 continue
             }
-            val output = target.resolve("options").resolve(file)
+
+            val output = target.resolve("options/$file")
             val from = readAppearanceXml(input, builder)
             val to = if (Files.exists(output)) readAppearanceXml(output, builder) else builder.newDocument()
             if (to.documentElement == null) {
                 to.appendChild(to.createElement("application"))
             }
-            var changed = false
-            val components = from.documentElement.getElementsByTagName("component")
-            for (i in 0..<components.length) {
-                val component = components.item(i) as Element
-                val name = component.getAttribute("name")
-                if (!mutableListOf<String?>(
-                        "NotRoamableUiSettings", "UISettings", "LafManager", "DefaultFont", "ConsoleFont")
-                    .contains(name)) {
-                    continue
-                }
-                val existing = to.documentElement.getElementsByTagName("component")
-                for (j in existing.length - 1 downTo 0) {
-                    val old = existing.item(j) as Element
-                    if (old.getAttribute("name") == name) {
-                        old.parentNode.removeChild(old)
-                    }
-                }
-                to.documentElement.appendChild(to.importNode(component, true))
-                changed = true
-            }
-            if (changed) {
+
+            if (copyComponents(from.documentElement, to)) {
                 Files.createDirectories(output.parent)
-                val transformer: Transformer = TransformerFactory.newInstance().newTransformer()
-                transformer.transform(DOMSource(to), StreamResult(output.toFile()))
+                TransformerFactory.newDefaultInstance().newTransformer().transform(DOMSource(to), StreamResult(output.toFile()))
             }
         }
         logger.lifecycle("Sandbox appearance inherited from {}", source)
+    }
+
+    private fun copyComponents(source: Element, target: Document): Boolean {
+        var changed = false
+        val root = target.documentElement
+        val components = source.getElementsByTagName("component")
+        for (i in 0..<components.length) {
+            val component = components.item(i) as Element
+            val name = component.getAttribute("name")
+            if (name !in appearanceComponents) {
+                continue
+            }
+
+            val existing = root.getElementsByTagName("component")
+            for (j in existing.length - 1 downTo 0) {
+                val old = existing.item(j) as Element
+                if (old.getAttribute("name") == name) {
+                    old.parentNode.removeChild(old)
+                }
+            }
+            root.appendChild(target.importNode(component, true))
+            changed = true
+        }
+        return changed
+    }
+
+    private companion object {
+        val ideaConfigName = Regex("(IntelliJIdea|IdeaIC)\\d.*")
+        val appearanceFiles = listOf("other.xml", "ui.lnf.xml", "laf.xml", "editor-font.xml", "console-font.xml")
+        val appearanceComponents = setOf("NotRoamableUiSettings", "UISettings", "LafManager", "DefaultFont", "ConsoleFont")
     }
 }
 

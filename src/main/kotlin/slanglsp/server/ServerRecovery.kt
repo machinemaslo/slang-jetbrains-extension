@@ -14,7 +14,7 @@ import com.intellij.util.Alarm
 import kotlin.concurrent.Volatile
 import slanglsp.SlangBundle
 import slanglsp.discovery.VcpkgDiscoveryService
-import slanglsp.server.nativeclient.SlangLspProvider
+import slanglsp.server.nativeclient.restartSlangClient
 
 /** Retries only after startup failed to locate slangd, without polling. */
 @Service(Service.Level.PROJECT)
@@ -85,7 +85,7 @@ class ServerRecovery(private val project: Project) : Disposable, ApplicationActi
                         return@Runnable
                     }
                     executableFound()
-                    SlangLspProvider.restart(project)
+                    restartSlangClient(project)
                 },
                 project.disposed)
     }

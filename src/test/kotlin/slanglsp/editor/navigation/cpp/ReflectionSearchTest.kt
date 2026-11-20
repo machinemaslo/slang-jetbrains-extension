@@ -137,7 +137,7 @@ internal class ReflectionSearchTest {
             val source = "struct /* heading */ Material {}; Material useMaterial;"
             runInEdtAndWait {
                 val file = fixture.addFileToProject("material.slang", source)
-                runReadActionBlocking<Unit> {
+                runReadActionBlocking {
                     assertEquals("Material", structNameAt(file, source.indexOf("Material")))
                     assertEquals("Material", structNameAt(file, 1))
                     assertNull(structNameAt(file, source.indexOf("Material", source.indexOf(';'))))

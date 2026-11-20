@@ -36,7 +36,9 @@ internal class EntryPointStageDecoratorTest {
             fun edit(text: String) = runInEdtAndWait {
                 val manager = PsiDocumentManager.getInstance(fixture.project)
                 val document = checkNotNull(manager.getDocument(file))
-                WriteCommandAction.runWriteCommandAction(fixture.project) { document.setText(text) }
+                WriteCommandAction.runWriteCommandAction(fixture.project) {
+                    document.setText(text)
+                }
                 manager.commitDocument(document)
             }
 

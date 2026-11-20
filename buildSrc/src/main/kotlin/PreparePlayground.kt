@@ -26,21 +26,22 @@ abstract class PreparePlayground : DefaultTask() {
     @TaskAction
     @Throws(IOException::class)
     fun prepare() {
-        val source: Path = this.templateDirectory.get().asFile.toPath()
-        val target: Path = this.playgroundDirectory.get().asFile.toPath()
+        val source = templateDirectory.get().asFile.toPath()
+        val target = playgroundDirectory.get().asFile.toPath()
         Files.walk(source).use { paths ->
-            for (path in paths.filter { path: Path -> Files.isRegularFile(path) }.toList()) {
+            for (path in paths.filter { Files.isRegularFile(it) }.toList()) {
                 val destination = target.resolve(source.relativize(path))
                 Files.createDirectories(destination.parent)
                 Files.copy(path, destination, StandardCopyOption.REPLACE_EXISTING)
             }
         }
+
         val settings = target.resolve(".idea/SlangPluginSettings.xml")
-        val slangd = findExecutable(this.slangdCandidate.get(), "slangd")
-        val clang = findExecutable(this.clangFormatCandidate.get(), "clang-format")
+        val slangd = findExecutable(slangdCandidate.get(), "slangd")
+        val clang = findExecutable(clangFormatCandidate.get(), "clang-format")
         check(slangd.isNotEmpty()) {
-            ("Playground requires installed slangd on PATH or in vcpkg_installed. " +
-                "Install/configure it and rerun Run Plugin; no native tools are installed by this task.")
+            "Playground requires installed slangd on PATH or in vcpkg_installed. " +
+                "Install/configure it and rerun Run Plugin; no native tools are installed by this task."
         }
         Files.writeString(
             settings,
@@ -51,15 +52,15 @@ abstract class PreparePlayground : DefaultTask() {
                     <option name="clangFormatLocation" value="${xml(clang)}" />
                   </component>
                 </project>
-                """
-                .trimIndent() + "\n")
+                """.trimIndent() + "\n",
+        )
         logger.lifecycle("Slang playground: {}", target)
     }
 
     private fun slangdDirectory(project: Path, executable: String): String {
         val executablePath = Path.of(executable)
         val directory = executablePath.toAbsolutePath().normalize().parent
-        if (executablePath == Path.of(this.slangdCandidate.get())) {
+        if (executablePath == Path.of(slangdCandidate.get())) {
             return project.toAbsolutePath().normalize().relativize(directory).toString().replace('\\', '/')
         }
         return directory.toString()
@@ -74,7 +75,7 @@ abstract class PreparePlayground : DefaultTask() {
             if (entry.isBlank()) {
                 continue
             }
-            val path: Path = Path.of(entry).resolve(executable)
+            val path = Path.of(entry).resolve(executable)
             if (Files.isRegularFile(path) && Files.isExecutable(path)) {
                 return path.toAbsolutePath().toString()
             }
@@ -82,9 +83,7 @@ abstract class PreparePlayground : DefaultTask() {
         return ""
     }
 
-    companion object {
-        private fun xml(text: String): String {
-            return text.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;")
-        }
+    private fun xml(text: String): String {
+        return text.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;")
     }
 }

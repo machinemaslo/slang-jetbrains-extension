@@ -49,7 +49,7 @@ New projects have no predefined macros. Edit project macros under **General**.
 
 ### Development playground
 
-Select **Run Plugin (IJ)** (`./gradlew runPlugin`) or **Run Plugin (CLion)** (`./gradlew runPluginCLion`). Both read JetBrains Toolbox's local inventory and launch the newest installed build of the requested IDE in a separate sandbox with sample Slang files. No IDE download or per-developer path setting is needed; install the IDE in Toolbox if it isn't listed there.
+Select **Run Plugin (IJ)** (`./gradlew runPlugin`) or **Run Plugin (CLion)** (`./gradlew runPluginCLion`). Both read JetBrains Toolbox's local inventory and launch the newest installed build of the requested IDE in a separate sandbox with sample Slang files. Install the IDE in Toolbox if it isn't listed there.
 The CLion playground disables its bundled Python plugin to avoid a startup error in some CLion builds, use `-PplaygroundPython=true` to enable it in that sandbox.
 
 The plugin requires IntelliJ IDEA 2026.2.5 or a compatible IDE with JetBrains’ bundled LSP client. That client handles `slangd` startup, semantic colors, Structure view, Parameter Info, hover documentation, declaration/usage navigation, verified rename, and live unused-symbol warnings.
@@ -91,9 +91,12 @@ Search Settings for **MCP Server** to enable it and configure clients. Newer IDE
 
 Slang marks its tools as always included. The IDE's MCP exposure settings still control which tools a client sees directly in router mode.
 
-JetBrains Air builds with bundled skill support also receive a short **Slang tools** skill automatically. It includes the router syntax for all three tools; no project instructions or manual agent prompt are needed.
+On IDEs with JetBrains’ bundled skill support, the plugin automatically registers a short **Slang tools** skill for Air
+with router syntax for all three tools. IDEA 2026.2.5 exposes the tools directly but does not load the optional skill module.
 
-The plugin compiles against the MCP Server bundled with the minimum IDEA SDK. Run `./gradlew test -PmcpSmokeTest=true` to check that the server discovers and invokes all three tools on that SDK.
+The core plugin and MCP tools compile against the minimum IDEA SDK. The optional skill module compiles against
+CLion 2026.3.0.1; pass `-PskillsIdePath=/path/to/clion` to reuse a compatible local installation instead of downloading that SDK.
+Run `./gradlew test -PmcpSmokeTest=true` to check that the server discovers and invokes all three tools on the minimum SDK.
 
 To diagnose slow inspections or generic-bracket typing on large files, add `#slanglsp.editor.AnalysisTiming` to **Help → Diagnostic Tools → Debug Log Settings**. The IDE log reports analysis duration and the count and combined wait time of unused-symbol reference checks.
 

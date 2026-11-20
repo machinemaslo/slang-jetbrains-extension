@@ -58,12 +58,12 @@ internal object ReflectionSearch {
                 return Location(file, stamp, offset, line)
             }
 
-            for (type in evidence.types) {
+            for ((name, offset, typeOnly) in evidence.types) {
                 if (matches.size == MAX_MATCHES) {
                     incomplete = true
                     break
                 }
-                matches.add(Match(type.name, location(type.offset), type.typeOnly))
+                matches.add(Match(name, location(offset), typeOnly))
             }
             val site = evidence.site
             if (site != null && sites.size < MAX_FILES) {

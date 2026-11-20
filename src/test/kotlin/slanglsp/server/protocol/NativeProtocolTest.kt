@@ -48,8 +48,7 @@ internal class NativeProtocolTest {
             source, "import shared.scene;\nScene scene;\nfloat result = shade(1.0);\nMaterial material;\n")
 
         val state = ProjectSettings.State()
-        state.enableSearchingSubDirectoriesOfWorkspace = false
-        state.additionalIncludePaths = mutableListOf(project!!.resolve("src/shader").toString())
+        state.enableSearchingSubDirectoriesOfWorkspace = true
         val settings = state.createServerSettings()
         val session = runBlocking {
             withTimeout(15.seconds) { HeadlessSlangSession.start(executable, project!!, "Shaders", settings) }
@@ -118,13 +117,13 @@ internal class NativeProtocolTest {
                     .hover(HoverParams(TextDocumentIdentifier(source.toUri().toString()), position))
                     .get(15, TimeUnit.SECONDS)
             Assertions.assertNotNull(hover, "slangd should return symbol documentation")
-            val markup = hover!!.contents
-            val contents = if (markup.isRight) listOf(markup.right.value) else {
-                markup.left.map { if (it.isLeft) it.left else it.right.value }
-            }
+            val contents = hover!!.contents
+            Assertions.assertTrue(contents.isRight, "slangd should return MarkupContent")
+            val markup = contents.right
+            Assertions.assertEquals(MarkupKind.MARKDOWN, markup.kind)
             Assertions.assertTrue(
-                contents.any { documentation in it },
-                "Expected documentation: $documentation in $contents")
+                documentation in markup.value,
+                "Expected documentation: $documentation in ${markup.value}")
         }
     }
 }

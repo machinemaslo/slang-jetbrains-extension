@@ -53,7 +53,7 @@ internal object GeneratedStructLookup {
         }
 
         // A language plugin may index words before its native type index has caught up.
-        runReadActionBlocking<Unit> {
+        runReadActionBlocking {
             val search = PsiSearchHelper.getInstance(project)
             val pathWord = Regex("[A-Za-z0-9_]+").findAll(filePath.fileName.toString().substringBeforeLast('.'))
                 .maxByOrNull { it.value.length }?.value
@@ -83,12 +83,12 @@ internal object GeneratedStructLookup {
                 val mapped = if (uniqueLine) sourceMappedLines(text, filePath, shaderLine) else emptySet()
                 var line = 1
                 var cursor = 0
-                for (decl in ReflectionProbeMatcher.structs(text)) {
-                    while (cursor < decl.offset) {
+                for ((name, offset1, fields) in ReflectionProbeMatcher.structs(text)) {
+                    while (cursor < offset1) {
                         if (text[cursor++] == '\n') line++
                     }
-                    if (line in mapped || (source.fields.isNotEmpty() && decl.name == source.name && decl.fields == source.fields)) {
-                        add(ReflectionSearch.Match(decl.name, ReflectionSearch.Location(file, snapshot.second, decl.offset, line), line in mapped))
+                    if (line in mapped || (source.fields.isNotEmpty() && name == source.name && fields == source.fields)) {
+                        add(ReflectionSearch.Match(name, ReflectionSearch.Location(file, snapshot.second, offset1, line), line in mapped))
                     }
                 }
             }
@@ -103,12 +103,12 @@ internal object GeneratedStructLookup {
         var cursor = 0
         var physical = 1
         var sameFile = false
-        for (directive in sourceTokens(text).filter { it.text.startsWith("#") }) {
-            while (cursor < directive.offset) {
+        for ((text1, offset) in sourceTokens(text).filter { it.text.startsWith("#") }) {
+            while (cursor < offset) {
                 if (text[cursor++] == '\n') physical++
             }
             if (candidate in 1 until physical) result.add(candidate)
-            val marker = lineDirective.matchEntire(directive.text)
+            val marker = lineDirective.matchEntire(text1)
             if (marker == null) {
                 // Conditional compilation and macros aren't source mapping evidence.
                 candidate = -1

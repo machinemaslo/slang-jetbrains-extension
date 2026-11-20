@@ -82,6 +82,9 @@
     <depends>com.intellij.modules.lang</depends>
     <depends>com.intellij.modules.lsp</depends>
     <depends optional="true" config-file="slang-mcp.xml">com.intellij.mcpServer</depends>
+    <content>
+        <module name="slanglsp.mcp.skills" loading="optional"/>
+    </content>
 
     <extensions defaultExtensionNs="com.intellij">
         <fileType name="Slang"
@@ -154,7 +157,7 @@
 
         <!-- Keep the extension ID stable even when the implementation class is renamed. -->
         <gotoDeclarationHandler id="SlangGotoDeclarationHandler"
-                                order="first, before LSPGotoDeclarationHandler"
+                                order="first"
                                 implementation="slanglsp.editor.navigation.SymbolDeclarationHandler"/>
 
         <lang.documentationProvider language="Slang"

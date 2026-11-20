@@ -6,3 +6,4 @@ pluginManagement {
 }
 
 rootProject.name = "Unofficial-LSP-For-Slang [Refined]"
+include(":mcp-skills")

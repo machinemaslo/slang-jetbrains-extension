@@ -7,7 +7,9 @@ import java.nio.file.Path
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Future
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.future.await
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.eclipse.lsp4j.*
 import org.eclipse.lsp4j.jsonrpc.Launcher
@@ -47,43 +49,49 @@ internal class HeadlessSlangSession private constructor(
             settings: Map<String?, Any?>,
         ): HeadlessSlangSession {
             val folder = WorkspaceFolder(root.toUri().toASCIIString(), projectName)
-            val process = ProcessBuilder(executable)
-                .directory(root.toFile())
-                .redirectError(ProcessBuilder.Redirect.DISCARD)
-                .apply { environment().putAll(EnvironmentUtil.getEnvironmentMap()) }
-                .start()
-
+            var process: Process? = null
             var listening: Future<Void>? = null
             try {
+                val started = withContext(Dispatchers.IO) {
+                    ProcessBuilder(executable)
+                        .directory(root.toFile())
+                        .redirectError(ProcessBuilder.Redirect.DISCARD)
+                        .apply { environment().putAll(EnvironmentUtil.getEnvironmentMap()) }
+                        .start()
+                        // Keep the process available for cleanup if the dispatcher handoff is cancelled.
+                        .also { process = it }
+                }
                 val launcher = SessionLauncher()
                     .setLocalService(SessionClient(settings, listOf(folder)))
                     .setRemoteInterface(LanguageServer::class.java)
-                    .setInput(process.inputStream)
-                    .setOutput(process.outputStream)
+                    .setInput(started.inputStream)
+                    .setOutput(started.outputStream)
                     .setExecutorService(AppExecutorUtil.getAppExecutorService())
                     .create()
                 listening = launcher.startListening()
                 val server = launcher.remoteProxy
-                @Suppress("DEPRECATION")
                 val params = InitializeParams().apply {
                     processId = ProcessHandle.current().pid().toInt()
-                    rootUri = folder.uri
-                    rootPath = root.toString()
                     workspaceFolders = listOf(folder)
                     capabilities = ClientCapabilities().apply {
                         workspace = WorkspaceClientCapabilities().apply {
                             configuration = true
                             workspaceFolders = true
                         }
+                        textDocument = TextDocumentClientCapabilities().apply {
+                            hover = HoverCapabilities().apply {
+                                contentFormat = listOf(MarkupKind.MARKDOWN, MarkupKind.PLAINTEXT)
+                            }
+                        }
                     }
                 }
                 val capabilities = server.initialize(params).await().capabilities
                 server.initialized(InitializedParams())
                 server.workspaceService.didChangeConfiguration(DidChangeConfigurationParams(settings))
-                return HeadlessSlangSession(server, capabilities, process, listening)
+                return HeadlessSlangSession(server, capabilities, started, listening)
             } catch (failure: Throwable) {
                 listening?.cancel(true)
-                stop(process)
+                process?.let(::stop)
                 throw failure
             }
         }

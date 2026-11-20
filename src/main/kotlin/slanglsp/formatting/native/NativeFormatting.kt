@@ -31,7 +31,7 @@ internal object NativeFormatting {
                 FormatTextRanges(TextRange(0, text.length), true),
             )
 
-        return model.getDocument().text
+        return model.document.text
     }
 
     private class SnapshotModel(

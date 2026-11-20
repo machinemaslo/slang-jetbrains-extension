@@ -142,7 +142,7 @@ class UnusedSymbolsAnnotator : ExternalAnnotator<UnusedSymbolsAnnotator.Input, U
         }
         val result = AnalysisDeadline.open().use { analyze(input, timing) }
         if (result != null && !input.batchOnly) {
-            runReadActionBlocking<Unit> {
+            runReadActionBlocking {
                 Analysis.check(input)
                 input.file.putUserData(Analysis.REVISION_CACHE, CachedResult(serverStamp, result))
             }
@@ -160,7 +160,7 @@ class UnusedSymbolsAnnotator : ExternalAnnotator<UnusedSymbolsAnnotator.Input, U
             }
 
             val candidates: MutableList<Candidate> = ArrayList()
-            runReadActionBlocking<Unit> {
+            runReadActionBlocking {
                 Analysis.check(input)
                 for (symbol in symbols) {
                     Analysis.collect(input, symbol, candidates, externallyUsed = false, member = false)

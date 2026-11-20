@@ -55,7 +55,7 @@ internal class NativeFormattingRequests(private val project: Project, private va
                     textService.formatting(params).await()
                 }
 
-                for (edit in result.orEmpty().filterNotNull()) {
+                for (edit in result.orEmpty()) {
                     val start = lines.offset(edit.range.start)
                     val end = lines.offset(edit.range.end)
                     check(start <= end) { "Slang language server returned an invalid formatting edit" }
@@ -74,10 +74,10 @@ internal class NativeFormattingRequests(private val project: Project, private va
     private fun applyEdits(source: String, edits: Set<Edit>): String {
         val formatted = StringBuilder(source)
         var nextStart = source.length
-        for (edit in edits.sortedWith(compareByDescending<Edit> { it.start }.thenByDescending { it.end })) {
-            check(edit.end <= nextStart) { "Slang language server returned overlapping formatting edits" }
-            formatted.replace(edit.start, edit.end, edit.text)
-            nextStart = edit.start
+        for ((start, end, text) in edits.sortedWith(compareByDescending<Edit> { it.start }.thenByDescending { it.end })) {
+            check(end <= nextStart) { "Slang language server returned overlapping formatting edits" }
+            formatted.replace(start, end, text)
+            nextStart = start
         }
         return formatted.toString()
     }

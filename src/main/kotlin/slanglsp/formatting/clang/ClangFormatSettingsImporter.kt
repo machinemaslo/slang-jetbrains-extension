@@ -148,7 +148,7 @@ class ClangFormatSettingsImporter : CodeStyleSettingsModifier {
 
                 val previous = target[key]
                 target[key] = if (previous is Map<*, *> && value is Map<*, *>) {
-                    buildMap<Any?, Any?> {
+                    buildMap {
                         putAll(previous)
                         putAll(value)
                     }
@@ -161,9 +161,7 @@ class ClangFormatSettingsImporter : CodeStyleSettingsModifier {
         fun apply(values: Map<String, Any?>, settings: CodeStyleSettings) {
             val indent = settings.getIndentOptions(SlangFileType)
             val custom = settings.getCustomSettings(SlangCodeStyleSettings::class.java)
-            val base = values["BasedOnStyle"]?.toString()?.lowercase()
-
-            when (base) {
+            when (val base = values["BasedOnStyle"]?.toString()?.lowercase()) {
                 "llvm",
                 "google",
                 "chromium",

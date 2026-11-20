@@ -29,7 +29,7 @@ internal class SlangSyntaxHighlighterTest {
         val factory = SlangSyntaxHighlighterFactory()
         val highlighter = factory.getSyntaxHighlighter(null, null)
 
-        assertSame(highlighter, HighlightingSettingsPage().getHighlighter())
+        assertSame(highlighter, HighlightingSettingsPage().highlighter)
         assertNotSame(highlighter.highlightingLexer, highlighter.highlightingLexer)
     }
 }

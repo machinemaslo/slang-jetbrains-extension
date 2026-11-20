@@ -42,15 +42,12 @@ internal class SlangLspProvider : LspIntegrationProvider {
             clientStarter.ensureClientStarted(SlangLspDescriptor(project))
         }
     }
+}
 
-    companion object {
-        fun restart(project: Project) {
-            if (!project.isDefault && !project.isDisposed) {
-                val manager = LspClientManager.getInstance(project)
-                project.service<NativeVerification>().reset()
-                manager.stopAndRestartClientsIfNeeded<SlangLspProvider>()
-            }
-        }
+internal fun restartSlangClient(project: Project) {
+    if (!project.isDefault && !project.isDisposed) {
+        project.service<NativeVerification>().reset()
+        LspClientManager.getInstance(project).stopAndRestartClientsIfNeeded<SlangLspProvider>()
     }
 }
 

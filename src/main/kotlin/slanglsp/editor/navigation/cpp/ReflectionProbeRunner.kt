@@ -209,7 +209,11 @@ internal class ReflectionProbeRunner {
         // CMake writes the toolchain rules in a separate Ninja manifest.
         val manifests = listOf(build.resolve("build.ninja"), build.resolve("CMakeFiles/rules.ninja"))
             .filter { Files.isRegularFile(it) }
-        return (paths + listOf(source) + manifests).distinct()
+        return buildList {
+            addAll(paths)
+            addAll(listOf(source))
+            addAll(manifests)
+        }.distinct()
     }
 
     private fun stamps(paths: List<Path>): List<Stamp>? {

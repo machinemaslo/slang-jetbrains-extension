@@ -17,7 +17,7 @@ import org.eclipse.lsp4j.DocumentSymbol
 import org.eclipse.lsp4j.DocumentSymbolParams
 import org.eclipse.lsp4j.HoverParams
 import org.eclipse.lsp4j.Location
-import org.eclipse.lsp4j.MarkupKind
+import org.eclipse.lsp4j.MarkupContent
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.ReferenceContext
@@ -63,26 +63,10 @@ internal class NativeNavigationRequests(private val project: Project, private va
         document: Document,
         offset: Int,
         verify: Boolean = false,
-    ): CompletableFuture<List<HoverText>?> {
+    ): CompletableFuture<MarkupContent?> {
         return request(file, document, offset, verify, send = { server, identifier, position ->
             server.textDocumentService.hover(HoverParams(identifier, position))
-        }) { response ->
-            val contents = response?.contents ?: return@request null
-
-            if (contents.isRight) {
-                val markup = contents.right
-                listOf(HoverText(markup.value, markup.kind == MarkupKind.MARKDOWN))
-            } else {
-                contents.left.mapNotNull { entry ->
-                    when {
-                        entry.isLeft -> entry.left?.let { HoverText(it, markdown = true) }
-                        else -> entry.right?.let {
-                            HoverText("```${it.language}\n${it.value}\n```", markdown = true)
-                        }
-                    }
-                }
-            }
-        }
+        }) { response -> response?.contents?.right }
     }
 
     fun verificationSymbols(file: VirtualFile, document: Document, stamp: Long): CompletableFuture<List<DocumentSymbol>?> {
@@ -138,5 +122,3 @@ internal class NativeNavigationRequests(private val project: Project, private va
         return uri?.let { Location(it, Range(start, end)) }
     }
 }
-
-internal data class HoverText(val text: String, val markdown: Boolean)

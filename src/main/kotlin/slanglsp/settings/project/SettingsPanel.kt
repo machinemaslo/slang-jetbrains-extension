@@ -16,7 +16,7 @@ import javax.swing.*
 import slanglsp.SlangBundle
 import slanglsp.discovery.VcpkgDiscoveryService
 import slanglsp.server.ServerSettings
-import slanglsp.server.nativeclient.SlangLspProvider
+import slanglsp.server.nativeclient.restartSlangClient
 
 internal class SettingsPanel {
     private var config: ProjectSettings? = null
@@ -152,7 +152,7 @@ internal class SettingsPanel {
 
         if (executableChanged) {
             project.service<VcpkgDiscoveryService>().invalidate()
-            SlangLspProvider.restart(project)
+            restartSlangClient(project)
         }
 
         ServerSettings.notifySettingsChanged(project)

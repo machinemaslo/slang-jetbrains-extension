@@ -213,7 +213,8 @@ internal object OverloadMatcher {
         val virtualFile = file.virtualFile ?: return null
         val request = file.project.service<NativeNavigationRequests>().hover(virtualFile, document, offset, verify)
         try {
-            return AnalysisDeadline.await(request).orEmpty().mapNotNull { signature(it.text, name) }.singleOrNull()
+            val text = AnalysisDeadline.await(request)?.value ?: return null
+            return signature(text, name)
         } finally {
             if (!request.isDone) {
                 request.cancel(true)

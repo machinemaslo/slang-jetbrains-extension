@@ -130,8 +130,7 @@ internal object EntryPointStages {
             return null
         }
 
-        val name = literal.substring(1, literal.lastIndex)
-        return when (name) {
+        return when (val name = literal.substring(1, literal.lastIndex)) {
             "pixel" -> "fragment"
             "task" -> "amplification"
             "tesscontrol" -> "hull"

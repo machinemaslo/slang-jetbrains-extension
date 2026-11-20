@@ -45,11 +45,7 @@ class VerifiedRenameHandler : RenameHandler, TitledHandler {
         }
         val file = CommonDataKeys.PSI_FILE.getData(context)
 
-        if (RenameUi.target(file, CommonDataKeys.EDITOR.getData(context)) == null) {
-            return false
-        }
-
-        return true
+        return RenameUi.target(file, CommonDataKeys.EDITOR.getData(context)) != null
     }
 
     override fun invoke(project: Project, editor: Editor?, file: PsiFile?, context: DataContext) {

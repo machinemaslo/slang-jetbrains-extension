@@ -46,7 +46,7 @@ internal class ReflectedUsageExclusionsTest {
             val realUsage = runReadActionBlocking { UsageInfo2UsageAdapter(UsageInfo(application, 0, 18)) }
             val exclusions = fixture.project.service<ReflectedUsageExclusions>()
             exclusions.prepare(location(generated), "RenderPageCacheGpu", setOf(generated.virtualFile, inactive.virtualFile))
-            runReadActionBlocking<Unit> {
+            runReadActionBlocking {
                 ordinary.appendUsage(generatedUsage)
                 view.appendUsage(generatedUsage)
                 view.appendUsage(inactiveUsage)
@@ -77,7 +77,7 @@ internal class ReflectedUsageExclusionsTest {
             val debug = ActiveCppConfiguration("Debug", root, emptySet(), emptySet())
             val release = debug.copy(name = "Release", buildDirectory = root.resolve("other"))
             val cache = fixture.project.service<ReflectionMappingCache>()
-            runReadActionBlocking<Unit> {
+            runReadActionBlocking {
                 val stamp = FileDocumentManager.getInstance().getDocument(shader.virtualFile)!!.modificationStamp
                 cache.put(shader.virtualFile, 7, stamp, location(generated), debug, setOf(generated.virtualFile))
                 assertTrue(cache.getValid(shader.virtualFile, 7, stamp, debug)!!.generatedFiles.contains(generated.virtualFile))

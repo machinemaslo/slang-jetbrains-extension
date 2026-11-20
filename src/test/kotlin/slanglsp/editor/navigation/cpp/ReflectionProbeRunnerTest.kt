@@ -48,10 +48,10 @@ internal class ReflectionProbeRunnerTest {
         runTool(build, program.toString(), shader.toString(), artifact.toString())
         val original = Files.readString(artifact)
         val invocation = "\"$program\" \"../shader.slang\" \"arbitrary output.blob\""
-        val manifest = Files.writeString(build.resolve("build.ninja"), """
+        val manifest = Files.writeString(build.resolve("build.ninja"), $$"""
             rule CUSTOM_COMMAND
-              command = $invocation
-            build arbitrary${'$'} output.blob: CUSTOM_COMMAND ../shader.slang
+              command = $$invocation
+            build arbitrary$ output.blob: CUSTOM_COMMAND ../shader.slang
         """.trimIndent() + "\n")
 
         val runner = ReflectionProbeRunner()
@@ -65,7 +65,7 @@ internal class ReflectionProbeRunnerTest {
         assertEquals(original, Files.readString(artifact))
         assertEquals(sourceText, Files.readString(shader))
         assertEquals(match, runner.cached(shader, input.offset, sourceText))
-        assertNull(runner.cached(shader, input.offset, sourceText + " "))
+        assertNull(runner.cached(shader, input.offset, "$sourceText "))
 
         // A structured compilation database uses argv, so spaces and platform separators do not need shell parsing.
         val database = Files.writeString(project.resolve("compile_commands.json"), Gson().toJson(listOf(

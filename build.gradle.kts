@@ -35,6 +35,7 @@ repositories {
 }
 
 dependencies {
+    runtimeOnly(project(":mcp-skills"))
     intellijPlatform {
         // Local IDEs are opt-in; release builds always use the pinned baseline.
         val localIdePath = providers.gradleProperty("localIdePath").orNull

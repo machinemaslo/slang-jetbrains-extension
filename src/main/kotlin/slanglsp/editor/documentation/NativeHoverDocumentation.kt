@@ -8,6 +8,7 @@ import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import java.util.concurrent.CompletionException
+import org.eclipse.lsp4j.MarkupKind
 import slanglsp.analysis.AnalysisDeadline
 import slanglsp.language.SlangLanguage
 import slanglsp.server.nativeclient.NativeNavigationRequests
@@ -29,21 +30,21 @@ internal object NativeHoverDocumentation {
         val request = project.service<NativeNavigationRequests>().hover(virtualFile, document, offset)
 
         return try {
-            val parts = AnalysisDeadline.await(request).orEmpty()
+            val markup = AnalysisDeadline.await(request) ?: return null
             if (document.modificationStamp != stamp) {
                 return null
             }
 
-            parts.filter { it.text.isNotBlank() }.joinToString("<hr />") { part ->
-                if (part.markdown) {
-                    val markdown = BuiltinHoverDocumentation.enrich(project, part.text)
-                    runReadActionBlocking {
-                        DocMarkdownToHtmlConverter.convert(project, markdown, SlangLanguage.INSTANCE)
-                    }
-                } else {
-                    "<pre>${StringUtil.escapeXmlEntities(part.text)}</pre>"
+            val text = markup.value?.takeIf { it.isNotBlank() } ?: return null
+            val html = if (markup.kind == MarkupKind.MARKDOWN) {
+                val markdown = BuiltinHoverDocumentation.enrich(project, text)
+                runReadActionBlocking {
+                    DocMarkdownToHtmlConverter.convert(project, markdown, SlangLanguage.INSTANCE)
                 }
-            }.takeIf { it.isNotBlank() }
+            } else {
+                "<pre>${StringUtil.escapeXmlEntities(text)}</pre>"
+            }
+            html.takeIf { it.isNotBlank() }
         } catch (unavailable: CompletionException) {
             logger.debug("Native hover unavailable", unavailable)
             null

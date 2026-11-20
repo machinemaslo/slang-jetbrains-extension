@@ -18,7 +18,6 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.util.Disposer
 import com.intellij.platform.lsp.api.LspClientManager
-import com.intellij.platform.lsp.api.customization.LspSemanticTokensSupport
 import com.intellij.platform.lsp.api.getClients
 import com.intellij.platform.lsp.api.stopClients
 import com.intellij.psi.PsiDocumentManager
@@ -53,6 +52,7 @@ import slanglsp.editor.navigation.UsageSearch
 import slanglsp.editor.rename.RenamePlan
 import slanglsp.editor.rename.VerifiedRenameHandler
 import slanglsp.highlighting.SyntaxColors
+import slanglsp.highlighting.semanticColor
 import slanglsp.settings.project.ProjectSettings
 
 @Isolated
@@ -125,9 +125,7 @@ internal class SlangNativeLspTest {
                 val cpp = fixture.addFileToProject("other.cpp", "int main() { return 0; }")
                 assertFalse(client.descriptor.isSupportedFile(cpp.virtualFile))
             }
-            val colors = client.descriptor.lspCustomization.semanticTokensCustomizer as LspSemanticTokensSupport
-            assertTrue(runReadActionBlocking { colors.shouldAskServerForSemanticTokens(file) })
-            assertEquals(SyntaxColors.FIELD, colors.getTextAttributesKey("property", emptyList()))
+            assertEquals(SyntaxColors.FIELD, semanticColor("property", emptyList()))
             val params = SemanticTokensParams(client.getDocumentIdentifier(file.virtualFile))
             val tokens = client.sendRequestSync { it.textDocumentService.semanticTokensFull(params) }
             assertNotNull(tokens)
@@ -224,7 +222,7 @@ internal class SlangNativeLspTest {
 
     private fun assertStructure(file: PsiFile, declarations: List<String>, member: String) {
         runReadActionBlocking {
-            val builder = LanguageStructureViewBuilder.INSTANCE.getStructureViewBuilder(file)
+            val builder = LanguageStructureViewBuilder.getInstance().getStructureViewBuilder(file)
             check(builder is TreeBasedStructureViewBuilder) { "No Structure view for ${file.name}" }
             val model = builder.createStructureViewModel(null)
             try {

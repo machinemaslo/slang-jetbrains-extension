@@ -276,7 +276,11 @@ internal object ReflectionSource {
     private const val MAX_STATEMENT_TOKENS = 256
     private const val MAX_SCOPES = 128
     private const val MAX_BINDINGS = 128
-    private val reflectionCalls = lookupCalls + layoutCalls + programCalls
+    private val reflectionCalls = buildList {
+        addAll(this@ReflectionSource.lookupCalls)
+        addAll(this@ReflectionSource.layoutCalls)
+        addAll(this@ReflectionSource.programCalls)
+    }
     private val legacyReflectionCalls = reflectionCalls.filter { it.startsWith("sp") }.toSet()
     private val slangTypes = setOf(
         "ProgramLayout", "ShaderReflection", "TypeReflection", "TypeLayoutReflection", "VariableLayoutReflection",
