@@ -18,10 +18,10 @@ import com.intellij.psi.search.FileTypeIndex
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.usageView.UsageInfo
 import com.intellij.usageView.UsageViewUtil
-import com.redhat.devtools.lsp4ij.LSPIJUtils
 import java.net.URI
 import org.jetbrains.annotations.PropertyKey
 import slanglsp.SlangBundle
+import slanglsp.analysis.AnalysisDeadline
 import slanglsp.editor.navigation.SymbolLocation
 import slanglsp.editor.navigation.UsageCandidates
 import slanglsp.editor.navigation.UsageSearch
@@ -46,12 +46,6 @@ private constructor(
         val text: String,
         val uri: URI
     ) {
-        fun symbol(offset: Int): SymbolLocation {
-            val position = LSPIJUtils.toPosition(offset, document)
-
-            return SymbolLocation(uri, position.line, position.character)
-        }
-
         fun check() {
             check(
                 !(!file.isValid ||
@@ -182,8 +176,9 @@ private constructor(
             }
 
             val sources: MutableList<Source> = snapshotSources(project, name!!)
-            val declaration: Declaration = resolveDeclaration(element, sources, name)
-            val edits: MutableList<Edit> = collectEdits(sources, declaration, name)
+            val edits = AnalysisDeadline.open().use {
+                collectEdits(sources, resolveDeclaration(element, sources, name), name)
+            }
             val plan = RenamePlan(project, name, newName!!, sources, edits)
 
             runReadActionBlocking { plan.validate() }
@@ -230,7 +225,7 @@ private constructor(
             val symbol: SymbolLocation =
                 (if (targets.isEmpty())
                     runReadActionBlocking {
-                        origin.symbol(originOffset)
+                        SymbolLocation.at(origin.uri, origin.document, originOffset)
                     }
                 else checkNotNull(targets.single()))
             val source =
@@ -290,10 +285,17 @@ private constructor(
                         source !== declaration.source || offset != declaration.offset
                     }
 
-                UsageSearch.processDefinitions(source.file, source.document, offsets, check = { source.check() }) {
+                UsageSearch.processDefinitions(source.file, source.document, offsets, verify = true, check = { source.check() }) {
                     offset,
                     locations ->
-                    val targets = locations.mapTo(mutableSetOf()) { SymbolLocation.from(it.location()) }
+                    val targets = locations.mapTo(mutableSetOf(), SymbolLocation::from)
+                    if (targets.isEmpty() &&
+                        !RenameDeclarations.contains(source.file, source.document, source.text, name, offset) {
+                            source.check()
+                        }) {
+                        throw invalidRename("rename.slangd.could.not.verify.the.rename")
+                    }
+
                     if (declaration.symbol in targets) {
                         if (targets.size != 1) {
                             throw invalidRename("rename.an.ambiguous.usage.prevents.a.safe.rename")
@@ -322,10 +324,10 @@ private constructor(
 
         private fun definitions(source: Source, offset: Int): MutableSet<SymbolLocation?> {
             runReadActionBlocking { source.check() }
-            val locations = UsageSearch.definitions(source.file, source.document, offset)
+            val locations = UsageSearch.definitions(source.file, source.document, offset, verify = true)
             runReadActionBlocking { source.check() }
             val result: MutableSet<SymbolLocation?> = HashSet()
-            locations.mapTo(result) { SymbolLocation.from(it.location()) }
+            locations.mapTo(result, SymbolLocation::from)
 
             return result
         }

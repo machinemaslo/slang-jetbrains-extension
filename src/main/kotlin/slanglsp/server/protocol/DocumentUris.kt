@@ -1,23 +1,31 @@
 package slanglsp.server.protocol
 
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
-import com.redhat.devtools.lsp4ij.client.features.FileUriSupport
 import java.net.URI
 import java.net.URISyntaxException
-import slanglsp.SlangBundle
+import kotlin.io.path.toPath
 import slanglsp.server.BuiltinFiles.BuiltinFile
 
 /** Shared URI identity for editor requests and results from slangd. */
 internal object DocumentUris {
+    fun findLocalFile(value: String): VirtualFile? {
+        return try {
+            val uri = normalizeUri(URI(value))
+            if (uri.scheme == "file") LocalFileSystem.getInstance().findFileByNioFile(uri.toPath()) else null
+        } catch (_: URISyntaxException) {
+            null
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+    }
+
     fun fileUri(file: VirtualFile): URI {
         if (file is BuiltinFile) {
             return file.uri()
         }
-        val uri =
-            checkNotNull(FileUriSupport.getFileUri(file, null)) {
-                SlangBundle.message("usages.uri.failed", file.name)
-            }
-        return normalizeUri(uri)
+
+        return normalizeUri(file.toNioPath().toUri())
     }
 
     fun normalizeUri(uri: URI): URI {

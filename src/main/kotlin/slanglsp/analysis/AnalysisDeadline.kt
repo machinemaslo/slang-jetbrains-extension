@@ -58,7 +58,7 @@ internal class AnalysisDeadline private constructor(budget: Duration) : AutoClos
                 throw CompletionException(TimeoutException("Slang analysis timed out"))
             }
 
-            // A private dependent future avoids poisoning LSP4IJ's shared request cache.
+            // A private dependent future avoids cancelling another consumer's shared request.
             val bounded = future!!.copy().orTimeout(remaining.inWholeNanoseconds, TimeUnit.NANOSECONDS)
             try {
                 return ProgressIndicatorUtils.awaitWithCheckCanceled(bounded)

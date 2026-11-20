@@ -46,7 +46,7 @@ dependencies {
         pluginVerifier("1.410")
         zipSigner()
 
-        plugin("com.redhat.devtools.lsp4ij:${providers.gradleProperty("lsp4ijVersion").getOrElse("0.21.0")}")
+        bundledModule("intellij.platform.lsp")
         bundledPlugin("com.intellij.mcpServer") // The plugin descriptor keeps MCP optional at runtime.
         bundledModule("intellij.platform.vcs.impl") // Exercise the real pre-commit analysis service in tests.
         bundledModule("intellij.spellchecker")
@@ -177,7 +177,6 @@ fun registerPluginPlayground(
     intellijPlatformTesting.runIde.register(taskName) {
         localPath.set(layout.dir(installation))
         plugins {
-            plugin("com.redhat.devtools.lsp4ij:${providers.gradleProperty("lsp4ijVersion").getOrElse("0.21.0")}")
             if (suffix == "CLion" &&
                 !providers.gradleProperty("playgroundPython").map(String::toBoolean).getOrElse(false)) {
                 // Some Toolbox CLion builds ship a Python ML module with a broken classloader dependency.

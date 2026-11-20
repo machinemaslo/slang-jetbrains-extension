@@ -7,15 +7,13 @@ import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiModificationTracker
-import com.redhat.devtools.lsp4ij.features.documentSymbol.DocumentSymbolData
-import com.redhat.devtools.lsp4ij.features.documentSymbol.LSPDocumentSymbolSupport
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.seconds
-import org.eclipse.lsp4j.DocumentSymbolParams
-import org.eclipse.lsp4j.TextDocumentIdentifier
-import slanglsp.server.client.ServerClient
-import slanglsp.server.protocol.DocumentUris
+import org.eclipse.lsp4j.DocumentSymbol
+import slanglsp.server.ServerSettings
+import slanglsp.server.nativeclient.NativeDocumentSymbols
+import slanglsp.server.nativeclient.NativeNavigationRequests
 
 /** Coalesces document symbols for naming, unused declarations, and rename. */
 internal object DocumentSymbolRequests {
@@ -29,7 +27,7 @@ internal object DocumentSymbolRequests {
         document: Document,
         stamp: Long,
         batch: Boolean,
-    ): CompletableFuture<MutableList<DocumentSymbolData?>?>? {
+    ): CompletableFuture<List<DocumentSymbol>?> {
         return runReadActionBlocking {
             if (!file.isValid || document.modificationStamp != stamp) {
                 throw ProcessCanceledException()
@@ -40,15 +38,17 @@ internal object DocumentSymbolRequests {
                 document,
                 stamp,
                 PsiModificationTracker.getInstance(project).modificationCount,
-                ServerClient.analysisGeneration(project),
+                ServerSettings.analysisGeneration(project),
             )
             val slot = slot(file, if (batch) BATCH else LIVE)
 
             slot.share(revision) {
+                val virtualFile = file.virtualFile ?: return@share CompletableFuture.completedFuture(null)
                 if (batch) {
-                    project.service<BatchAnalysisService>().symbols(file, document)
+                    val request = project.service<NativeNavigationRequests>().verificationSymbols(virtualFile, document, stamp)
+                    boundRequest(request)
                 } else {
-                    requestLive(file)
+                    project.service<NativeDocumentSymbols>().request(virtualFile)
                 }
             }
         }
@@ -66,19 +66,13 @@ internal object DocumentSymbolRequests {
         }
     }
 
-    private fun requestLive(file: PsiFile): CompletableFuture<MutableList<DocumentSymbolData?>?> {
-        val support = LSPDocumentSymbolSupport(file)
-        val identifier = TextDocumentIdentifier(DocumentUris.fileUri(file.virtualFile).toString())
-        val params = DocumentSymbolParams(identifier)
-        val source = support.getDocumentSymbols(params)
+    private fun <T> boundRequest(source: CompletableFuture<T>): CompletableFuture<T> {
         val bounded = source.copy().orTimeout(LIVE_REQUEST_TIMEOUT.inWholeMilliseconds, TimeUnit.MILLISECONDS)
-
         bounded.whenComplete { _, failure ->
             if (failure != null && !source.isDone) {
-                support.cancel()
+                source.cancel(true)
             }
         }
-
         return bounded
     }
 
@@ -91,13 +85,13 @@ internal object DocumentSymbolRequests {
 
     internal class Slot {
         private var revision: Revision? = null
-        private var request: CompletableFuture<MutableList<DocumentSymbolData?>?>? = null
+        private var request: CompletableFuture<List<DocumentSymbol>?>? = null
 
         @Synchronized
         fun share(
             current: Revision,
-            start: () -> CompletableFuture<MutableList<DocumentSymbolData?>?>,
-        ): CompletableFuture<MutableList<DocumentSymbolData?>?>? {
+            start: () -> CompletableFuture<List<DocumentSymbol>?>,
+        ): CompletableFuture<List<DocumentSymbol>?> {
             val existing = request?.takeIf { current == revision && it.isReusable() }
             val shared = existing ?: start().also { next ->
                 request = next

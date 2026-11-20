@@ -9,7 +9,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import slanglsp.server.client.ServerClient
+import slanglsp.server.ServerSettings
 
 internal class CodeStyleChangeListenerTest {
     private lateinit var fixture: IdeaProjectTestFixture
@@ -37,13 +37,13 @@ internal class CodeStyleChangeListenerTest {
         runInEdtAndWait {
             val project = fixture.project
             val settings = CodeStyleSettingsManager.getInstance(project)
-            val initialGeneration = ServerClient.analysisGeneration(project)
+            val initialGeneration = ServerSettings.analysisGeneration(project)
 
             settings.fireCodeStyleSettingsChanged(LightVirtualFile("shader.slang"))
-            assertEquals(initialGeneration, ServerClient.analysisGeneration(project))
+            assertEquals(initialGeneration, ServerSettings.analysisGeneration(project))
 
             settings.fireCodeStyleSettingsChanged()
-            assertEquals(initialGeneration + 1, ServerClient.analysisGeneration(project))
+            assertEquals(initialGeneration + 1, ServerSettings.analysisGeneration(project))
         }
     }
 }

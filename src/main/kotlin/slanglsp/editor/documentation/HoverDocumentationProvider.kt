@@ -1,15 +1,9 @@
 package slanglsp.editor.documentation
 
 import com.intellij.lang.documentation.AbstractDocumentationProvider
-import com.intellij.openapi.application.runReadActionBlocking
-import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.DumbService.Companion.isDumb
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiFile
-import com.redhat.devtools.lsp4ij.LSPIJUtils
-import com.redhat.devtools.lsp4ij.features.documentation.LSPDocumentationHelper
 import java.time.Duration
-import java.util.concurrent.CompletionException
 import slanglsp.analysis.AnalysisDeadline
 import slanglsp.language.SlangLanguage
 
@@ -35,50 +29,12 @@ class HoverDocumentationProvider : AbstractDocumentationProvider() {
             return null
         }
 
-        return hoverDocumentation(file, source.textOffset)
-            .filterNotNull()
-            .filter { it.isNotBlank() }
-            .joinToString("<hr />")
-            .takeIf { it.isNotEmpty() }
-    }
-
-    // The scope bounds hover latency.
-    private fun hoverDocumentation(file: PsiFile, offset: Int): MutableList<String?> {
         if (file.project.isDisposed || isDumb(file.project)) {
-            return mutableListOf()
+            return null
         }
 
-        // Legacy Ctrl-hover callbacks can hold a platform read lock. They must yield
-        // promptly; the platform's normal LSP documentation target remains available.
-        try {
-            AnalysisDeadline.open(Duration.ofMillis(500)).use {
-                return documentationAt(file, offset)
-            }
-        } catch (unavailable: CompletionException) {
-            Logger.getInstance(javaClass).debug("Hover unavailable", unavailable)
-            return mutableListOf()
+        return AnalysisDeadline.open(Duration.ofMillis(500)).use {
+            NativeHoverDocumentation.html(file, source.textOffset)
         }
-    }
-
-    private fun documentationAt(file: PsiFile, offset: Int): MutableList<String?> {
-        val position =
-            runReadActionBlocking {
-                val document = LSPIJUtils.getDocument(file)
-                if (document == null || file.virtualFile == null || offset !in 0..document.textLength) {
-                    null
-                } else {
-                    LSPIJUtils.toPosition(offset, document)
-                }
-            } ?: return mutableListOf()
-
-        val requests = HoverRequests(file)
-        val result = mutableListOf<String?>()
-        for (server in requests.connectedServers()) {
-            val hover = requests.requestHover(server, position) ?: continue
-            result.add(
-                LSPDocumentationHelper.convertToHtml(
-                    LSPDocumentationHelper.getValidMarkupContents(hover), server, file))
-        }
-        return result
     }
 }

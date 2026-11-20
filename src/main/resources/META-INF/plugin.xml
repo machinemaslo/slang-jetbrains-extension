@@ -52,7 +52,7 @@
         </ul>
         <p><b>Slang Refined — supported features</b></p>
         <ul>
-            <li>Language support for <code>.slang</code> and <code>.slangh</code> files through Slang's language server and LSP4IJ</li>
+            <li>Language support for <code>.slang</code> and <code>.slangh</code> files through Slang's language server and JetBrains' bundled LSP client</li>
             <li>Syntax highlighting and semantic colors</li>
             <li>Code completion</li>
             <li>Language-server diagnostics, document symbols in the Structure view, and configurable inlay hints</li>
@@ -74,13 +74,13 @@
             <li>Project settings for additional include/search paths, predefined macros, and searching workspace subdirectories</li>
         </ul>
         <p>The rename fallback covers project Slang files under the current server configuration. It cannot check inactive code, external references, or new-name conflicts. Built-in/external declarations and ambiguous or unverified targets are rejected; changes to project files during search or preview require a new search.</p>
-        <p>Requires IntelliJ IDEA 2026.2.5 or a compatible IDE (build 262.12573.28 or newer), LSP4IJ, and a working <code>slangd</code> installation for server-provided features. Native formatting does not require external tools; the optional Clang-Format formatter requires <code>clang-format</code>. Server-provided features depend on the installed Slang version.</p>
+        <p>Requires IntelliJ IDEA 2026.2.5 or a compatible IDE (build 262.12573.28 or newer) with bundled LSP support, and a working <code>slangd</code> installation for server-provided features. Native formatting does not require external tools; the optional Clang-Format formatter requires <code>clang-format</code>. Server-provided features depend on the installed Slang version.</p>
         ]]>
     </change-notes>
     <!-- Product and plugin compatibility requirements. -->
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.lang</depends>
-    <depends>com.redhat.devtools.lsp4ij</depends>
+    <depends>com.intellij.modules.lsp</depends>
     <depends optional="true" config-file="slang-mcp.xml">com.intellij.mcpServer</depends>
 
     <extensions defaultExtensionNs="com.intellij">
@@ -169,12 +169,9 @@
         <lang.syntaxHighlighterFactory language="Slang"
                                        implementationClass="slanglsp.highlighting.SlangSyntaxHighlighterFactory"/>
 
-        <codeInsight.parameterInfo
-                language="Slang"
-                implementationClass="com.redhat.devtools.lsp4ij.features.signatureHelp.LSPParameterInfoHandler"/>
-
-        <lang.psiStructureViewFactory language="Slang"
-                                      implementationClass="com.redhat.devtools.lsp4ij.features.documentSymbol.LSPDocumentSymbolStructureViewFactory"/>
+        <platform.lsp.integrationProvider implementation="slanglsp.server.nativeclient.SlangLspProvider"/>
+        <platform.backend.documentation.targetProvider id="SlangNativeDocumentation"
+                                                       implementation="slanglsp.editor.documentation.NativeDocumentationTargetProvider"/>
 
         <notificationGroup id="Slang LSP"
                            key="notification.group.slang"
@@ -199,19 +196,5 @@
             <add-to-group group-id="EditorPopupMenu1.FindRefactor" anchor="after" relative-to-action="FindUsages"/>
         </action>
     </actions>
-
-    <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
-        <!-- LSP4IJ annotates bundle keys as display text; translations supply capitalization. -->
-        <!--suppress PluginXmlCapitalization -->
-        <server id="slanglsp.SlangLanguageServer"
-                bundle="messages.SlangBundle"
-                nameKey="server.name"
-                descriptionKey="server.description"
-                factoryClass="slanglsp.server.ServerFactory"/>
-
-        <languageMapping language="Slang"
-                                serverId="slanglsp.SlangLanguageServer"
-                                languageId="slang"/>
-    </extensions>
 
 </idea-plugin>

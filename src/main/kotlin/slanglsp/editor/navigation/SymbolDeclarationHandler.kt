@@ -1,17 +1,17 @@
 package slanglsp.editor.navigation
 
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationHandler
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Editor
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
-import com.redhat.devtools.lsp4ij.LSPIJUtils
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.CompletionException
 import slanglsp.analysis.AnalysisDeadline
 import slanglsp.language.SlangLanguage
 import slanglsp.language.SlangLexer
-import slanglsp.server.client.ClientFeatureAccess
 
 /** Slang-only declaration/usage navigation, leaving other languages to their own handlers. */
 class SymbolDeclarationHandler : GotoDeclarationHandler {
@@ -62,13 +62,16 @@ class SymbolDeclarationHandler : GotoDeclarationHandler {
         return arrayOf(UsageNavigationTarget(source, editor))
     }
 
-    // PSI conversion uses LSP4IJ's experimental client-feature API.
     fun definitions(source: PsiElement, offset: Int): Array<PsiElement> {
-        val file = source.containingFile
-        val document = LSPIJUtils.getDocument(file) ?: return PsiElement.EMPTY_ARRAY
+        val (file, document) = runReadActionBlocking {
+            val file = source.containingFile ?: return@runReadActionBlocking null
+            val document = PsiDocumentManager.getInstance(file.project).getDocument(file)
+                ?: return@runReadActionBlocking null
+            file to document
+        } ?: return PsiElement.EMPTY_ARRAY
 
         return UsageSearch.definitions(file, document, offset)
-            .mapNotNull { ClientFeatureAccess.toPsiElement(it, file.project) }
+            .mapNotNull { NavigationTargets.toPsiElement(it, file.project) }
             .toTypedArray<PsiElement>()
     }
 }

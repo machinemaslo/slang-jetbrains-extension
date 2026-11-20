@@ -11,12 +11,10 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.IdeFrame
 import com.intellij.util.Alarm
-import com.redhat.devtools.lsp4ij.LanguageServerManager
-import com.redhat.devtools.lsp4ij.LanguageServersRegistry
-import com.redhat.devtools.lsp4ij.ServerStatus
 import kotlin.concurrent.Volatile
 import slanglsp.SlangBundle
 import slanglsp.discovery.VcpkgDiscoveryService
+import slanglsp.server.nativeclient.SlangLspProvider
 
 /** Retries only after startup failed to locate slangd, without polling. */
 @Service(Service.Level.PROJECT)
@@ -86,27 +84,8 @@ class ServerRecovery(private val project: Project) : Disposable, ApplicationActi
                     if (!missing || project.isDisposed) {
                         return@Runnable
                     }
-                    val server = LanguageServersRegistry.getInstance().getServerDefinition(BatchConnection.SERVER_ID)
-                    if (server == null || !server.isEnabled(project)) {
-                        return@Runnable
-                    }
-                    val manager = LanguageServerManager.getInstance(project)
-                    val status = manager.getServerStatus(BatchConnection.SERVER_ID) ?: return@Runnable
-                    when (status) {
-                        ServerStatus.none,
-                        ServerStatus.stopped,
-                        ServerStatus.not_installed -> {
-                            missing = false
-                            manager.start(
-                                BatchConnection.SERVER_ID,
-                                LanguageServerManager.StartOptions()
-                                    .setForceStart(true)
-                                    .setForceRestart(false)
-                                    .setWillEnable(false))
-                        }
-
-                        else -> {}
-                    }
+                    executableFound()
+                    SlangLspProvider.restart(project)
                 },
                 project.disposed)
     }

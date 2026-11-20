@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicReference
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
+import org.junit.jupiter.api.parallel.Isolated
 import slanglsp.FormattingFixtures
 import slanglsp.TestDependencies
 import slanglsp.analysis.AnalysisDeadline
@@ -30,6 +31,7 @@ import slanglsp.editor.inspections.unused.UnusedSymbolsInspection
 import slanglsp.settings.project.ProjectSettings
 
 /** Exercises the real queued external-tool pass, not its synchronous unit-test shortcut. */
+@Isolated
 internal class CommitAnalysisSaturationTest {
     @Test
     @Timeout(120)
@@ -69,7 +71,8 @@ internal class CommitAnalysisSaturationTest {
                 queue.awaitIdle()
                 if (phase == "open editors") {
                     runInEdtAndWait {
-                        for (file in files) {
+                        // The broken source exercises the batch compiler, independent of editor diagnostics.
+                        for (file in files.filterNot { it.name == "diagnostics.slang" }) {
                             fixture.configureFromExistingVirtualFile(file.virtualFile)
                         }
                     }
@@ -231,7 +234,8 @@ internal class CommitAnalysisSaturationTest {
     }
 
     companion object {
-        private const val ANALYSIS_BUDGET_SECONDS = 8
+        // This is an end-to-end watchdog, including one real compiler process per file.
+        private const val ANALYSIS_BUDGET_SECONDS = 15
 
         private fun threadSnapshot(parallelism: Int): String {
             val stacks = Thread.getAllStackTraces()

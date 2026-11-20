@@ -5,6 +5,8 @@ import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.event.CaretEvent
 import com.intellij.openapi.editor.event.CaretListener
 import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.ui.popup.JBPopupFactory
@@ -12,27 +14,25 @@ import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.testFramework.runInEdtAndWait
+import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.usageView.UsageInfo
 import com.intellij.util.Processor
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
-import org.eclipse.lsp4j.MarkupContent
-import org.eclipse.lsp4j.MarkupKind
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import slanglsp.TestDependencies
 import slanglsp.editor.NativeServerSupport
+import slanglsp.editor.documentation.BuiltinHoverDocumentation
 import slanglsp.editor.documentation.HoverDocumentationProvider
 import slanglsp.editor.navigation.UsageSearch.candidateFiles
 import slanglsp.editor.navigation.UsageSearch.process
-import slanglsp.server.BatchConnection.wrapper
 import slanglsp.server.BuiltinFiles
 import slanglsp.server.BuiltinFiles.BuiltinFile
-import slanglsp.server.ServerFactory
+import slanglsp.server.nativeclient.runningSlangClient
 
-// Integration checks exercise LSP4IJ's experimental extension points.
 internal class NavigationTest {
     @Test
     @Timeout(90)
@@ -73,12 +73,19 @@ internal class NavigationTest {
                     PsiDocumentManager.getInstance(fixture.project).commitDocument(document)
                 }
             }
-            // Wait for process initialization, not a document connection. Hover must still open the file itself.
-            Assertions.assertNotNull(wrapper(fixture.project).initializedServer.get(15, TimeUnit.SECONDS))
-            val firstHover = runReadActionBlocking {
-                HoverDocumentationProvider().generateDoc(files[0]!!.findElementAt(code.indexOf("sharedValue")), null)
+            lateinit var editor: Editor
+            runInEdtAndWait {
+                val editors = FileEditorManager.getInstance(fixture.project)
+                editors.openFile(files[0]!!.virtualFile, true)
+                PlatformTestUtil.waitWithEventsDispatching("slangd starts", { runningSlangClient(fixture.project) != null }, 15)
+                editor = checkNotNull(editors.selectedTextEditor)
             }
-            Assertions.assertNotNull(firstHover, "Documentation must connect the file before any navigation request")
+            val firstHover = NativeServerSupport.awaitResult {
+                runReadActionBlocking {
+                    HoverDocumentationProvider().generateDoc(files[0]!!.findElementAt(code.indexOf("sharedValue")), null)
+                }
+            }
+            Assertions.assertNotNull(firstHover, "Documentation must be available before any navigation request")
             Assertions.assertTrue(firstHover!!.contains("sharedValue"), firstHover)
             val scope = GlobalSearchScope.projectScope(fixture.project)
             val candidates = candidateFiles(fixture.project, scope, "sharedValue")
@@ -146,7 +153,7 @@ internal class NavigationTest {
             val caretListener: CaretListener =
                 object : CaretListener {
                     override fun caretPositionChanged(event: CaretEvent) {
-                        if (fixture.editor.caretModel.offset == localUsage) {
+                        if (editor.caretModel.offset == localUsage) {
                             Assertions.assertFalse(
                                 JBPopupFactory.getInstance().isPopupActive,
                                 "Single-usage navigation must not open a chooser")
@@ -156,20 +163,19 @@ internal class NavigationTest {
                 }
 
             runInEdtAndWait {
-                fixture.configureFromExistingVirtualFile(files[0]!!.virtualFile)
-                fixture.editor.caretModel.moveToOffset(localDeclaration)
-                fixture.editor.caretModel.addCaretListener(caretListener)
+                editor.caretModel.moveToOffset(localDeclaration)
+                editor.caretModel.addCaretListener(caretListener)
                 run {
                     val local = files[0]!!.findElementAt(localDeclaration)
                     Assertions.assertNotNull(local)
-                    UsageNavigationTarget(local!!, fixture.editor).navigate(true)
+                    UsageNavigationTarget(local!!, editor).navigate(true)
                 }
             }
 
             try {
                 Assertions.assertTrue(navigated.await(10, TimeUnit.SECONDS), "Single usage should be opened directly")
             } finally {
-                runInEdtAndWait { fixture.editor.caretModel.removeCaretListener(caretListener) }
+                runInEdtAndWait { editor.caretModel.removeCaretListener(caretListener) }
             }
 
             val builtin = runReadActionBlocking {
@@ -181,9 +187,7 @@ internal class NavigationTest {
             val file = builtin[0].containingFile.virtualFile
             Assertions.assertInstanceOf<BuiltinFile?>(BuiltinFile::class.java, file)
             Assertions.assertFalse(file!!.isWritable)
-            // Check the actual client registration rather than constructing the feature in isolation.
-            @Suppress("UnstableApiUsage")
-            val connectsBuiltinFile = ServerFactory().createClientFeatures().isEnabled(file)
+            val connectsBuiltinFile = checkNotNull(runningSlangClient(fixture.project)).descriptor.isSupportedFile(file)
             Assertions.assertFalse(connectsBuiltinFile)
             val service = fixture.project.getService(BuiltinFiles::class.java)
             Assertions.assertSame(file, service.resolve((file as BuiltinFile).uri().toString()))
@@ -207,17 +211,8 @@ internal class NavigationTest {
             Assertions.assertTrue(sineDocs!!.contains("The angle in radians"), sineDocs)
 
             val documented =
-                MarkupContent(
-                    MarkupKind.MARKDOWN,
-                    "```\nstruct StructuredBuffer<T>\n```\n\nServer-provided explanation.\n\nDefined in core(21016)\n")
-            @Suppress("UnstableApiUsage") // Deliberately exercise the registered LSP4IJ hover extension.
-            val suppliedDocs = runReadActionBlocking {
-                ServerFactory().createClientFeatures().hoverFeature.getContent(documented, files[0]!!)
-            }
-            Assertions.assertNotNull(suppliedDocs)
-            Assertions.assertTrue(suppliedDocs!!.contains("Server-provided explanation."))
-            Assertions.assertFalse(
-                suppliedDocs.contains("read-only structured buffer"), "Do not duplicate newer server documentation")
+                "```\nstruct StructuredBuffer<T>\n```\n\nServer-provided explanation.\n\nDefined in core(21016)\n"
+            Assertions.assertEquals(documented, BuiltinHoverDocumentation.enrich(fixture.project, documented))
         } finally {
             try {
                 NativeServerSupport.stop(fixture.project)

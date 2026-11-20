@@ -4,7 +4,8 @@ import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.util.TextRange
+import com.intellij.platform.lsp.util.getLsp4jPosition
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
@@ -12,8 +13,6 @@ import com.intellij.testFramework.fixtures.impl.TempDirTestFixtureImpl
 import com.intellij.testFramework.runInEdtAndWait
 import com.intellij.usageView.UsageInfo
 import com.intellij.util.Processor
-import com.redhat.devtools.lsp4ij.LSPIJUtils
-import com.redhat.devtools.lsp4ij.usages.LocationData
 import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.Range
@@ -108,11 +107,11 @@ internal class OverloadMatcherTest {
             ProgressManager.getInstance()
                 .runProcess(
                     {
-                        val document = runReadActionBlocking { LSPIJUtils.getDocument(files[1]!!) }
+                        val documents = PsiDocumentManager.getInstance(fixture.project)
+                        val document = runReadActionBlocking { documents.getDocument(files[1]!!) }
                         Assertions.assertNotNull(document)
 
-                        val declarationsDocument = runReadActionBlocking { LSPIJUtils.getDocument(files[0]!!) }
-                        Assertions.assertNotNull(declarationsDocument)
+                        val declarationsDocument = runReadActionBlocking { checkNotNull(documents.getDocument(files[0]!!)) }
 
                         val declarationOffsets = find(declarations, "calculate")
                         val callOffsets = find(calls, "calculate")
@@ -124,30 +123,27 @@ internal class OverloadMatcherTest {
                             val chosen = if (i == 0) 0 else 1
                             val expectedOffset = declarationOffsets[chosen]
                             val expected = runReadActionBlocking {
-                                LSPIJUtils.toRange(
-                                    TextRange(expectedOffset, expectedOffset + "calculate".length),
-                                    declarationsDocument)
+                                Range(
+                                    getLsp4jPosition(declarationsDocument, expectedOffset),
+                                    getLsp4jPosition(declarationsDocument, expectedOffset + "calculate".length),
+                                )
                             }
 
-                            val locations = UsageSearch.definitions(files[1]!!, checkNotNull(document), callOffset)
+                            val locations = UsageSearch.definitions(files[1]!!, checkNotNull(document), callOffset, verify = true)
                             Assertions.assertEquals(1, locations.size)
-                            Assertions.assertEquals(expected, locations.first().location().range)
+                            Assertions.assertEquals(expected, locations.first().range)
 
                             // Test both a nonsense column and one landing exactly on the OTHER overload.
                             val otherColumn = declarationOffsets[1 - chosen] - declarations.indexOf('\n') - 1
 
                             for (wrongColumn in intArrayOf(0, otherColumn)) {
-                                val original: LocationData = locations.first()
-                                val corrupted =
-                                    LocationData(
-                                        Location(original.location().uri, range(1, wrongColumn, "calculate".length)),
-                                        original.languageServer())
+                                val corrupted = Location(locations.first().uri, range(1, wrongColumn, "calculate".length))
                                 val corrected =
                                     DefinitionLocations.normalize(
-                                        files[1]!!, callOffset, "calculate", listOf(corrupted))
+                                        files[1]!!, callOffset, "calculate", listOf(corrupted), verify = true)
 
                                 Assertions.assertEquals(1, corrected.size)
-                                Assertions.assertEquals(expected, corrected.first().location().range)
+                                Assertions.assertEquals(expected, corrected.first().range)
                             }
                         }
                         for ((i, offset) in declarationOffsets.withIndex()) {
@@ -160,7 +156,7 @@ internal class OverloadMatcherTest {
                                     GlobalSearchScope.projectScope(fixture.project),
                                     Processor { e: UsageInfo? -> usages.add(e) }))
                             Assertions.assertEquals(if (i == 0) 1 else 2, usages.size)
-                            Assertions.assertFalse(isUnused(declaration))
+                            Assertions.assertFalse(isUnused(declaration, null, batch = true))
 
                             val rename = collect(declaration, if (i == 0) "calculateInt" else "calculateFloat")
                             Assertions.assertEquals(if (i == 0) 2 else 3, rename.usages().size)

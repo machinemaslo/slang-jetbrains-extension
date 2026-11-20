@@ -3,7 +3,7 @@ package slanglsp.settings.codestyle
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.psi.codeStyle.CodeStyleSettingsChangeEvent
 import com.intellij.psi.codeStyle.CodeStyleSettingsListener
-import slanglsp.server.client.ServerClient
+import slanglsp.server.ServerSettings
 
 class CodeStyleChangeListener : CodeStyleSettingsListener {
     override fun codeStyleSettingsChanged(event: CodeStyleSettingsChangeEvent) {
@@ -15,7 +15,7 @@ class CodeStyleChangeListener : CodeStyleSettingsListener {
             return
         }
 
-        ServerClient.notifySettingsChanged(project)
+        ServerSettings.notifySettingsChanged(project)
         DaemonCodeAnalyzer.getInstance(project).settingsChanged()
     }
 }

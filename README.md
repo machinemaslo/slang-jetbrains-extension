@@ -51,6 +51,10 @@ New projects have no predefined macros. Edit project macros under **General**.
 
 Select **Run Plugin (IJ)** (`./gradlew runPlugin`) or **Run Plugin (CLion)** (`./gradlew runPluginCLion`). Both read JetBrains Toolbox's local inventory and launch the newest installed build of the requested IDE in a separate sandbox with sample Slang files. No IDE download or per-developer path setting is needed; install the IDE in Toolbox if it isn't listed there.
 The CLion playground disables its bundled Python plugin to avoid a startup error in some CLion builds, use `-PplaygroundPython=true` to enable it in that sandbox.
+
+The plugin requires IntelliJ IDEA 2026.2.5 or a compatible IDE with JetBrains’ bundled LSP client. That client handles `slangd` startup, semantic colors, Structure view, Parameter Info, hover documentation, declaration/usage navigation, verified rename, and live unused-symbol warnings.
+
+Verified rename, live unused-symbol checks, and commit-time naming and unused-symbol inspections can verify occurrences in unopened Slang files and unsaved edits without opening editor tabs. Compiler diagnostics at commit time still use `slangc`. Clang-Format supports whole files and selections using the current editor text.
 Install `slangd` on PATH or use existing vcpkg tools. Native formatting is the default; clang-format is optional.
 Edit `dev/playground` for lasting changes—samples and generated settings reset each launch. Extra files and dictionaries remain.
 Plugin DevKit is optional for development assistance.
@@ -86,6 +90,8 @@ With JetBrains' MCP Server enabled, the plugin contributes three read-only tools
 Search Settings for **MCP Server** to enable it and configure clients. Newer IDEs also list the tools under **Exposed Tools**. For standalone Air connected to a running IDE, use **Clients Auto-Configuration**. Keep the IDE server disabled if you don't want to expose tools to MCP clients.
 
 Slang marks its tools as always included. The IDE's MCP exposure settings still control which tools a client sees directly in router mode.
+
+JetBrains Air builds with bundled skill support also receive a short **Slang tools** skill automatically. It includes the router syntax for all three tools; no project instructions or manual agent prompt are needed.
 
 The plugin compiles against the MCP Server bundled with the minimum IDEA SDK. Run `./gradlew test -PmcpSmokeTest=true` to check that the server discovers and invokes all three tools on that SDK.
 

@@ -14,7 +14,6 @@ import com.intellij.testFramework.fixtures.CodeInsightTestFixture
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
 import com.intellij.testFramework.fixtures.impl.TempDirTestFixtureImpl
 import com.intellij.testFramework.runInEdtAndWait
-import com.redhat.devtools.lsp4ij.LanguageServersRegistry
 import kotlin.streams.asStream
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
@@ -47,9 +46,7 @@ internal class NativeFormattingTest {
         runInEdtAndWait {
             fixture!!.setUp()
             ModuleRootModificationUtil.addContentRoot(fixture!!.module, fixture!!.tempDirPath)
-            val definition = LanguageServersRegistry.getInstance().getServerDefinition("slanglsp.SlangLanguageServer")
-            Assertions.assertNotNull(definition)
-            definition!!.setEnabled(false, fixture!!.project)
+            NativeServerSupport.disable(fixture!!.project)
             val state = ProjectSettings.getInstance(fixture!!.project).getState()
             state.clangFormatLocation = fixture!!.tempDirPath + "/missing-clang-format"
             ProjectSettings.getInstance(fixture!!.project).loadState(state)

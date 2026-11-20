@@ -16,20 +16,19 @@ import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
 import com.intellij.profile.codeInspection.InspectionProfileManager
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiModificationTracker
-import com.redhat.devtools.lsp4ij.LSPIJUtils
 import kotlin.math.min
 import org.eclipse.lsp4j.DocumentSymbol
 import org.eclipse.lsp4j.SymbolKind
 import slanglsp.SlangBundle
 import slanglsp.analysis.AnalysisDeadline
 import slanglsp.analysis.AnalysisTiming
-import slanglsp.analysis.BatchAnalysisService
 import slanglsp.analysis.DocumentSymbolRequests
-import slanglsp.editor.inspections.naming.NamingAnnotator
 import slanglsp.editor.navigation.UsageSearch
-import slanglsp.server.client.ServerClient
+import slanglsp.server.ServerSettings
+import slanglsp.server.protocol.protocolOffset
 import slanglsp.settings.project.ProjectSettings
 
 /** Network and index work runs outside the read action; stale results are never applied. */
@@ -112,7 +111,7 @@ class UnusedSymbolsAnnotator : ExternalAnnotator<UnusedSymbolsAnnotator.Input, U
             !ProjectFileIndex.getInstance(project).isInContent(file.virtualFile)) {
             return null
         }
-        val document = LSPIJUtils.getDocument(file)
+        val document = PsiDocumentManager.getInstance(project).getDocument(file)
 
         return if (document == null) null
         else
@@ -131,10 +130,9 @@ class UnusedSymbolsAnnotator : ExternalAnnotator<UnusedSymbolsAnnotator.Input, U
             }
     }
 
-    // Closing restores the deadline and batch mode.
     private fun annotate(input: Input, timing: AnalysisTiming?): Result? {
         val cached: CachedResult? = input.file.getUserData(Analysis.REVISION_CACHE)
-        val serverStamp: Long = ServerClient.analysisGeneration(input.file.project)
+        val serverStamp: Long = ServerSettings.analysisGeneration(input.file.project)
         if (!input.batchOnly &&
             cached != null &&
             cached.serverStamp == serverStamp &&
@@ -142,12 +140,7 @@ class UnusedSymbolsAnnotator : ExternalAnnotator<UnusedSymbolsAnnotator.Input, U
             cached.result.input.projectStamp == input.projectStamp) {
             return cached.result
         }
-        val result: Result?
-        AnalysisDeadline.open().use {
-            BatchAnalysisService.enter(input.batchOnly).use {
-                result = analyze(input, timing)
-            }
-        }
+        val result = AnalysisDeadline.open().use { analyze(input, timing) }
         if (result != null && !input.batchOnly) {
             runReadActionBlocking<Unit> {
                 Analysis.check(input)
@@ -160,11 +153,7 @@ class UnusedSymbolsAnnotator : ExternalAnnotator<UnusedSymbolsAnnotator.Input, U
     private fun analyze(input: Input, timing: AnalysisTiming?): Result? {
         try {
             val future = DocumentSymbolRequests.get(input.file, input.document, input.stamp, input.batchOnly)
-            val symbols = future?.let { AnalysisDeadline.await(it) }
-            if (input.batchOnly) {
-                NamingAnnotator.Analysis.requireServer(input.file)
-            }
-
+            val symbols = AnalysisDeadline.await(future)
             if (symbols == null) {
                 check(!input.batchOnly) { SlangBundle.message("analysis.server.unavailable") }
                 return null
@@ -174,7 +163,7 @@ class UnusedSymbolsAnnotator : ExternalAnnotator<UnusedSymbolsAnnotator.Input, U
             runReadActionBlocking<Unit> {
                 Analysis.check(input)
                 for (symbol in symbols) {
-                    Analysis.collect(input, symbol?.documentSymbol, candidates, externallyUsed = false, member = false)
+                    Analysis.collect(input, symbol, candidates, externallyUsed = false, member = false)
                 }
             }
 
@@ -187,7 +176,7 @@ class UnusedSymbolsAnnotator : ExternalAnnotator<UnusedSymbolsAnnotator.Input, U
                     input.file.findElementAt(candidate.range.startOffset)
                 }
 
-                if (element != null && UsageSearch.isUnused(element, timing)) {
+                if (element != null && UsageSearch.isUnused(element, timing, batch = input.batchOnly)) {
                     unused.add(candidate)
                 }
             }
@@ -260,7 +249,8 @@ class UnusedSymbolsAnnotator : ExternalAnnotator<UnusedSymbolsAnnotator.Input, U
                 return
             }
 
-            val start = LSPIJUtils.toOffset(symbol.selectionRange.start, input.document)
+            val position = symbol.selectionRange.start
+            val start = input.document.protocolOffset(position)
             // Some slangd versions give selection ranges extending beyond the identifier.
             val end = start + symbol.name.length
 
@@ -297,7 +287,8 @@ class UnusedSymbolsAnnotator : ExternalAnnotator<UnusedSymbolsAnnotator.Input, U
             }
 
             if (symbol.kind == SymbolKind.Function || symbol.kind == SymbolKind.Method) {
-                val bodyEnd = LSPIJUtils.toOffset(symbol.range.end, input.document)
+                val endPosition = symbol.range.end
+                val bodyEnd = input.document.protocolOffset(endPosition)
                 result.addAll(UnusedDeclarations.locals(input.text, end, min(bodyEnd, input.text.length)))
             }
 

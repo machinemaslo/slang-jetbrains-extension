@@ -15,7 +15,6 @@ import com.intellij.spellchecker.tokenizer.SpellcheckingStrategy
 import com.intellij.spellchecker.tokenizer.TokenConsumer
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
 import com.intellij.testFramework.runInEdtAndWait
-import com.redhat.devtools.lsp4ij.LanguageServersRegistry
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import slanglsp.editor.NativeServerSupport
@@ -29,10 +28,7 @@ internal class SpellcheckingTest {
         runInEdtAndWait { fixture.setUp() }
         try {
             runInEdtAndWait {
-                val definition =
-                    LanguageServersRegistry.getInstance().getServerDefinition("slanglsp.SlangLanguageServer")
-                Assertions.assertNotNull(definition)
-                definition!!.setEnabled(false, fixture.project)
+                NativeServerSupport.disable(fixture.project)
                 val source =
                     """
                         // mispellled slangd autodiff bindless

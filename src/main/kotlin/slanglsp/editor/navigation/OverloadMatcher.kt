@@ -1,19 +1,21 @@
 package slanglsp.editor.navigation
 
 import com.intellij.openapi.application.runReadActionBlocking
+import com.intellij.openapi.components.service
+import com.intellij.openapi.editor.Document
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.TokenType
 import com.intellij.psi.util.PsiTreeUtil
-import com.redhat.devtools.lsp4ij.LSPIJUtils
-import com.redhat.devtools.lsp4ij.LanguageServerItem
-import com.redhat.devtools.lsp4ij.features.documentation.LSPDocumentationHelper
 import java.util.regex.Pattern
-import org.eclipse.lsp4j.*
-import slanglsp.editor.documentation.HoverRequests
+import org.eclipse.lsp4j.Range
+import slanglsp.analysis.AnalysisDeadline
 import slanglsp.language.SlangLexer
+import slanglsp.server.nativeclient.NativeNavigationRequests
+import slanglsp.server.protocol.protocolOffset
 
 /** Uses the server's selected signature, rather than reimplementing Slang overload resolution. */
 internal object OverloadMatcher {
@@ -24,9 +26,9 @@ internal object OverloadMatcher {
 
     @JvmStatic
     fun isFunctionDeclaration(file: PsiFile, range: Range): Boolean {
-        val document = LSPIJUtils.getDocument(file) ?: return false
+        val document = PsiDocumentManager.getInstance(file.project).getDocument(file) ?: return false
 
-        val name = file.findElementAt(LSPIJUtils.toOffset(range.start, document))
+        val name = file.findElementAt(document.protocolOffset(range.start))
         val previous = codeLeaf(name, false)
         var next = codeLeaf(name, true)
 
@@ -108,10 +110,11 @@ internal object OverloadMatcher {
         target: PsiFile,
         name: String,
         declarations: List<Range>,
-        server: LanguageServerItem
+        verify: Boolean = false,
     ): Range? {
-        val sourceDocument = runReadActionBlocking { LSPIJUtils.getDocument(source) }
-        val targetDocument = runReadActionBlocking { LSPIJUtils.getDocument(target) }
+        val documents = PsiDocumentManager.getInstance(source.project)
+        val sourceDocument = runReadActionBlocking { documents.getDocument(source) }
+        val targetDocument = runReadActionBlocking { documents.getDocument(target) }
 
         if (sourceDocument == null || targetDocument == null) {
             return null
@@ -119,17 +122,17 @@ internal object OverloadMatcher {
 
         val sourceStamp = sourceDocument.modificationStamp
         val targetStamp = targetDocument.modificationStamp
-        val selected = signatureAt(source, offset, name, server) ?: return null
+        val selected = signatureAt(source, sourceDocument, offset, name, verify) ?: return null
 
         var match: Range? = null
 
         for (declaration in declarations) {
             ProgressManager.checkCanceled()
             val declarationOffset = runReadActionBlocking {
-                LSPIJUtils.toOffset(declaration.start, targetDocument)
+                targetDocument.protocolOffset(declaration.start)
             }
             val signature =
-                signatureAt(target, declarationOffset, name, server)
+                signatureAt(target, targetDocument, declarationOffset, name, verify)
                     ?: // An unknown candidate might have the same signature as the apparent match.
                     return null
 
@@ -200,21 +203,21 @@ internal object OverloadMatcher {
         return if (functions == 1) tokens.toString() else null
     }
 
-    private fun signatureAt(file: PsiFile, offset: Int, name: String, expectedServer: LanguageServerItem): String? {
-        val position =
-            runReadActionBlocking {
-                LSPIJUtils.getDocument(file)?.let { LSPIJUtils.toPosition(offset, it) }
-            } ?: return null
-
-        val requests = HoverRequests(file)
+    private fun signatureAt(
+        file: PsiFile,
+        document: Document,
+        offset: Int,
+        name: String,
+        verify: Boolean,
+    ): String? {
+        val virtualFile = file.virtualFile ?: return null
+        val request = file.project.service<NativeNavigationRequests>().hover(virtualFile, document, offset, verify)
         try {
-            val server = requests.connectedServers().firstOrNull { it.server === expectedServer.server } ?: return null
-            val hover = requests.requestHover(server, position) ?: return null
-            return LSPDocumentationHelper.getValidMarkupContents(hover)
-                .mapNotNull { signature(it.value, name) }
-                .singleOrNull()
+            return AnalysisDeadline.await(request).orEmpty().mapNotNull { signature(it.text, name) }.singleOrNull()
         } finally {
-            requests.cancel()
+            if (!request.isDone) {
+                request.cancel(true)
+            }
         }
     }
 }

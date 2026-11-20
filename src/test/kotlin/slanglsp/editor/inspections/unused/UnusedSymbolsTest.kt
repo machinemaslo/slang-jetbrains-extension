@@ -130,6 +130,10 @@ internal class UnusedSymbolsTest {
 
             runInEdtAndWait {
                 fixture.configureFromExistingVirtualFile(file[0]!!.virtualFile)
+                FileEditorManager.getInstance(fixture.project).openFile(file[0]!!.virtualFile, true)
+            }
+            NativeServerSupport.awaitLiveSymbols(file[0]!!)
+            runInEdtAndWait {
                 val offset = checkNotNull(input).text.indexOf("PrimaryHitGpu")
                 val struct =
                     fixture.doHighlighting().first { highlight ->

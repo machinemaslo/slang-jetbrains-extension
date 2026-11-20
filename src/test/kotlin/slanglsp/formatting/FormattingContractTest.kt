@@ -2,6 +2,7 @@ package slanglsp.formatting
 
 import com.intellij.codeInsight.actions.ReformatCodeProcessor
 import com.intellij.formatting.service.AsyncDocumentFormattingService
+import com.intellij.ide.trustedProjects.TrustedProjects
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
 import com.intellij.notification.Notifications
@@ -74,7 +75,7 @@ internal class FormattingContractTest {
                 TempDirTestFixtureImpl())
         runInEdtAndWait {
             fixture!!.setUp()
-            NativeServerSupport.disable(fixture!!.project)
+            TrustedProjects.setProjectTrusted(fixture!!.project, true)
             ModuleRootModificationUtil.addContentRoot(fixture!!.module, fixture!!.tempDirPath)
             val state = ProjectSettings.getInstance(fixture!!.project).getState()
             state.useLocalVcpkgSlangd = false
@@ -247,9 +248,8 @@ internal class FormattingContractTest {
             val state = ProjectSettings.getInstance(fixture!!.project).getState()
             state.explicitSlangdLocation = fixture!!.tempDirPath + "/missing-server-directory"
             ProjectSettings.getInstance(fixture!!.project).loadState(state)
-            NativeServerSupport.disable(fixture!!.project)
         }
-        assertFormattingFailsWithoutChangingText("server")
+        assertFormattingFailsWithoutChangingText("slangd was not found")
     }
 
     @Test
@@ -338,9 +338,6 @@ internal class FormattingContractTest {
                 if (engine == Engine.SLANGD) Path.of(TestDependencies.slangd()).parent.toString()
                 else fixture!!.tempDirPath + "/no-server"
             ProjectSettings.getInstance(fixture!!.project).loadState(state)
-            if (engine == Engine.SLANGD) {
-                NativeServerSupport.enable(fixture!!.project)
-            }
         }
     }
 

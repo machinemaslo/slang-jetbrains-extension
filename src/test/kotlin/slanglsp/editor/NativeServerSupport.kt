@@ -1,24 +1,32 @@
 package slanglsp.editor
 
+import com.intellij.ide.trustedProjects.TrustedProjects
+import com.intellij.openapi.application.runReadActionBlocking
+import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ModuleRootModificationUtil
+import com.intellij.platform.lsp.api.LspClientManager
+import com.intellij.platform.lsp.api.stopClients
+import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.PsiFile
 import com.intellij.testFramework.LightProjectDescriptor
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
 import com.intellij.testFramework.fixtures.impl.TempDirTestFixtureImpl
-import com.redhat.devtools.lsp4ij.LanguageServerManager
-import com.redhat.devtools.lsp4ij.LanguageServersRegistry
-import com.redhat.devtools.lsp4ij.ServerStatus
+import com.intellij.testFramework.runInEdtAndWait
 import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
-import slanglsp.server.BatchConnection
+import slanglsp.analysis.DocumentSymbolRequests
+import slanglsp.server.nativeclient.NativeVerification
+import slanglsp.server.nativeclient.SlangLspProvider
 import slanglsp.settings.project.ProjectSettings
 
 internal object NativeServerSupport {
     fun isolatedFixture(name: String): CodeInsightTestFixture {
         val factory = IdeaTestFixtureFactory.getFixtureFactory()
-        // A fresh descriptor prevents reuse of the light project and its stopped LSP4IJ wrappers.
+        // A fresh descriptor keeps the project's editors, clients and settings isolated.
         return factory.createCodeInsightFixture(
             factory.createLightFixtureBuilder(LightProjectDescriptor(), name).getFixture(), TempDirTestFixtureImpl())
     }
@@ -40,36 +48,38 @@ internal object NativeServerSupport {
         enable(project)
     }
 
-    fun enable(project: Project?) {
-        // Light fixtures share LSP4IJ state. An earlier editor-only test may have
-        // disabled this definition when no native executable was configured.
-        val definition =
-            LanguageServersRegistry.getInstance().getServerDefinition("slanglsp.SlangLanguageServer")
-                ?: throw AssertionError("Slang language server definition is not registered")
-        definition.setEnabled(true, project)
+    fun enable(project: Project) {
+        TrustedProjects.setProjectTrusted(project, true)
     }
 
-    fun disable(project: Project?) {
-        val definition =
-            LanguageServersRegistry.getInstance().getServerDefinition("slanglsp.SlangLanguageServer")
-                ?: throw AssertionError("Slang language server definition is not registered")
-        definition.setEnabled(false, project)
+    fun disable(project: Project) {
+        TrustedProjects.setProjectTrusted(project, false)
+        stop(project)
     }
 
-    /** Wait off the EDT for LSP4IJ to finish stopping the server before the fixture is reused. */
     fun stop(project: Project) {
-        val manager = LanguageServerManager.getInstance(project)
-        manager.stop(BatchConnection.SERVER_ID, LanguageServerManager.StopOptions().setWillDisable(true))
-        val waitingSince = TimeSource.Monotonic.markNow()
-        while (true) {
-            val status = manager.getServerStatus(BatchConnection.SERVER_ID)
-            if (status == ServerStatus.none || status == ServerStatus.stopped) {
-                return
-            }
-            if (waitingSince.elapsedNow() >= 30.seconds) {
-                throw AssertionError("Slang server did not stop in ${project.name} (status: $status)")
-            }
-            Thread.sleep(25)
+        runInEdtAndWait {
+            project.service<NativeVerification>().reset()
+            LspClientManager.getInstance(project).stopClients<SlangLspProvider>()
         }
+    }
+
+    fun <T : Any> awaitResult(request: () -> T?): T? {
+        val started = TimeSource.Monotonic.markNow()
+        do {
+            request()?.let { return it }
+            Thread.sleep(50)
+        } while (started.elapsedNow() < 10.seconds)
+
+        return null
+    }
+
+    fun awaitLiveSymbols(file: PsiFile) {
+        checkNotNull(awaitResult {
+            runReadActionBlocking {
+                val document = checkNotNull(PsiDocumentManager.getInstance(file.project).getDocument(file))
+                DocumentSymbolRequests.get(file, document, document.modificationStamp, batch = false)
+            }.get(11, TimeUnit.SECONDS)?.takeIf { it.isNotEmpty() }
+        }) { "slangd did not return live symbols for ${file.name}" }
     }
 }

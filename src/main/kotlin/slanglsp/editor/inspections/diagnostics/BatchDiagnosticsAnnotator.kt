@@ -28,7 +28,7 @@ import slanglsp.SlangBundle
 import slanglsp.analysis.AnalysisTiming
 import slanglsp.settings.project.ProjectSettings
 
-/** Batch-only: editor diagnostics continue to be supplied by LSP4IJ. */
+/** Batch-only: editor diagnostics continue to be supplied by the active LSP client. */
 // Timing scopes report elapsed time when closed.
 class BatchDiagnosticsAnnotator :
     ExternalAnnotator<BatchDiagnosticsAnnotator.Input, BatchDiagnosticsAnnotator.Result>() {

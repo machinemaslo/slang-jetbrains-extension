@@ -15,7 +15,7 @@ import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
 import com.intellij.testFramework.fixtures.impl.TempDirTestFixtureImpl
 import com.intellij.testFramework.runInEdtAndWait
 import com.intellij.util.indexing.FileBasedIndex
-import com.redhat.devtools.lsp4ij.LanguageServersRegistry
+import slanglsp.editor.NativeServerSupport
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.BeforeEach
@@ -42,9 +42,7 @@ internal class AngleBracketsTest {
         runInEdtAndWait {
             fixture!!.setUp()
             ModuleRootModificationUtil.addContentRoot(fixture!!.module, fixture!!.tempDirPath)
-            val definition = LanguageServersRegistry.getInstance().getServerDefinition("slanglsp.SlangLanguageServer")
-            Assertions.assertNotNull(definition)
-            definition!!.setEnabled(false, fixture!!.project)
+            NativeServerSupport.disable(fixture!!.project)
             val settings = CodeInsightSettings.getInstance()
             oldPair = settings.AUTOINSERT_PAIR_BRACKET
             oldTab = settings.TAB_EXITS_BRACKETS_AND_QUOTES

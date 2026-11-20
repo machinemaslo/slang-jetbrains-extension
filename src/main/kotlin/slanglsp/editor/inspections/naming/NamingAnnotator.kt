@@ -20,22 +20,19 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.util.PsiModificationTracker
-import com.redhat.devtools.lsp4ij.LSPIJUtils
-import com.redhat.devtools.lsp4ij.LanguageServerManager
-import com.redhat.devtools.lsp4ij.ServerStatus
 import kotlin.math.min
 import org.eclipse.lsp4j.DocumentSymbol
 import org.eclipse.lsp4j.SymbolKind
 import slanglsp.SlangBundle
 import slanglsp.analysis.AnalysisDeadline
 import slanglsp.analysis.AnalysisTiming
-import slanglsp.analysis.BatchAnalysisService
 import slanglsp.analysis.DocumentSymbolRequests
 import slanglsp.editor.inspections.unused.UnusedDeclarations
 import slanglsp.editor.inspections.unused.UnusedSymbolsAnnotator
 import slanglsp.editor.rename.RenamePlan
 import slanglsp.editor.rename.VerifiedRenameHandler
 import slanglsp.server.BuiltinFiles.BuiltinFile
+import slanglsp.server.protocol.protocolOffset
 import slanglsp.settings.codestyle.NamingRule
 import slanglsp.settings.codestyle.SlangCodeStyleSettings
 
@@ -78,7 +75,7 @@ class NamingAnnotator : ExternalAnnotator<NamingAnnotator.Input, NamingAnnotator
             isDumb(file.project)) {
             return null
         }
-        val document = LSPIJUtils.getDocument(file) ?: return null
+        val document = PsiDocumentManager.getInstance(file.project).getDocument(file) ?: return null
         val settings = CodeStyle.getSettings(file).getCustomSettings(SlangCodeStyleSettings::class.java)
         return Input(
             UnusedSymbolsAnnotator.Input(
@@ -102,47 +99,37 @@ class NamingAnnotator : ExternalAnnotator<NamingAnnotator.Input, NamingAnnotator
         val source = input.source
         try {
             AnalysisDeadline.open().use {
-                BatchAnalysisService.enter(input.batchOnly).use {
-                    val future = DocumentSymbolRequests.get(source.file, source.document, source.stamp, input.batchOnly)
-                    val symbols = future?.let { AnalysisDeadline.await(it) }
-                    if (input.batchOnly) {
-                        Analysis.requireServer(source.file)
-                    }
-                    if (symbols == null) {
-                        check(!input.batchOnly) { SlangBundle.message("analysis.server.unavailable") }
-                        return null
-                    }
-                    val candidates = runReadActionBlocking {
-                        if (source.document.modificationStamp != source.stamp) {
-                            return@runReadActionBlocking null
-                        }
-                        val collected: MutableMap<Int?, Candidate?> = LinkedHashMap()
-                        for (symbol in symbols) {
-                            Analysis.collect(source, symbol?.documentSymbol, null, collected)
-                        }
-                        collected.values.filterNotNull()
-                    }
-                    if (candidates == null) {
-                        return null
-                    }
-                    val unusedAnnotator = UnusedSymbolsAnnotator()
-                    val unusedInput =
-                        if (input.batchOnly) null
-                        else
-                            runReadActionBlocking {
-                                unusedAnnotator.collectForEditor(source.file)
-                            }
-                    val unusedMessages = mutableMapOf<Int, String>()
-                    if (unusedInput != null &&
-                        unusedInput.stamp == source.stamp &&
-                        unusedInput.projectStamp == source.projectStamp) {
-                        val unused = unusedAnnotator.doAnnotate(unusedInput)
-                        unused?.unused?.forEach { candidate ->
-                            unusedMessages[candidate.range.startOffset] = candidate.message()
-                        }
-                    }
-                    return Result(input, candidates, unusedMessages, null)
+                val future = DocumentSymbolRequests.get(source.file, source.document, source.stamp, input.batchOnly)
+                val symbols = AnalysisDeadline.await(future)
+                if (symbols == null) {
+                    check(!input.batchOnly) { SlangBundle.message("analysis.server.unavailable") }
+                    return null
                 }
+                val candidates = runReadActionBlocking {
+                    if (source.document.modificationStamp != source.stamp) {
+                        return@runReadActionBlocking null
+                    }
+                    val collected: MutableMap<Int?, Candidate?> = LinkedHashMap()
+                    for (symbol in symbols) {
+                        Analysis.collect(source, symbol, null, collected)
+                    }
+                    collected.values.filterNotNull()
+                } ?: return null
+
+                val unusedAnnotator = UnusedSymbolsAnnotator()
+                val unusedInput = if (input.batchOnly) null else {
+                    runReadActionBlocking { unusedAnnotator.collectForEditor(source.file) }
+                }
+                val unusedMessages = mutableMapOf<Int, String>()
+                if (unusedInput != null &&
+                    unusedInput.stamp == source.stamp &&
+                    unusedInput.projectStamp == source.projectStamp) {
+                    val unused = unusedAnnotator.doAnnotate(unusedInput)
+                    unused?.unused?.forEach { candidate ->
+                        unusedMessages[candidate.range.startOffset] = candidate.message()
+                    }
+                }
+                return Result(input, candidates, unusedMessages, null)
             }
         } catch (canceled: ProcessCanceledException) {
             throw canceled
@@ -213,14 +200,6 @@ class NamingAnnotator : ExternalAnnotator<NamingAnnotator.Input, NamingAnnotator
                 !InspectionProfileManager.getInstance(file.project).currentProfile.isToolEnabled(key, file)
         }
 
-        fun requireServer(file: PsiFile) {
-            check(
-                LanguageServerManager.getInstance(file.project).getServerStatus("slanglsp.SlangLanguageServer") ==
-                    ServerStatus.started) {
-                    SlangBundle.message("analysis.server.unavailable")
-                }
-        }
-
         fun collect(
             input: UnusedSymbolsAnnotator.Input,
             symbol: DocumentSymbol?,
@@ -230,7 +209,8 @@ class NamingAnnotator : ExternalAnnotator<NamingAnnotator.Input, NamingAnnotator
             if (symbol?.selectionRange == null || symbol.range == null) {
                 return
             }
-            val start = LSPIJUtils.toOffset(symbol.selectionRange.start, input.document)
+            val position = symbol.selectionRange.start
+            val start = input.document.protocolOffset(position)
             val end = start + symbol.name.length
             if (start < 0 || end > input.text.length || (input.text.substring(start, end) != symbol.name)) {
                 return
@@ -246,7 +226,8 @@ class NamingAnnotator : ExternalAnnotator<NamingAnnotator.Input, NamingAnnotator
                 result.putIfAbsent(start, Candidate(symbol.name, category, TextRange(start, end)))
             }
             if (symbol.kind == SymbolKind.Function || symbol.kind == SymbolKind.Method) {
-                val bodyEnd = min(input.text.length, LSPIJUtils.toOffset(symbol.range.end, input.document))
+                val endPosition = symbol.range.end
+                val bodyEnd = min(input.text.length, input.document.protocolOffset(endPosition))
                 for ((name, _, range) in UnusedDeclarations.locals(input.text, end, bodyEnd)) {
                     result[range.startOffset] =
                         Candidate(name, localCategory(input.text, end, range.startOffset), range)
@@ -258,7 +239,7 @@ class NamingAnnotator : ExternalAnnotator<NamingAnnotator.Input, NamingAnnotator
                 NamingParameters.collect(
                     input.text,
                     end,
-                    min(input.text.length, LSPIJUtils.toOffset(symbol.range.end, input.document)),
+                    min(input.text.length, input.document.protocolOffset(symbol.range.end)),
                     result)
             }
             if (symbol.children != null) {

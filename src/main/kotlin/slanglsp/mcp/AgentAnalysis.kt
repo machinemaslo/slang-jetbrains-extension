@@ -121,12 +121,11 @@ object AgentAnalysis {
 
         val output = StringBuilder()
         AnalysisDeadline.open().use {
-            val definitions = UsageSearch.definitions(source.file, source.document, source.offset)
+            val definitions = UsageSearch.definitions(source.file, source.document, source.offset, verify = true)
             if (definitions.isEmpty()) {
                 output.append("No Slang definition resolved at this position.\n")
             }
-            for (definition in definitions.asSequence().distinct().take(6)) {
-                val location = definition.location()
+            for (location in definitions.asSequence().distinct().take(6)) {
                 val start = location.range.start
                 output
                     .append("Definition: ")

@@ -3,24 +3,22 @@ package slanglsp.server
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationsManager
+import com.intellij.ide.trustedProjects.TrustedProjects
 import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.ActionUiKind
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.wm.IdeFrame
 import com.intellij.openapi.wm.StatusBar
-import com.intellij.testFramework.LightProjectDescriptor
+import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.testFramework.PlatformTestUtil
-import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
 import com.intellij.testFramework.runInEdtAndWait
 import com.intellij.ui.BalloonLayout
-import com.redhat.devtools.lsp4ij.LanguageServerManager
-import com.redhat.devtools.lsp4ij.LanguageServersRegistry
-import com.redhat.devtools.lsp4ij.ServerStatus
 import java.awt.Rectangle
 import java.io.IOException
 import java.nio.file.Path
@@ -34,7 +32,9 @@ import org.junit.jupiter.params.provider.EnumSource
 import slanglsp.SlangBundle.message
 import slanglsp.TestDependencies
 import slanglsp.discovery.ExecutableLocator.slangdName
-import slanglsp.server.ServerConnection.Companion.findExecutable
+import slanglsp.editor.NativeServerSupport
+import slanglsp.server.ServerConnection.findExecutable
+import slanglsp.server.nativeclient.runningSlangClient
 import slanglsp.settings.project.ProjectSettings
 
 internal class ServerRecoveryTest {
@@ -48,17 +48,10 @@ internal class ServerRecoveryTest {
     @EnumSource(Trigger::class)
     @Throws(Exception::class)
     fun startsAfterMissingExecutableWithoutRestartingTheIde(trigger: Trigger, @TempDir temporary: Path) {
-        val fixture =
-            IdeaTestFixtureFactory.getFixtureFactory()
-                .createLightFixtureBuilder(LightProjectDescriptor(), "ServerRecovery")
-                .getFixture()
+        val fixture = NativeServerSupport.isolatedFixture("ServerRecovery")
         runInEdtAndWait { fixture.setUp() }
         try {
             val project = fixture.project
-            val definition =
-                checkNotNull(LanguageServersRegistry.getInstance().getServerDefinition(BatchConnection.SERVER_ID)) {
-                    "Slang language server must be registered"
-                }
             val settings = ProjectSettings.getInstance(project)
             val original = settings.getState()
             val state = settings.getState()
@@ -68,21 +61,23 @@ internal class ServerRecoveryTest {
             try {
                 Assumptions.assumeTrue(
                     findExecutable(project) == null, "Requires no unrelated slangd on PATH or in Vulkan SDK")
-                val manager = LanguageServerManager.getInstance(project)
                 runInEdtAndWait {
-                    manager.start(
-                        BatchConnection.SERVER_ID,
-                        LanguageServerManager.StartOptions().setForceStart(true).setForceRestart(false))
+                    TrustedProjects.setProjectTrusted(project, true)
+                    ModuleRootModificationUtil.addContentRoot(fixture.module, fixture.tempDirPath)
+                    val file = fixture.addFileToProject("recover.slang", "float value = 0;\n")
+                    FileEditorManager.getInstance(project).openFile(file.virtualFile, true)
                 }
                 runInEdtAndWait {
                     PlatformTestUtil.waitWithEventsDispatching(
                         "missing slangd startup stops",
                         {
-                            manager.getServerStatus(BatchConnection.SERVER_ID) == ServerStatus.stopped &&
-                                project.getServiceIfCreated<ServerRecovery?>(ServerRecovery::class.java) != null
+                            project.getServiceIfCreated(ServerRecovery::class.java) != null &&
+                                NotificationsManager.getNotificationsManager()
+                                    .getNotificationsOfType(Notification::class.java, project)
+                                    .any { notice -> notice.actions.any { it.templateText == message("server.retry") } }
                         },
                         15)
-                    Assertions.assertTrue(definition.isEnabled(project), "Missing slangd must not disable the server")
+                    Assertions.assertNull(runningSlangClient(project))
                 }
 
                 state.explicitSlangdLocation = Path.of(TestDependencies.slangd()).parent.toString()
@@ -128,13 +123,11 @@ internal class ServerRecoveryTest {
                     }
                     PlatformTestUtil.waitWithEventsDispatching(
                         "slangd recovers after $trigger",
-                        { manager.getServerStatus(BatchConnection.SERVER_ID) == ServerStatus.started },
+                        { runningSlangClient(project) != null },
                         15)
                 }
             } finally {
-                runInEdtAndWait {
-                    LanguageServerManager.getInstance(project).stop(BatchConnection.SERVER_ID)
-                }
+                NativeServerSupport.stop(project)
                 settings.loadState(original)
             }
         } finally {

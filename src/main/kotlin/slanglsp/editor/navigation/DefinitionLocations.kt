@@ -1,10 +1,9 @@
 package slanglsp.editor.navigation
 
 import com.intellij.openapi.application.runReadActionBlocking
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
-import com.redhat.devtools.lsp4ij.LSPIJUtils
-import com.redhat.devtools.lsp4ij.usages.LocationData
 import java.net.URI
 import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.Position
@@ -15,17 +14,22 @@ import slanglsp.server.protocol.DocumentUris
 
 /** Some slangd versions report import-dependent columns for the same declaration. */
 internal object DefinitionLocations {
-    fun normalize(source: PsiFile, offset: Int, name: String?, locations: List<LocationData>): List<LocationData> {
+    fun normalize(
+        source: PsiFile,
+        offset: Int,
+        name: String?,
+        locations: List<Location>,
+        verify: Boolean = false,
+    ): List<Location> {
         if (name == null || locations.isEmpty()) {
             return locations
         }
 
-        val result: MutableList<LocationData> = ArrayList()
+        val result = mutableListOf<Location>()
 
-        for (data in locations) {
-            val location = data.location()
+        for (location in locations) {
             val target = runReadActionBlocking {
-                val file = LSPIJUtils.findResourceFor(location.uri)
+                val file = DocumentUris.findLocalFile(location.uri)
                 if (file == null || file is BuiltinFile || file.fileType !== SlangFileType) {
                     return@runReadActionBlocking null
                 }
@@ -44,7 +48,7 @@ internal object DefinitionLocations {
                     // An unresolved local file cannot prove that this is another declaration.
                     return mutableListOf()
                 }
-                result.add(data)
+                result.add(location)
                 continue
             }
 
@@ -54,7 +58,7 @@ internal object DefinitionLocations {
                 // Even a wrong column can land exactly on another overload.
                 range =
                     OverloadMatcher.resolve(
-                        source, offset, target.file, name, target.declarations, data.languageServer())
+                        source, offset, target.file, name, target.declarations, verify)
             } else if (range == null && target.declarations.size == 1) {
                 range = target.declarations.first()
             }
@@ -64,7 +68,7 @@ internal object DefinitionLocations {
                 return mutableListOf()
             }
 
-            result.add(LocationData(Location(target.uri, range), data.languageServer()))
+            result.add(Location(target.uri, range))
         }
 
         return result
@@ -84,7 +88,7 @@ internal object DefinitionLocations {
     }
 
     private fun identifierRanges(file: PsiFile, name: String, reported: Range?): MutableList<Range> {
-        val document = LSPIJUtils.getDocument(file)
+        val document = PsiDocumentManager.getInstance(file.project).getDocument(file)
 
         if (document == null || reported == null || reported.start == null) {
             return mutableListOf()

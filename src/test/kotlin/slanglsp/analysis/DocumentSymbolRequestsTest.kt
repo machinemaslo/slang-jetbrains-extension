@@ -1,9 +1,9 @@
 package slanglsp.analysis
 
 import com.intellij.openapi.editor.impl.DocumentImpl
-import com.redhat.devtools.lsp4ij.features.documentSymbol.DocumentSymbolData
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicInteger
+import org.eclipse.lsp4j.DocumentSymbol
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 
@@ -13,7 +13,7 @@ internal class DocumentSymbolRequestsTest {
         val slot = DocumentSymbolRequests.Slot()
         val document = DocumentImpl("")
         val revision = DocumentSymbolRequests.Revision(document, 1, 2, 3)
-        val wire = CompletableFuture<MutableList<DocumentSymbolData?>?>()
+        val wire = CompletableFuture<List<DocumentSymbol>?>()
         val count = AtomicInteger()
         val first =
             slot.share(revision) {
@@ -21,16 +21,16 @@ internal class DocumentSymbolRequestsTest {
                 wire
             }
         val second = slot.share(revision) { error("Should share the in-flight request") }
-        first!!.cancel(true)
-        Assertions.assertFalse(wire.isCancelled())
-        wire.complete(mutableListOf())
-        Assertions.assertEquals(mutableListOf<Any?>(), second!!.join())
+        first.cancel(true)
+        Assertions.assertFalse(wire.isCancelled)
+        wire.complete(emptyList())
+        Assertions.assertEquals(emptyList<DocumentSymbol>(), second.join())
         Assertions.assertEquals(
-            mutableListOf<Any?>(),
+            emptyList<DocumentSymbol>(),
             slot
                 .share(revision) {
                     error("Should reuse the completed request")
-                }!!
+                }
                 .join())
 
         for (next in
@@ -41,8 +41,8 @@ internal class DocumentSymbolRequestsTest {
             slot
                 .share(next) {
                     count.incrementAndGet()
-                    CompletableFuture.completedFuture(kotlin.collections.mutableListOf())
-                }!!
+                    CompletableFuture.completedFuture(emptyList())
+                }
                 .join()
         }
         Assertions.assertEquals(4, count.get())
@@ -55,21 +55,21 @@ internal class DocumentSymbolRequestsTest {
         Assertions.assertTrue(
             slot
                 .share(revision) {
-                    CompletableFuture.failedFuture(java.lang.IllegalStateException())
-                }!!
+                    CompletableFuture.failedFuture(IllegalStateException())
+                }
                 .isCompletedExceptionally())
         Assertions.assertNull(
             slot
                 .share(revision) {
                     CompletableFuture.completedFuture(null)
-                }!!
+                }
                 .join())
         Assertions.assertEquals(
-            mutableListOf<Any?>(),
+            emptyList<DocumentSymbol>(),
             slot
                 .share(revision) {
-                    CompletableFuture.completedFuture(kotlin.collections.mutableListOf())
-                }!!
+                    CompletableFuture.completedFuture(emptyList())
+                }
                 .join())
     }
 }

@@ -21,7 +21,6 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.usages.*
 import com.intellij.util.ui.JBUI
-import com.redhat.devtools.lsp4ij.features.rename.LSPRenameHandler
 import java.awt.BorderLayout
 import java.awt.event.ActionEvent
 import javax.swing.AbstractAction
@@ -36,7 +35,7 @@ import slanglsp.editor.navigation.isSlangIdentifier
 import slanglsp.language.SlangLanguage
 import slanglsp.server.BuiltinFiles.BuiltinFile
 
-/** Native Rename fallback only when no server advertises textDocument/rename. */
+/** Verified project-local rename. */
 class VerifiedRenameHandler : RenameHandler, TitledHandler {
     override fun isAvailableOnDataContext(context: DataContext): Boolean {
         val project = CommonDataKeys.PROJECT.getData(context)
@@ -50,18 +49,12 @@ class VerifiedRenameHandler : RenameHandler, TitledHandler {
             return false
         }
 
-        // Let LSP4IJ handle prepareRename, workspace edits and future native support.
-        return !LSPRenameHandler().isAvailableOnDataContext(context)
+        return true
     }
 
     override fun invoke(project: Project, editor: Editor?, file: PsiFile?, context: DataContext) {
         PsiDocumentManager.getInstance(project).commitAllDocuments()
         val element: PsiElement = RenameUi.target(file, editor) ?: return
-
-        if (LSPRenameHandler().isAvailableOnDataContext(context)) {
-            LSPRenameHandler().invoke(project, editor, file, context)
-            return
-        }
 
         val name = element.text
         val dialog = RenameDialog(project, name)

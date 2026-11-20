@@ -6,11 +6,10 @@ import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.psi.PsiElement
 import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.SmartPsiElementPointer
-import com.redhat.devtools.lsp4ij.features.LSPPsiElement
 
 /** Delegate declaration-to-usage navigation to the IDE's native Show Usages workflow. */
 internal class UsageNavigationTarget(element: PsiElement, private val editor: Editor?) :
-    LSPPsiElement(element.containingFile, element.textRange) {
+    NavigationPsiElement(element.containingFile, element.textRange) {
     private val declaration: SmartPsiElementPointer<PsiElement?> =
         SmartPointerManager.createPointer<PsiElement?>(element)
 

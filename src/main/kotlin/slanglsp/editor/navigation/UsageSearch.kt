@@ -1,6 +1,7 @@
 package slanglsp.editor.navigation
 
 import com.intellij.openapi.application.runReadActionBlocking
+import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.progress.ProcessCanceledException
@@ -8,33 +9,27 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NlsSafe
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.*
 import com.intellij.usageView.UsageInfo
 import com.intellij.util.Processor
-import com.redhat.devtools.lsp4ij.LSPIJUtils
-import com.redhat.devtools.lsp4ij.features.navigation.LSPDefinitionParams
-import com.redhat.devtools.lsp4ij.features.navigation.LSPDefinitionSupport
-import com.redhat.devtools.lsp4ij.features.references.LSPReferenceParams
-import com.redhat.devtools.lsp4ij.features.references.LSPReferenceSupport
-import com.redhat.devtools.lsp4ij.usages.LocationData
 import java.util.concurrent.CompletableFuture
 import kotlin.math.max
 import kotlin.math.min
-import org.eclipse.lsp4j.ReferenceContext
-import org.eclipse.lsp4j.TextDocumentIdentifier
+import org.eclipse.lsp4j.Location
 import slanglsp.SlangBundle
 import slanglsp.analysis.AnalysisDeadline
 import slanglsp.analysis.AnalysisTiming
-import slanglsp.analysis.BatchAnalysisService
 import slanglsp.language.SlangFileType
 import slanglsp.server.BuiltinFiles.BuiltinFile
-import slanglsp.server.client.ClientFeatureAccess
+import slanglsp.server.nativeclient.NativeNavigationRequests
+import slanglsp.server.nativeclient.runningSlangClient
 import slanglsp.server.protocol.DocumentUris.fileUri
 
-/** Indexed candidates verified with bounded requests. Legacy callers may hold an outer read lock. */
+/** Indexed candidates verified with bounded requests. Callers may hold an outer read lock. */
 internal object UsageSearch {
     fun process(element: PsiElement?, scope: SearchScope, consumer: Processor<in UsageInfo?>): Boolean {
         val source = snapshot(element) ?: return true
@@ -44,27 +39,25 @@ internal object UsageSearch {
         val virtualFile = source.file.virtualFile
 
         if (virtualFile is BuiltinFile) {
-            val position = runReadActionBlocking { LSPIJUtils.toPosition(source.offset, source.document) }
-            declarations.add(SymbolLocation(virtualFile.uri(), position.line, position.character))
+            declarations.add(runReadActionBlocking { SymbolLocation.at(virtualFile.uri(), source.document, source.offset) })
         } else {
             val references = references(source)
             source.checkUnchanged()
 
-            // LSP4IJ returns null only when no server supports references. Empty is a valid result.
+            // A missing response falls back to indexed candidates. Empty is a valid result.
             if (references != null) {
                 return processReferences(project, references, scope, consumer)
             }
 
-            for (location in definitions(source.file, source.document, source.offset)) {
-                declarations.add(SymbolLocation.from(location.location()))
+            for (location in definitions(source.file, source.document, source.offset, verify = true)) {
+                declarations.add(SymbolLocation.from(location))
             }
         }
 
         // slangd returns null for some declaration-site definition requests (including globals).
         // In that case use the source location; candidates still require semantic confirmation.
         if (declarations.isEmpty()) {
-            val position = runReadActionBlocking { LSPIJUtils.toPosition(source.offset, source.document) }
-            declarations.add(SymbolLocation(fileUri(virtualFile), position.line, position.character))
+            declarations.add(runReadActionBlocking { SymbolLocation.at(fileUri(virtualFile), source.document, source.offset) })
         }
 
         source.checkUnchanged()
@@ -78,25 +71,25 @@ internal object UsageSearch {
         return isUnused(element, null)
     }
 
-    fun isUnused(element: PsiElement?, timing: AnalysisTiming?): Boolean {
+    fun isUnused(element: PsiElement?, timing: AnalysisTiming?, batch: Boolean = false): Boolean {
         val source = snapshot(element) ?: return false
+        val project = source.file.project
+        if (!batch && runningSlangClient(project) == null) {
+            return false
+        }
 
-        val started = if (timing == null) 0 else System.nanoTime()
-        var references: MutableList<LocationData>?
+        val started = if (timing != null) System.nanoTime() else 0
         try {
-            references = references(source)
+            // The editor client may not know about unopened files. Verify indexed candidates instead.
+            return noVerifiedUsage(source)
         } finally {
             timing?.referenceCompleted(System.nanoTime() - started)
         }
-        source.checkUnchanged()
+    }
 
-        if (references != null) {
-            return references.isEmpty()
-        }
-
+    private fun noVerifiedUsage(source: Source): Boolean {
         val declaration = runReadActionBlocking {
-            val position = LSPIJUtils.toPosition(source.offset, source.document)
-            SymbolLocation(fileUri(source.file.virtualFile), position.line, position.character)
+            SymbolLocation.at(fileUri(source.file.virtualFile), source.document, source.offset)
         }
         val scope = GlobalSearchScope.projectScope(source.file.project)
 
@@ -126,11 +119,12 @@ internal object UsageSearch {
                     candidate.file,
                     candidate.document,
                     offsets,
+                    verify = true,
                     check = {
                         source.checkUnchanged()
                         candidate.checkUnchanged()
                     }) { _, targets ->
-                        targets.isNotEmpty() && targets.none { declaration == SymbolLocation.from(it.location()) }
+                        targets.isNotEmpty() && targets.none { declaration == SymbolLocation.from(it) }
                     }
 
             if (!allCandidatesUnrelated) {
@@ -152,17 +146,20 @@ internal object UsageSearch {
                 return@runReadActionBlocking null
             }
             val file = element.containingFile ?: return@runReadActionBlocking null
-            val document = LSPIJUtils.getDocument(file) ?: return@runReadActionBlocking null
+            val virtualFile = file.virtualFile ?: return@runReadActionBlocking null
+            if (!virtualFile.isInLocalFileSystem && virtualFile !is BuiltinFile) {
+                return@runReadActionBlocking null
+            }
+            val document = PsiDocumentManager.getInstance(file.project).getDocument(file) ?: return@runReadActionBlocking null
             val leaf = file.findElementAt(element.textOffset) ?: return@runReadActionBlocking null
             val name = leaf.text ?: return@runReadActionBlocking null
             Source(file, document, document.modificationStamp, leaf.textOffset, name)
         }
     }
 
-    // LSP4IJ's documented PSI conversion requires its client features.
     private fun processReferences(
         project: Project,
-        references: MutableList<LocationData>,
+        references: List<Location>,
         scope: SearchScope,
         consumer: Processor<in UsageInfo?>
     ): Boolean {
@@ -171,9 +168,9 @@ internal object UsageSearch {
         for (reference in references) {
             ProgressManager.checkCanceled()
 
-            val target = ClientFeatureAccess.toPsiElement(reference, project)
+            val target = NavigationTargets.toPsiElement(reference, project)
 
-            if (target != null && seen.add(reference.location().toString())) {
+            if (target != null && seen.add(reference.toString())) {
                 val usage = runReadActionBlocking {
                     if (PsiSearchScopeUtil.isInScope(scope, target)) {
                         UsageInfo(target)
@@ -230,8 +227,7 @@ internal object UsageSearch {
             }
             val inScopeOffsets = runReadActionBlocking {
                 offsets.filter { offset ->
-                    val position = LSPIJUtils.toPosition(offset, candidate.document)
-                    val location = SymbolLocation(fileUri(file), position.line, position.character)
+                    val location = SymbolLocation.at(fileUri(file), candidate.document, offset)
                     if (location in declarations) {
                         return@filter false
                     }
@@ -245,11 +241,12 @@ internal object UsageSearch {
                     candidate.file,
                     candidate.document,
                     inScopeOffsets,
+                    verify = true,
                     check = {
                         source.checkUnchanged()
                         candidate.checkUnchanged()
                     }) { offset, targets ->
-                        if (targets.none { SymbolLocation.from(it.location()) in declarations }) {
+                        if (targets.none { SymbolLocation.from(it) in declarations }) {
                             return@processDefinitions true
                         }
                         val usage = runReadActionBlocking {
@@ -305,88 +302,33 @@ internal object UsageSearch {
         }
     }
 
-    private fun references(source: Source): MutableList<LocationData>? {
-        if (BatchAnalysisService.isBatch) {
-            val future =
-                source.file.project
-                    .getService(BatchAnalysisService::class.java)
-                    .references(source.file, source.document, source.offset)
-            try {
-                return AnalysisDeadline.await(future)?.mapTo(ArrayList()) { checkNotNull(it) }
-            } finally {
-                if (!future.isDone) {
-                    future.cancel(true)
-                }
-            }
-        }
-        val support = LSPReferenceSupport(source.file)
-        val future =
-            runReadActionBlocking<CompletableFuture<MutableList<LocationData?>?>> {
-                val params =
-                    LSPReferenceParams(
-                        TextDocumentIdentifier(), LSPIJUtils.toPosition(source.offset, source.document), source.offset)
-                params.context = ReferenceContext(false)
-                support.getReferences(params)
-            }
-
+    private fun references(source: Source): List<Location>? {
+        val file = source.file.virtualFile ?: return null
+        val future = source.file.project.service<NativeNavigationRequests>()
+            .references(file, source.document, source.offset)
         try {
-            return AnalysisDeadline.await(future)?.mapTo(ArrayList()) { checkNotNull(it) }
+            return AnalysisDeadline.await(future)
         } finally {
             if (!future.isDone) {
-                support.cancel()
+                future.cancel(true)
             }
         }
     }
 
-    private fun requestDefinition(file: PsiFile, document: Document, offset: Int): DefinitionRequest {
-        if (BatchAnalysisService.isBatch) {
-            val name =
-                runReadActionBlocking<@NlsSafe String?> {
-                    val leaf = file.findElementAt(offset)
-                    if (isSlangIdentifier(leaf)) {
-                        leaf?.text
-                    } else {
-                        null
-                    }
-                }
-            return DefinitionRequest(
-                null,
-                file.project
-                    .getService<BatchAnalysisService?>(BatchAnalysisService::class.java)!!
-                    .definitions(file, document, offset),
-                file,
-                offset,
-                name)
+    private fun requestDefinition(file: PsiFile, document: Document, offset: Int, verify: Boolean): DefinitionRequest {
+        val name = runReadActionBlocking<@NlsSafe String?> {
+            file.findElementAt(offset)?.takeIf(::isSlangIdentifier)?.text
         }
-        val support = LSPDefinitionSupport(file)
 
-        try {
-            val future =
-                runReadActionBlocking<CompletableFuture<MutableList<LocationData?>?>?> {
-                    support.getDefinitions(
-                        LSPDefinitionParams(TextDocumentIdentifier(), LSPIJUtils.toPosition(offset, document), offset))
-                }
-
-            val name =
-                runReadActionBlocking<@NlsSafe String?> {
-                    val leaf = file.findElementAt(offset)
-                    if (isSlangIdentifier(leaf)) {
-                        leaf?.text
-                    } else {
-                        null
-                    }
-                }
-
-            return DefinitionRequest(support, future, file, offset, name)
-        } catch (failure: RuntimeException) {
-            support.cancel()
-            throw failure
+        val future = file.virtualFile?.let {
+            file.project.service<NativeNavigationRequests>().definitions(it, document, offset, verify)
         }
+        return DefinitionRequest(future, file, offset, name, verify)
     }
 
     @JvmStatic
-    fun definitions(file: PsiFile, document: Document, offset: Int): List<LocationData> {
-        requestDefinition(file, document, offset).use { request ->
+    fun definitions(file: PsiFile, document: Document, offset: Int, verify: Boolean = false): List<Location> {
+        requestDefinition(file, document, offset, verify).use { request ->
             return request.await()
         }
     }
@@ -396,8 +338,9 @@ internal object UsageSearch {
         file: PsiFile,
         document: Document,
         offsets: List<Int>,
+        verify: Boolean = false,
         check: () -> Unit,
-        consumer: (offset: Int, targets: List<LocationData>) -> Boolean
+        consumer: (offset: Int, targets: List<Location>) -> Boolean
     ): Boolean {
         var start = 0
         while (start < offsets.size) {
@@ -409,7 +352,7 @@ internal object UsageSearch {
                 for (i in start..<end) {
                     ProgressManager.checkCanceled()
                     runReadActionBlocking(check)
-                    requests.add(requestDefinition(file, document, offsets[i]))
+                    requests.add(requestDefinition(file, document, offsets[i], verify))
                 }
 
                 for (i in requests.indices) {
@@ -448,25 +391,23 @@ internal object UsageSearch {
 
     @JvmRecord
     private data class DefinitionRequest(
-        val support: LSPDefinitionSupport?,
-        val future: CompletableFuture<MutableList<LocationData?>?>?,
+        val future: CompletableFuture<List<Location>?>?,
         val file: PsiFile,
         val offset: Int,
-        val name: String?
+        val name: String?,
+        val verify: Boolean = false,
     ) : AutoCloseable {
         override fun close() {
-            if (!future!!.isDone) {
-                if (support == null) {
-                    future.cancel(true)
-                } else {
-                    support.cancel()
-                }
+            if (future != null && !future.isDone) {
+                future.cancel(true)
             }
         }
 
-        fun await(): List<LocationData> {
-            val result = AnalysisDeadline.await(future) ?: return emptyList()
-            return DefinitionLocations.normalize(file, offset, name, result.map { checkNotNull(it) })
+        fun await(): List<Location> {
+            val pending = future ?: return emptyList()
+            val result = AnalysisDeadline.await(pending) ?: return emptyList()
+
+            return DefinitionLocations.normalize(file, offset, name, result, verify)
         }
     }
 }

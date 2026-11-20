@@ -3,7 +3,6 @@ package slanglsp.editor.navigation
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory
 import com.intellij.testFramework.fixtures.impl.TempDirTestFixtureImpl
 import com.intellij.testFramework.runInEdtAndWait
-import com.redhat.devtools.lsp4ij.usages.LocationData
 import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.Range
@@ -34,12 +33,12 @@ internal class DefinitionLocationsTest {
                 // Exercise URI and column repair together, including on Linux CI.
                 val encodedUri =
                     fileUri(file.virtualFile).toString().replace("grid_traversal.slang", "%67rid_traversal.slang")
-                val location = LocationData(Location(encodedUri, Range(Position(1, 1), Position(1, 2))), null)
+                val location = Location(encodedUri, Range(Position(1, 1), Position(1, 2)))
                 val repaired = normalize(file, 0, "intersect_box", listOf(location))
                 Assertions.assertEquals(1, repaired.size)
-                Assertions.assertEquals(fileUri(file.virtualFile).toString(), repaired.first().location().uri)
-                Assertions.assertEquals(expected, repaired.first().location().range)
-                val missing = LocationData(Location("$encodedUri.missing", expected), null)
+                Assertions.assertEquals(fileUri(file.virtualFile).toString(), repaired.first().uri)
+                Assertions.assertEquals(expected, repaired.first().range)
+                val missing = Location("$encodedUri.missing", expected)
                 Assertions.assertTrue(normalize(file, 0, "intersect_box", listOf(missing)).isEmpty())
 
                 for (column in intArrayOf(1, 2, 12, 200)) {

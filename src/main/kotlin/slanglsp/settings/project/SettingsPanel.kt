@@ -11,14 +11,12 @@ import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
-import com.redhat.devtools.lsp4ij.LanguageServerManager
-import com.redhat.devtools.lsp4ij.ServerStatus
 import java.awt.*
 import javax.swing.*
 import slanglsp.SlangBundle
 import slanglsp.discovery.VcpkgDiscoveryService
-import slanglsp.server.ServerRecovery
-import slanglsp.server.client.ServerClient
+import slanglsp.server.ServerSettings
+import slanglsp.server.nativeclient.SlangLspProvider
 
 internal class SettingsPanel {
     private var config: ProjectSettings? = null
@@ -154,15 +152,10 @@ internal class SettingsPanel {
 
         if (executableChanged) {
             project.service<VcpkgDiscoveryService>().invalidate()
-            val manager = LanguageServerManager.getInstance(project)
-            if (manager.getServerStatus("slanglsp.SlangLanguageServer") == ServerStatus.started) {
-                manager.start("slanglsp.SlangLanguageServer", LanguageServerManager.StartOptions().setForceStart(true))
-            } else {
-                ServerRecovery.retryIfMissing(project)
-            }
+            SlangLspProvider.restart(project)
         }
 
-        ServerClient.notifySettingsChanged(project)
+        ServerSettings.notifySettingsChanged(project)
         DaemonCodeAnalyzer.getInstance(project).settingsChanged()
     }
 

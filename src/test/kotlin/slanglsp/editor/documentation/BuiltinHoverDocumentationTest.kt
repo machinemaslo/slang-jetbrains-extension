@@ -1,10 +1,10 @@
-package slanglsp.server.client
+package slanglsp.editor.documentation
 
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
-import slanglsp.server.client.HoverFeature.Companion.documentationAtLine
+import slanglsp.editor.documentation.BuiltinHoverDocumentation.documentationAtLine
 
-internal class HoverFeatureTest {
+internal class BuiltinHoverDocumentationTest {
     @Test
     fun extractsBlockDocumentationAcrossGenericAndIntrinsicModifiers() {
         val source =

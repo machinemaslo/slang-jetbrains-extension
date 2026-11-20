@@ -3,8 +3,6 @@ package slanglsp.editor.rename
 import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.editor.Document
 import com.intellij.psi.PsiFile
-import com.redhat.devtools.lsp4ij.LSPIJUtils
-import com.redhat.devtools.lsp4ij.features.documentSymbol.DocumentSymbolData
 import kotlin.math.min
 import org.eclipse.lsp4j.DocumentSymbol
 import org.eclipse.lsp4j.SymbolKind
@@ -13,19 +11,26 @@ import slanglsp.analysis.DocumentSymbolRequests
 import slanglsp.editor.inspections.naming.NamingAnnotator
 import slanglsp.editor.inspections.naming.NamingParameters
 import slanglsp.editor.inspections.unused.UnusedDeclarations
+import slanglsp.server.protocol.protocolOffset
 
 /** Declaration-site definition requests are optional in slangd; document symbols are independent evidence. */
 internal object RenameDeclarations {
     fun contains(file: PsiFile, document: Document, text: String, name: String, offset: Int, check: Runnable): Boolean {
         val future = runReadActionBlocking {
             check.run()
-            DocumentSymbolRequests.get(file, document, document.modificationStamp, false)
+            DocumentSymbolRequests.get(file, document, document.modificationStamp, batch = true)
         }
-        val symbols = AnalysisDeadline.await<MutableList<DocumentSymbolData?>?>(future)
+        val symbols = try {
+            AnalysisDeadline.await(future)
+        } finally {
+            if (!future.isDone) {
+                future.cancel(true)
+            }
+        }
         return runReadActionBlocking {
             check.run()
             symbols.orEmpty().any {
-                contains(it?.documentSymbol, document, text, name, offset)
+                contains(it, document, text, name, offset)
             }
         }
     }
@@ -40,7 +45,8 @@ internal object RenameDeclarations {
         if (symbol?.selectionRange == null || symbol.range == null) {
             return false
         }
-        val start = LSPIJUtils.toOffset(symbol.selectionRange.start, document)
+        val position = symbol.selectionRange.start
+        val start = document.protocolOffset(position)
         val end = start + symbol.name.length
         if (start < 0 || end > text.length || (text.substring(start, end) != symbol.name)) {
             return false
@@ -48,7 +54,8 @@ internal object RenameDeclarations {
         if (start == offset && name == symbol.name) {
             return true
         }
-        val bodyEnd = min(text.length, LSPIJUtils.toOffset(symbol.range.end, document))
+        val endPosition = symbol.range.end
+        val bodyEnd = min(text.length, document.protocolOffset(endPosition))
         if (bodyEnd > end) {
             if (symbol.kind == SymbolKind.Function || symbol.kind == SymbolKind.Method) {
                 if (UnusedDeclarations.locals(text, end, bodyEnd).any { local ->
