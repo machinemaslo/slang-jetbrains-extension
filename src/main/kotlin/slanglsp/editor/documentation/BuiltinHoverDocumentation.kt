@@ -4,6 +4,9 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.psi.TokenType
+import java.nio.file.Files
+import java.nio.file.InvalidPathException
+import java.nio.file.Path
 import java.util.regex.Matcher
 import slanglsp.SlangBundle
 import slanglsp.language.SlangLexer
@@ -12,14 +15,14 @@ import slanglsp.server.BuiltinFiles
 /** Recovers standard-library comments when slangd only supplies a signature. */
 internal object BuiltinHoverDocumentation {
     fun enrich(project: Project, markdown: String): String {
-        val location = BUILTIN_LOCATION.find(markdown) ?: return markdown
+        val location = DEFINITION_LOCATION.find(markdown) ?: return markdown
         val prefix = markdown.substring(0, location.range.first)
         if (!Comments.lacksExplanation(prefix)) {
             return markdown
         }
 
-        val (module, lineNumber) = location.destructured
-        val line = lineNumber.toIntOrNull() ?: return markdown
+        val module = builtinModuleAtLocation(location.groupValues[1]) ?: return markdown
+        val line = location.groupValues[2].toIntOrNull() ?: return markdown
         val builtin = project.service<BuiltinFiles>().resolve("slang-synth://$module/$module.builtin")
             ?: return markdown
         val documentation = documentationAtLine(builtin.content, line)
@@ -30,7 +33,26 @@ internal object BuiltinHoverDocumentation {
         return "${prefix.trimEnd()}\n\n$documentation\n\n${markdown.substring(location.range.first)}"
     }
 
-    private val BUILTIN_LOCATION = Regex("""(?m)^Defined in (core|glsl)\(([1-9][0-9]*)\)\s*$""")
+    private val DEFINITION_LOCATION = Regex("""(?m)^Defined in (.+)\(([1-9][0-9]*)\)[ \t\r]*$""")
+
+    internal fun builtinModuleAtLocation(location: String): String? {
+        if (location == "core" || location == "glsl") {
+            return location
+        }
+
+        // Slang can expand a synthetic module name into an absolute path that doesn't exist.
+        val path = try {
+            Path.of(location)
+        } catch (_: InvalidPathException) {
+            return null
+        }
+        // Hover text can include source comments. Do not probe UNC shares based on it.
+        if (!path.isAbsolute || path.root?.toString()?.startsWith("\\\\") == true) {
+            return null
+        }
+        val name = path.fileName?.toString()
+        return name?.takeIf { (it == "core" || it == "glsl") && Files.notExists(path) }
+    }
 
     fun documentationAtLine(source: CharSequence, line: Int): String {
         return Comments.atLine(source, line)

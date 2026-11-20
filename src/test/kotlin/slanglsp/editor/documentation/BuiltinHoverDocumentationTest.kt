@@ -1,10 +1,30 @@
 package slanglsp.editor.documentation
 
+import java.nio.file.Files
+import java.nio.file.Path
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
+import slanglsp.editor.documentation.BuiltinHoverDocumentation.builtinModuleAtLocation
 import slanglsp.editor.documentation.BuiltinHoverDocumentation.documentationAtLine
 
 internal class BuiltinHoverDocumentationTest {
+    @Test
+    fun recognizesMissingAbsoluteBuiltinPathsButNotRealFiles(@TempDir directory: Path) {
+        val parent = Files.createDirectory(directory.resolve("slang project (test)"))
+        val core = parent.resolve("core")
+        val glsl = parent.resolve("glsl")
+
+        Assertions.assertEquals("core", builtinModuleAtLocation("core"))
+        Assertions.assertEquals("core", builtinModuleAtLocation(core.toString()))
+        Assertions.assertEquals("glsl", builtinModuleAtLocation(glsl.toString()))
+        Assertions.assertNull(builtinModuleAtLocation(Path.of("src", "core").toString()))
+        Assertions.assertNull(builtinModuleAtLocation(parent.resolve("core.slang").toString()))
+
+        Files.createFile(core)
+        Assertions.assertNull(builtinModuleAtLocation(core.toString()))
+    }
+
     @Test
     fun extractsBlockDocumentationAcrossGenericAndIntrinsicModifiers() {
         val source =
