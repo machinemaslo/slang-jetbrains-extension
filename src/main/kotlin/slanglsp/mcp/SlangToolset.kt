@@ -4,24 +4,25 @@ import com.intellij.mcpserver.McpExpectedError
 import com.intellij.mcpserver.McpToolset
 import com.intellij.mcpserver.annotations.McpDescription
 import com.intellij.mcpserver.annotations.McpTool
-import com.intellij.mcpserver.annotations.McpToolHintValue.FALSE
-import com.intellij.mcpserver.annotations.McpToolHintValue.TRUE
-import com.intellij.mcpserver.annotations.McpToolHints
 import com.intellij.mcpserver.project
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.runInterruptible
-import slanglsp.editor.AgentAnalysis
 import java.io.IOException
 import java.util.concurrent.CompletionException
 import java.util.concurrent.TimeoutException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.runInterruptible
 
 /** Loaded only when JetBrains' MCP Server plugin is available. */
 class SlangToolset : McpToolset {
+    // These tools are stable; the platform default marks them experimental.
+    //noinspection SameReturnValue
     override fun isExperimental(): Boolean = false
 
+    // Opt into the platform's always-included tool filter.
+    //noinspection SameReturnValue
+    override fun alwaysIncluded(): Boolean = true
+
     @McpTool(name = "slang_lookup")
-    @McpToolHints(readOnlyHint = TRUE)
     @McpDescription(
         "Look up Slang shader syntax, language features, intrinsics, and examples in official documentation. " +
             "Returns up to three short cited results, following relevant links from Slang's LLM index. " +
@@ -33,7 +34,6 @@ class SlangToolset : McpToolset {
     ): String = perform { OfficialSlangDocs.lookup(query, sdkVersion) }
 
     @McpTool(name = "slang_check_files")
-    @McpToolHints(readOnlyHint = TRUE, openWorldHint = FALSE)
     @McpDescription(
         "Check edited Slang shaders with the project's configured Slang compiler, include paths, and macros. " +
             "Checks current editor contents without saving or generating shader binaries. " +
@@ -47,7 +47,6 @@ class SlangToolset : McpToolset {
     }
 
     @McpTool(name = "slang_symbol")
-    @McpToolHints(readOnlyHint = TRUE, openWorldHint = FALSE)
     @McpDescription(
         "Resolve a Slang symbol through the language server. Use for imports and overloaded names instead of guessing from text matches. " +
             "Returns definition locations and short declaration excerpts, plus project references when requested.",

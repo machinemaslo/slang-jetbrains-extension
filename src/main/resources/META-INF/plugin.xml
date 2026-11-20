@@ -6,16 +6,6 @@
 
     <vendor email="machinemaslo@proton.me">machinemaslo, 16-Bit-Dog</vendor>
 
-    <description>
-        <![CDATA[
-        <p><b>I didn't find any working slang lsps here</b>, so I just took one and added a lot of features that make it work</p>
-        <p>So this plugin gives you everything, code completion, syntax highlight, docs in popup, go-to-definition, find usages, rename, clang-format support, vcpkg-installed slang support etc</p>
-        <p>This is a refined fork of <a href="https://plugins.jetbrains.com/plugin/26239-slang-unofficial-">Slang [Unofficial]</a>, props to 16-Bit-Dog</p>
-        <br>
-        <p><b>Vcpkg's Slang package auto-discovery</b> is supported for CMake, MSBuild, XMake, Meson and default paths</p>
-        ]]>
-    </description>
-
     <change-notes>
         <![CDATA[
          <p><b>0.0.24</b></p>
@@ -26,6 +16,7 @@
             <li>Batch compiler diagnostics for unsaved edits and an unused-symbol inspection</li>
             <li>More JB's formatter options, inherited <code>.clang-format</code> settings, export of supported settings</li>
             <li>MCP tools for Slang documentation, declaration and reference lookup, and compiler checks</li>
+            <li>Minimum IntelliJ IDEA version: 2026.2.5</li>
         </ul>
         <p><b>0.0.23</b></p>
         <ul>
@@ -61,7 +52,7 @@
         </ul>
         <p><b>Slang Refined — supported features</b></p>
         <ul>
-            <li>Language support for <code>.slang</code> and <code>.slangh</code> files through Slang's language server and LSP4IJ</li>
+            <li>Language support for <code>.slang</code> and <code>.slangh</code> files through Slang's language server and JetBrains' bundled LSP client</li>
             <li>Syntax highlighting and semantic colors</li>
             <li>Code completion</li>
             <li>Language-server diagnostics, document symbols in the Structure view, and configurable inlay hints</li>
@@ -78,89 +69,112 @@
             <li>Spellchecking for comments and strings using IDE dictionaries and bundled Slang vocabulary</li>
             <li>Development sandbox with sample shaders refreshed automatically on launch</li>
             <li>Pinned native test dependencies through vcpkg and automated Windows, macOS, and Linux builds and tests</li>
-            <li>Support for JetBrains IDEs starting with build 252.28539.149 (IntelliJ IDEA 2025.2.6.4)</li>
+            <li>Support for JetBrains IDEs starting with build 262.12573.28 (IntelliJ IDEA 2026.2.5)</li>
             <li>Automatic discovery of locally installed vcpkg <code>slangd</code> packages, plus an explicit server directory and PATH-based discovery</li>
             <li>Project settings for additional include/search paths, predefined macros, and searching workspace subdirectories</li>
         </ul>
         <p>The rename fallback covers project Slang files under the current server configuration. It cannot check inactive code, external references, or new-name conflicts. Built-in/external declarations and ambiguous or unverified targets are rejected; changes to project files during search or preview require a new search.</p>
-        <p>Requires JetBrains IDE build 252.28539.149 or newer, LSP4IJ, and a working <code>slangd</code> installation for server-provided features. Native formatting does not require external tools; the optional Clang-Format formatter requires <code>clang-format</code>. Server-provided features depend on the installed Slang version.</p>
+        <p>Requires IntelliJ IDEA 2026.2.5 or a compatible IDE (build 262.12573.28 or newer) with bundled LSP support, and a working <code>slangd</code> installation for server-provided features. Native formatting does not require external tools; the optional Clang-Format formatter requires <code>clang-format</code>. Server-provided features depend on the installed Slang version.</p>
         ]]>
     </change-notes>
     <!-- Product and plugin compatibility requirements. -->
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.lang</depends>
-    <depends>com.redhat.devtools.lsp4ij</depends>
+    <depends>com.intellij.modules.lsp</depends>
     <depends optional="true" config-file="slang-mcp.xml">com.intellij.mcpServer</depends>
+    <content>
+        <module name="slanglsp.mcp.skills" loading="optional"/>
+    </content>
 
     <extensions defaultExtensionNs="com.intellij">
-        <fileType name="Slang" implementationClass="slanglsp.language.SlangFileType" fieldName="INSTANCE" language="Slang" extensions="slang;slangh"/>
-        
-        <externalAnnotator language="Slang" implementationClass="slanglsp.editor.UnusedSymbolsAnnotator"/>
-        <externalAnnotator language="Slang" implementationClass="slanglsp.editor.NamingAnnotator"/>
-        <externalAnnotator language="Slang" implementationClass="slanglsp.editor.BatchDiagnosticsAnnotator"/>
+        <fileType name="Slang"
+                  implementationClass="slanglsp.language.SlangFileType"
+                  fieldName="INSTANCE"
+                  language="Slang"
+                  extensions="slang;slangh"/>
+
+        <externalAnnotator language="Slang"
+                           implementationClass="slanglsp.editor.inspections.unused.UnusedSymbolsAnnotator"/>
+        <externalAnnotator language="Slang"
+                           implementationClass="slanglsp.editor.inspections.naming.NamingAnnotator"/>
+        <externalAnnotator language="Slang"
+                           implementationClass="slanglsp.editor.inspections.diagnostics.BatchDiagnosticsAnnotator"/>
         <localInspection language="Slang" shortName="SlangBatchDiagnostics"
                          bundle="messages.SlangBundle" key="inspection.batch.name"
                          groupBundle="messages.SlangBundle" groupKey="inspection.group.slang"
                          enabledByDefault="true" level="ERROR"
-                         implementationClass="slanglsp.editor.BatchDiagnosticsInspection"/>
+                         implementationClass="slanglsp.editor.inspections.diagnostics.BatchDiagnosticsInspection"/>
         <localInspection language="Slang" shortName="SlangInconsistentNaming"
                          bundle="messages.SlangBundle" key="naming.inspection"
                          groupBundle="messages.SlangBundle" groupKey="inspection.group.slang"
                          enabledByDefault="true" level="WARNING"
-                          implementationClass="slanglsp.editor.InconsistentNamingInspection"/>
+                         implementationClass="slanglsp.editor.inspections.naming.InconsistentNamingInspection"/>
         <localInspection language="Slang" shortName="SlangUnusedSymbols"
                          bundle="messages.SlangBundle" key="inspection.unused.name"
                          groupBundle="messages.SlangBundle" groupKey="inspection.group.slang"
                          enabledByDefault="true" level="WARNING"
-                         implementationClass="slanglsp.editor.UnusedSymbolsInspection"/>
+                         implementationClass="slanglsp.editor.inspections.unused.UnusedSymbolsInspection"/>
+
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
-        <fileBasedIndex implementation="slanglsp.editor.GenericDeclarationsIndex"/>
-        <lang.formatter language="Slang" implementationClass="slanglsp.editor.SlangFormattingModelBuilder"/>
+        <projectViewNodeDecorator implementation="slanglsp.projectview.EntryPointStageDecorator"/>
+        <usageViewElementsListener implementation="slanglsp.editor.navigation.cpp.ReflectedUsageViewListener"/>
+        <fileBasedIndex implementation="slanglsp.editor.typing.GenericDeclarationsIndex"/>
+        <lang.formatter language="Slang" implementationClass="slanglsp.formatting.native.NativeFormattingModelBuilder"/>
+
         <!-- Per-file .clang-format overrides require this experimental platform extension. -->
         <!--suppress UnstableApiUsage -->
-        <codeStyleSettingsModifier implementation="slanglsp.settings.ClangFormatSettingsImporter"/>
-        <spellchecker.support language="Slang" implementationClass="slanglsp.editor.SlangSpellcheckingStrategy"/>
-        <spellchecker.bundledDictionaryProvider implementation="slanglsp.editor.SlangDictionaryProvider"/>
-        <langCodeStyleSettingsProvider implementation="slanglsp.settings.SlangCodeStyleProvider"/>
-        <predefinedCodeStyle implementation="slanglsp.settings.CodeStylePresets$Slang"/>
-        <lineIndentProvider implementation="slanglsp.editor.SlangLineIndentProvider"/>
-        <lang.braceMatcher language="Slang" implementationClass="slanglsp.editor.SlangBraceMatcher"/>
-        <lang.quoteHandler language="Slang" implementationClass="slanglsp.editor.SlangQuoteHandler"/>
-        <lang.commenter language="Slang" implementationClass="slanglsp.editor.SlangCommenter"/>
-        <enterHandlerDelegate implementation="slanglsp.editor.SlangEnterHandler" order="first"/>
-        <typedHandler implementation="slanglsp.editor.SlangTypedHandler"/>
-        <backspaceHandlerDelegate implementation="slanglsp.editor.SlangAngleBackspaceHandler"/>
+        <codeStyleSettingsModifier implementation="slanglsp.formatting.clang.ClangFormatSettingsImporter"/>
+        <spellchecker.support language="Slang"
+                              implementationClass="slanglsp.editor.spellchecking.TokenSpellcheckingStrategy"/>
+        <spellchecker.bundledDictionaryProvider
+                implementation="slanglsp.editor.spellchecking.BundledDictionary"/>
+        <langCodeStyleSettingsProvider implementation="slanglsp.settings.codestyle.CodeStyleProvider"/>
+        <predefinedCodeStyle implementation="slanglsp.settings.codestyle.CodeStylePresets$Slang"/>
+
+        <lineIndentProvider implementation="slanglsp.editor.typing.EditorIndentProvider"/>
+        <lang.braceMatcher language="Slang" implementationClass="slanglsp.editor.typing.BracePairMatcher"/>
+        <lang.quoteHandler language="Slang" implementationClass="slanglsp.editor.typing.StringQuoteHandler"/>
+        <lang.commenter language="Slang" implementationClass="slanglsp.editor.typing.CommentSyntax"/>
+        <enterHandlerDelegate implementation="slanglsp.editor.typing.SmartEnterHandler" order="first"/>
+        <typedHandler implementation="slanglsp.editor.typing.SmartTypingHandler"/>
+        <backspaceHandlerDelegate implementation="slanglsp.editor.typing.AngleBackspaceHandler"/>
+
         <!-- Native indentation and smart-key integration require this experimental platform extension. -->
         <!--suppress UnstableApiUsage -->
-        <typingActionsExtension implementation="slanglsp.editor.SlangTypingActions"/>
+        <typingActionsExtension implementation="slanglsp.editor.typing.SmartTypingActions"/>
         <formattingService id="SlangClangFormat"
-                           implementation="slanglsp.editor.ClangFormattingService"
+                           implementation="slanglsp.formatting.clang.ClangFormattingService"
                            order="first"/>
-        <lang.findUsagesProvider language="Slang" implementationClass="slanglsp.editor.SlangFindUsagesProvider"/>
+
+        <lang.findUsagesProvider language="Slang"
+                                 implementationClass="slanglsp.editor.navigation.SymbolFindUsagesProvider"/>
         <targetElementEvaluator
                 language="Slang"
-                implementationClass="slanglsp.editor.SlangTargetElementEvaluator"/>
-        <findUsagesHandlerFactory implementation="slanglsp.editor.SlangFindUsagesHandlerFactory" order="first"/>
-        <renameHandler implementation="slanglsp.editor.SlangRenameHandler"/>
+                implementationClass="slanglsp.editor.navigation.SymbolTargetEvaluator"/>
+        <findUsagesHandlerFactory implementation="slanglsp.editor.navigation.IndexedFindUsagesHandlerFactory"
+                                  order="first"/>
+        <renameHandler implementation="slanglsp.editor.rename.VerifiedRenameHandler"/>
 
-        <gotoDeclarationHandler id="SlangGotoDeclarationHandler" order="first, before LSPGotoDeclarationHandler" implementation="slanglsp.editor.SlangGotoDeclarationHandler"/>
+        <!-- Keep the extension ID stable even when the implementation class is renamed. -->
+        <gotoDeclarationHandler id="SlangGotoDeclarationHandler"
+                                order="first"
+                                implementation="slanglsp.editor.navigation.SymbolDeclarationHandler"/>
 
-        <lang.documentationProvider language="Slang" implementationClass="slanglsp.editor.SlangDocumentationProvider"/>
+        <lang.documentationProvider language="Slang"
+                                    implementationClass="slanglsp.editor.documentation.HoverDocumentationProvider"/>
 
-        <colorSettingsPage implementation="slanglsp.highlighting.SlangColorSettingsPage"/>
+        <colorSettingsPage implementation="slanglsp.highlighting.HighlightingSettingsPage"/>
         <additionalTextAttributes scheme="Darcula" file="colorSchemes/SlangRiderDark.xml"/>
         <additionalTextAttributes scheme="Dark" file="colorSchemes/SlangRiderDark.xml"/>
         <additionalTextAttributes scheme="Default" file="colorSchemes/SlangRiderLight.xml"/>
         <additionalTextAttributes scheme="Light" file="colorSchemes/SlangRiderLight.xml"/>
 
-        <lang.syntaxHighlighterFactory language="Slang" implementationClass="slanglsp.highlighting.SlangSyntaxHighlighterFactory"/>
+        <lang.syntaxHighlighterFactory language="Slang"
+                                       implementationClass="slanglsp.highlighting.SlangSyntaxHighlighterFactory"/>
 
-        <codeInsight.parameterInfo
-                language="Slang"
-                implementationClass="com.redhat.devtools.lsp4ij.features.signatureHelp.LSPParameterInfoHandler"/>
-
-        <lang.psiStructureViewFactory language="Slang"
-                                      implementationClass="com.redhat.devtools.lsp4ij.features.documentSymbol.LSPDocumentSymbolStructureViewFactory"/>
+        <platform.lsp.integrationProvider implementation="slanglsp.server.nativeclient.SlangLspProvider"/>
+        <platform.backend.documentation.targetProvider id="SlangNativeDocumentation"
+                                                       implementation="slanglsp.editor.documentation.NativeDocumentationTargetProvider"/>
 
         <notificationGroup id="Slang LSP"
                            key="notification.group.slang"
@@ -168,33 +182,22 @@
 
         <projectConfigurable
                 parentId="tools"
-                instance="slanglsp.settings.SettingsConfigurable"
+                instance="slanglsp.settings.project.SettingsConfigurable"
                 id="slanglsp.SlangConfigurable"
                 bundle="messages.SlangBundle"
                 key="settings.slang.display.name"
                 nonDefaultProject="true"/>
-
-        <projectService 
-                serviceImplementation="slanglsp.settings.ProjectSettings"/>
     </extensions>
 
     <projectListeners>
-        <listener class="slanglsp.settings.CodeStyleChangeListener"
+        <listener class="slanglsp.settings.codestyle.CodeStyleChangeListener"
                   topic="com.intellij.psi.codeStyle.CodeStyleSettingsListener"/>
     </projectListeners>
 
-    <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
-        <!-- LSP4IJ annotates bundle keys as display text; translations supply capitalization. -->
-        <!--suppress PluginXmlCapitalization -->
-        <server id="slanglsp.SlangLanguageServer"
-                bundle="messages.SlangBundle"
-                nameKey="server.name"
-                descriptionKey="server.description"
-                factoryClass="slanglsp.server.ServerFactory"/>
-
-        <languageMapping language="Slang"
-                                serverId="slanglsp.SlangLanguageServer"
-                                languageId="slang"/>
-    </extensions>
+    <actions>
+        <action id="Slang.FindCppUsages" class="slanglsp.editor.navigation.cpp.FindCppUsagesAction">
+            <add-to-group group-id="EditorPopupMenu1.FindRefactor" anchor="after" relative-to-action="FindUsages"/>
+        </action>
+    </actions>
 
 </idea-plugin>
