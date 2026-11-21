@@ -158,7 +158,7 @@ static int run(const std::vector<std::string>& args) {
         generate(build, fs::u8path(args[7]), fs::u8path(args[8]), args[9], inputs);
         return 0;
     } catch (const std::exception& error) {
-        std::cerr << "Reflection playground: " << error.what() << '\n';
+        std::cerr << "Playground: " << error.what() << '\n';
         return 1;
     }
 }

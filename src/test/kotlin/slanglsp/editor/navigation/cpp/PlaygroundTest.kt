@@ -23,7 +23,7 @@ import slanglsp.editor.rename.ReflectionRenameRegistration.Entry
 
 @EnabledOnOs(OS.LINUX)
 @EnabledIfEnvironmentVariable(named = "SLANG_REFLECTION_CONTRACT_TESTS", matches = "1")
-internal class ReflectionPlaygroundTest {
+internal class PlaygroundTest {
     @Test
     fun resolvesTheTypeEmittedByEachTargetAndConfiguration(@TempDir temporary: Path) {
         val template = Path.of("dev/playground-clion").toRealPath()
@@ -62,7 +62,7 @@ internal class ReflectionPlaygroundTest {
             }
         """.trimIndent())
 
-        val fixture = IdeaTestFixtureFactory.getFixtureFactory().createFixtureBuilder("ReflectionPlayground", temporary, false).fixture
+        val fixture = IdeaTestFixtureFactory.getFixtureFactory().createFixtureBuilder("Playground", temporary, false).fixture
         runInEdtAndWait { fixture.setUp() }
         try {
             val project = fixture.project
@@ -73,11 +73,11 @@ internal class ReflectionPlaygroundTest {
             val text = Files.readString(shader)
             val declaration = ReflectionMetadataLookup.Declaration(shader, text.indexOf("struct $name") + "struct ".length, name)
 
-            val types = mapOf("reflection_playground" to "MaterialConstants", "reflection_preview" to "PreviewConstants")
+            val types = mapOf("playground" to "MaterialConstants", "reflection_preview" to "PreviewConstants")
             for (configuration in listOf("Debug", "Release")) {
                 command(log, "cmake", "--build", build.toString(), "--config", configuration, "--target", *types.keys.toTypedArray())
             }
-            command(log, "cmake", "--build", secondBuild.toString(), "--target", "reflection_playground")
+            command(log, "cmake", "--build", secondBuild.toString(), "--target", "playground")
             for (configuration in listOf("Debug", "Release", "Debug")) {
                 for ((target, type) in types) {
                     command(log, build.resolve("$configuration/$target").toString())
@@ -96,9 +96,9 @@ internal class ReflectionPlaygroundTest {
 
             val variants = listOf("Debug", "Release").flatMap { configuration ->
                 types.keys.map { target -> ActiveCppConfiguration.snapshot(project, build, configuration, target) }
-            } + ActiveCppConfiguration.snapshot(project, secondBuild, "Debug", "reflection_playground")
+            } + ActiveCppConfiguration.snapshot(project, secondBuild, "Debug", "playground")
             val unbuilt = listOf(
-                ActiveCppConfiguration.snapshot(project, build, "RelWithDebInfo", "reflection_playground"),
+                ActiveCppConfiguration.snapshot(project, build, "RelWithDebInfo", "playground"),
                 ActiveCppConfiguration.snapshot(project, secondBuild, "Debug", "reflection_preview"),
             )
             val renamed = "RenamedPlaygroundMaterial"

@@ -1,4 +1,4 @@
-// Ctrl-click PlaygroundMaterial here after building reflection_playground in CLion.
+// Ctrl-click PlaygroundMaterial here after building playground in CLion.
 struct PlaygroundMaterial
 {
     float roughness;

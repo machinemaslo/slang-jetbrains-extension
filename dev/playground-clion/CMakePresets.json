@@ -3,7 +3,7 @@
   "configurePresets": [
     {
       "name": "playground",
-      "displayName": "Reflection Playground",
+      "displayName": "Playground",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/cmake-build-playground",
       "cacheVariables": {
@@ -12,7 +12,7 @@
     },
     {
       "name": "playground-release",
-      "displayName": "Reflection Playground Release",
+      "displayName": "Playground Release",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/cmake-build-playground-release",
       "cacheVariables": {
@@ -24,12 +24,12 @@
     {
       "name": "playground",
       "configurePreset": "playground",
-      "targets": ["reflection_playground", "reflection_preview"]
+      "targets": ["playground", "reflection_preview"]
     },
     {
       "name": "playground-release",
       "configurePreset": "playground-release",
-      "targets": ["reflection_playground", "reflection_preview"]
+      "targets": ["playground", "reflection_preview"]
     }
   ]
 }

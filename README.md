@@ -47,19 +47,20 @@ Use **Reformat Code** for a file or selection. The native formatter preserves Sl
 
 New projects have no predefined macros. Edit project macros under **General**.
 
-### Development playground
+### Playground
 
-Select **Run Plugin (IJ)** (`./gradlew runPlugin`), **Run Plugin (CLion)** (`./gradlew runPluginCLion`),
-or, on Windows, **Run Plugin (Rider)** (`.\gradlew.bat runPluginRider`). These configurations open the
-newest installed build of the requested IDE from JetBrains Toolbox in a separate sandbox. None
-installs an IDE. The Rider configuration opens the staged MSBuild reflection solution.
-The CLion playground disables its bundled Python plugin to avoid a startup error in some CLion builds, use `-PplaygroundPython=true` to enable it in that sandbox.
+- IntelliJ IDEA: `./gradlew runPlugin`
+- [CLion](dev/playground-clion/README.md): `./gradlew runPluginCLion`
+- [Rider (Windows)](dev/playground-msbuild/README.md): `.\gradlew.bat runPluginRider`
+
+Uses your Toolbox installation and a separate sandbox. Sample changes belong in `dev/`.
+
+### Development notes
 
 The plugin requires IntelliJ IDEA 2026.2.5 or a compatible IDE with JetBrains’ bundled LSP client. That client handles `slangd` startup, semantic colors, Structure view, Parameter Info, hover documentation, declaration/usage navigation, verified rename, and live unused-symbol warnings.
 
 Verified rename, live unused-symbol checks, and commit-time naming and unused-symbol inspections can verify occurrences in unopened Slang files and unsaved edits without opening editor tabs. Compiler diagnostics at commit time still use `slangc`. Clang-Format supports whole files and selections using the current editor text.
 Install `slangd` on PATH or use existing vcpkg tools. Native formatting is the default; clang-format is optional.
-Edit `dev/playground` for lasting changes—samples and generated settings reset each launch. Extra files and dictionaries remain.
 Plugin DevKit is optional for development assistance.
 
 Use role-based names for implementation classes, such as `EditorIndentProvider` and

@@ -2,7 +2,6 @@ import java.util.Properties
 import org.jetbrains.intellij.platform.gradle.tasks.BuildPluginTask
 import org.jetbrains.intellij.platform.gradle.tasks.PatchPluginXmlTask
 import org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask
-import org.jetbrains.intellij.platform.gradle.tasks.RunIdeTask
 import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
 
 version = "0.0.24"
@@ -137,8 +136,11 @@ fun registerPluginPlayground(
     suffix: String,
     vararg productCodes: String,
 ) {
-    val installation = toolboxInventory.map { ToolboxInstallations.find(it, ideName, productCodes.toList()) }
+    val ideInstallation = toolboxInventory.map { ToolboxInstallations.find(it, ideName, productCodes.toList()) }
     val playground = layout.buildDirectory.dir("playground$suffix")
+    val sandbox = intellijPlatform.sandboxContainer.dir("${project.name}/IU-$minimumIdeaVersion")
+    val logTaskName = "playgroundLog$suffix"
+    val sandboxRegistration = "${taskName}Sandbox"
     val rider = suffix == "Rider"
     val preparePlayground =
         tasks.register<PreparePlayground>("preparePlayground$suffix") {
@@ -172,8 +174,19 @@ fun registerPluginPlayground(
             userConfigRoot.set("$configRoot/JetBrains")
         }
 
-    intellijPlatformTesting.runIde.register(taskName) {
-        localPath.set(layout.dir(installation))
+    // Use the Gradle plugin for sandbox staging only. Its RunIdeTask owns the IDE process and
+    // streams the entire console, so it must not be in the playground's launch graph.
+    intellijPlatformTesting.runIde.register(sandboxRegistration) {
+        localPath.set(layout.dir(ideInstallation))
+        sandboxDirectory.set(sandbox)
+        splitMode.set(false)
+        prepareSandboxTask {
+            sandboxSuffix.set("_$taskName")
+        }
+        task {
+            group = null
+            enabled = false
+        }
         plugins {
             if (suffix == "CLion" &&
                 !providers.gradleProperty("playgroundPython").map(String::toBoolean).getOrElse(false)) {
@@ -183,19 +196,46 @@ fun registerPluginPlayground(
         }
     }
 
-    tasks.named<RunIdeTask>(taskName) {
-        description = "Launch Toolbox's installed $ideName with the Slang plugin and refreshed playground."
+    val stageSandbox = tasks.named<PrepareSandboxTask>("prepareSandbox_$sandboxRegistration")
+    val platformOs = hostOs
+    val platformArchitecture = hostArch
+    val displayName = ideName
+    tasks.register<LaunchPlayground>(taskName) {
+        group = "IntelliJ platform"
+        description = "Prepare the $displayName sandbox, then open the playground independently of Gradle."
         dependsOn(preparePlayground, syncAppearance)
-        // The sandbox installs a local build, so it has no Marketplace update source.
-        systemProperty("platform.make.plugin.update.source.visible.in.ui", "false")
-        val projectToOpen = if (rider) playground.get().file("Reflection.sln").asFile else playground.get().asFile
-        args(projectToOpen.absolutePath)
+        installation.set(layout.dir(ideInstallation))
+        playgroundDirectory.set(playground)
+        configDirectory.set(stageSandbox.flatMap { it.sandboxConfigDirectory })
+        pluginsDirectory.set(stageSandbox.flatMap { it.sandboxPluginsDirectory })
+        systemDirectory.set(stageSandbox.flatMap { it.sandboxSystemDirectory })
+        logDirectory.set(stageSandbox.flatMap { it.sandboxLogDirectory })
+        this.ideName.set(displayName)
+        configureCMake.set(suffix == "CLion")
+        hostOs.set(platformOs)
+        hostArchitecture.set(platformArchitecture)
+        logTask.set(logTaskName)
+        vmOptionsVariable.set(
+            when (suffix) {
+                "CLion" -> "CLION_VM_OPTIONS"
+                "Rider" -> "RIDER_VM_OPTIONS"
+                else -> "IDEA_VM_OPTIONS"
+            },
+        )
+        if (rider) {
+            solutionName.set("Reflection.sln")
+        }
+    }
+
+    tasks.register<ShowPlaygroundLog>(logTaskName) {
+        group = "IntelliJ platform"
+        description = "Show recent Slang plugin entries from the $displayName playground without starting it."
+        logDirectory.set(sandbox.map { it.dir("log_$taskName") })
     }
 
     syncAppearance.configure {
-        val sandbox = tasks.named<PrepareSandboxTask>("prepareSandbox_$taskName")
-        dependsOn(sandbox)
-        sandboxConfigDirectory.set(sandbox.flatMap { it.sandboxConfigDirectory })
+        dependsOn(stageSandbox)
+        sandboxConfigDirectory.set(stageSandbox.flatMap { it.sandboxConfigDirectory })
     }
 }
 
@@ -255,7 +295,7 @@ tasks {
         inputs.file(layout.projectDirectory.file("vcpkg.json")).withPropertyName("vcpkgManifest")
         inputs.file(testSlangd).withPropertyName("nativeSlangd")
         inputs.file(testClangFormat).withPropertyName("nativeClangFormat")
-        inputs.dir(layout.projectDirectory.dir("dev/playground-clion")).withPropertyName("reflectionPlayground")
+        inputs.dir(layout.projectDirectory.dir("dev/playground-clion")).withPropertyName("clionPlayground")
         inputs.property("slangReflectionContractTests", providers.environmentVariable("SLANG_REFLECTION_CONTRACT_TESTS").orElse("0"))
         inputs.dir(layout.projectDirectory.dir("dev/playground-msbuild")).withPropertyName("msbuildReflectionFixture")
         inputs.property("slangMsbuildFixtureTests", providers.environmentVariable("SLANG_MSBUILD_FIXTURE_TESTS").orElse("0"))

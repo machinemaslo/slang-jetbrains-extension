@@ -87,6 +87,7 @@
     </content>
 
     <extensions defaultExtensionNs="com.intellij">
+        <postStartupActivity implementation="slanglsp.playground.PlaygroundReloadActivity" />
         <fileType name="Slang"
                   implementationClass="slanglsp.language.SlangFileType"
                   fieldName="INSTANCE"

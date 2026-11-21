@@ -1,6 +1,7 @@
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
+import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import org.gradle.api.DefaultTask
@@ -32,10 +33,17 @@ abstract class PreparePlayground : DefaultTask() {
     @Throws(IOException::class)
     fun prepare() {
         val target = playgroundDirectory.get().asFile.toPath()
-        copyTemplates(templateDirectory.get().asFile.toPath(), target)
+        val template = templateDirectory.get().asFile.toPath()
         val cppTemplate = cppTemplateDirectory.orNull
         if (cppTemplate != null) {
-            copyTemplates(cppTemplate.asFile.toPath(), target)
+            removeLegacyIdeaModule(template, target)
+        }
+        copyTemplates(template, target, if (cppTemplate == null) emptySet() else ideaWorkspaceFiles)
+        if (cppTemplate != null) {
+            copyTemplates(cppTemplate.asFile.toPath(), target, keepExisting = setOf(Path.of(".idea", "misc.xml")))
+            CMakePlaygroundState.seedProfiles(target)
+            CMakePlaygroundState.migrateProjectName(target)
+            CMakePlaygroundState.hideBuildOnlyTargets(target)
         }
         reflectionSourcesDirectory.orNull?.let { sources ->
             copyTemplates(sources.asFile.toPath(), target.resolve("reflection"))
@@ -68,15 +76,47 @@ abstract class PreparePlayground : DefaultTask() {
         logger.lifecycle("Slang playground: {}", target)
     }
 
-    private fun copyTemplates(source: Path, target: Path) {
+    private fun copyTemplates(
+        source: Path,
+        target: Path,
+        excluded: Set<Path> = emptySet(),
+        keepExisting: Set<Path> = emptySet(),
+    ) {
         Files.walk(source).use { paths ->
             for (path in paths.filter { Files.isRegularFile(it) }.toList()) {
-                val destination = target.resolve(source.relativize(path))
+                val relative = source.relativize(path)
+                if (relative in excluded) {
+                    continue
+                }
+                val destination = target.resolve(relative)
+                if (relative in keepExisting && !Files.notExists(destination, NOFOLLOW_LINKS)) {
+                    continue
+                }
+                if (Files.isRegularFile(destination, NOFOLLOW_LINKS) && Files.mismatch(path, destination) == -1L) {
+                    continue
+                }
                 Files.createDirectories(destination.parent)
                 Files.copy(path, destination, StandardCopyOption.REPLACE_EXISTING)
             }
         }
     }
+
+    private fun removeLegacyIdeaModule(template: Path, target: Path) {
+        if (!Files.isDirectory(target.resolve(".idea"), NOFOLLOW_LINKS)) {
+            return
+        }
+        val modules = target.resolve(ideaModules)
+        val module = target.resolve(ideaModule)
+        // Previous launches copied these verbatim. Don't remove a CLion or user-edited module model.
+        if (isTemplateCopy(template.resolve(ideaModules), modules) &&
+            (Files.notExists(module, NOFOLLOW_LINKS) || isTemplateCopy(template.resolve(ideaModule), module))) {
+            Files.delete(modules)
+            Files.deleteIfExists(module)
+        }
+    }
+
+    private fun isTemplateCopy(source: Path, copy: Path): Boolean =
+        Files.isRegularFile(source) && Files.isRegularFile(copy, NOFOLLOW_LINKS) && Files.mismatch(source, copy) == -1L
 
     private fun slangdDirectory(project: Path, executable: String): String {
         val executablePath = Path.of(executable)
@@ -106,5 +146,11 @@ abstract class PreparePlayground : DefaultTask() {
 
     private fun xml(text: String): String {
         return text.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;")
+    }
+
+    private companion object {
+        val ideaModules: Path = Path.of(".idea", "modules.xml")
+        val ideaModule: Path = Path.of(".idea", "playground.iml")
+        val ideaWorkspaceFiles = setOf(ideaModules, ideaModule, Path.of(".idea", "workspace.xml"))
     }
 }

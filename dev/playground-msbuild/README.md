@@ -13,7 +13,8 @@ The solution choices deliberately do not match the evaluated C++ project identit
 
 On Windows, select **Run Plugin (Rider)** or use `.\gradlew.bat runPluginRider`. This uses your installed
 Toolbox Rider and opens `build/playgroundRider/Reflection.sln` with the development plugin. It does not
-build the solution. MSBuild uses the repository's `vcpkg_installed/x64-windows` SDK if present.
+build the solution or keep Gradle running. Use `.\gradlew.bat playgroundLogRider` to print recent
+Slang plugin entries. MSBuild uses the repository's `vcpkg_installed/x64-windows` SDK if present.
 For another SDK, set `SlangSdk` in the environment before launching to the root containing the SDK's
 `include`, `lib`, and `bin` (or vcpkg's `tools/shader-slang`). Make `slangd.exe` available on `PATH`
 if it isn't provisioned in the repository.

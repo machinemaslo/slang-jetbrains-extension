@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(SlangReflectionPlayground LANGUAGES CXX)
+project(Playground LANGUAGES CXX)
 
 set(slang_tools "${CMAKE_CURRENT_SOURCE_DIR}/.idea/slang-tools.path")
 if(EXISTS "${slang_tools}")
@@ -59,5 +59,5 @@ function(add_playground target debug_type debug_sources release_sources)
     target_compile_features(${target} PRIVATE cxx_std_17)
 endfunction()
 
-add_playground(reflection_playground MaterialConstants reflection reflection/release)
+add_playground(playground MaterialConstants reflection reflection/release)
 add_playground(reflection_preview PreviewConstants reflection/preview reflection/preview-release)

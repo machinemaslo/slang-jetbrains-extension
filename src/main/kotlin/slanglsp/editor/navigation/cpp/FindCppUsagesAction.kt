@@ -12,11 +12,11 @@ import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
-import com.intellij.openapi.fileEditor.TextEditor
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.DumbService
@@ -284,6 +284,8 @@ internal fun Result.Unavailable.message(): @Nls String = when (this) {
     Result.Unavailable.BUILD_CHANGED -> SlangBundle.message("cpp.usages.configuration.changed")
 }
 
+private val handoffLog = Logger.getInstance(FindCppUsagesAction::class.java)
+
 private fun openCppUsages(
     project: Project,
     location: CppLocation,
@@ -305,11 +307,10 @@ private fun openCppUsages(
         return
     }
 
-    val descriptor = OpenFileDescriptor(project, file, offset)
-    val opened = descriptor.navigateInEditor(project, true)
     val editors = FileEditorManager.getInstance(project)
-    val editor = (editors.getSelectedEditor(file) as? TextEditor)?.editor
-    if (!opened || editor == null) {
+    val editor = editors.openTextEditor(OpenFileDescriptor(project, file, offset), true)
+    if (editor == null) {
+        handoffLog.info("Native C++ Find Usages: no text editor for ${file.path}:$offset")
         notify(project, SlangBundle.message("cpp.usages.handoff.failed"))
         return
     }
@@ -325,8 +326,10 @@ private fun openCppUsages(
 
         // Give CLion the C++ editor context and reference offset; don't fabricate a C++ PSI target.
         editor.caretModel.moveToOffset(offset)
-        actions.tryToExecute(find, null, editor.contentComponent, ActionPlaces.EDITOR_POPUP, true)
-            .doWhenRejected(Runnable { notify(project, SlangBundle.message("cpp.usages.handoff.failed")) })
+        actions.tryToExecute(find, null, editor.contentComponent, ActionPlaces.EDITOR_POPUP, true).doWhenRejected(Runnable {
+            handoffLog.info("Native C++ Find Usages: IDE rejected the action for ${file.path}:$offset")
+            notify(project, SlangBundle.message("cpp.usages.handoff.failed"))
+        })
     }
 }
 
