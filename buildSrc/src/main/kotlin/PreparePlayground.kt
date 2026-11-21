@@ -8,12 +8,17 @@ import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 
 /** Refreshes template-owned files on every launch, retaining IDE-created workspace files. */
 abstract class PreparePlayground : DefaultTask() {
     @get:InputDirectory abstract val templateDirectory: DirectoryProperty
+
+    @get:InputDirectory @get:Optional abstract val cppTemplateDirectory: DirectoryProperty
+
+    @get:InputDirectory @get:Optional abstract val reflectionSourcesDirectory: DirectoryProperty
 
     @get:OutputDirectory abstract val playgroundDirectory: DirectoryProperty
 
@@ -26,14 +31,14 @@ abstract class PreparePlayground : DefaultTask() {
     @TaskAction
     @Throws(IOException::class)
     fun prepare() {
-        val source = templateDirectory.get().asFile.toPath()
         val target = playgroundDirectory.get().asFile.toPath()
-        Files.walk(source).use { paths ->
-            for (path in paths.filter { Files.isRegularFile(it) }.toList()) {
-                val destination = target.resolve(source.relativize(path))
-                Files.createDirectories(destination.parent)
-                Files.copy(path, destination, StandardCopyOption.REPLACE_EXISTING)
-            }
+        copyTemplates(templateDirectory.get().asFile.toPath(), target)
+        val cppTemplate = cppTemplateDirectory.orNull
+        if (cppTemplate != null) {
+            copyTemplates(cppTemplate.asFile.toPath(), target)
+        }
+        reflectionSourcesDirectory.orNull?.let { sources ->
+            copyTemplates(sources.asFile.toPath(), target.resolve("reflection"))
         }
 
         val settings = target.resolve(".idea/SlangPluginSettings.xml")
@@ -43,6 +48,7 @@ abstract class PreparePlayground : DefaultTask() {
             "Playground requires installed slangd on PATH or in vcpkg_installed. " +
                 "Install/configure it and rerun Run Plugin; no native tools are installed by this task."
         }
+        Files.createDirectories(settings.parent)
         Files.writeString(
             settings,
             """
@@ -54,7 +60,22 @@ abstract class PreparePlayground : DefaultTask() {
                 </project>
                 """.trimIndent() + "\n",
         )
+        if (cppTemplate != null) {
+            val tools = Path.of(slangd).toAbsolutePath().normalize().parent.toString().replace('\\', '/')
+            Files.writeString(target.resolve(".idea/slang-tools.path"), "$tools\n")
+        }
+
         logger.lifecycle("Slang playground: {}", target)
+    }
+
+    private fun copyTemplates(source: Path, target: Path) {
+        Files.walk(source).use { paths ->
+            for (path in paths.filter { Files.isRegularFile(it) }.toList()) {
+                val destination = target.resolve(source.relativize(path))
+                Files.createDirectories(destination.parent)
+                Files.copy(path, destination, StandardCopyOption.REPLACE_EXISTING)
+            }
+        }
     }
 
     private fun slangdDirectory(project: Path, executable: String): String {

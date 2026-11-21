@@ -3,6 +3,7 @@ package slanglsp.editor.rename
 import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.command.CommandProcessor
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.module.ModuleManager.Companion.getInstance
@@ -135,6 +136,7 @@ private constructor(
                 }
                 PsiDocumentManager.getInstance(project).commitAllDocuments()
             })
+        project.service<ReflectionRenameRegeneration>().renamed(edits.mapNotNull { it.source?.document }.distinct())
     }
 
     companion object {

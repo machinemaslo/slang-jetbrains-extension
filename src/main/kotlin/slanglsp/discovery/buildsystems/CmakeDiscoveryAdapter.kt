@@ -17,12 +17,12 @@ internal class CmakeDiscoveryAdapter : DiscoveryAdapter() {
         }
     }
 
-    private fun findBuildDirectories(context: DiscoveryContext, presets: List<Preset>) {
+    private fun findBuildDirectories(context: DiscoveryContext, presets: List<Preset>, includeDisabled: Boolean = false) {
         for (preset in presets) {
             context.buildDirectory(context.root, preset.binaryDir)
         }
 
-        val directories = readIdeProfiles(context)
+        val directories = readIdeProfiles(context, includeDisabled)
         directories.addAll(context.buildDirectories)
         context.buildDirectories.clear()
         context.buildDirectories.addAll(directories.take(32))
@@ -33,12 +33,12 @@ internal class CmakeDiscoveryAdapter : DiscoveryAdapter() {
         }
     }
 
-    private fun readIdeProfiles(context: DiscoveryContext): MutableSet<Path> =
+    private fun readIdeProfiles(context: DiscoveryContext, includeDisabled: Boolean): MutableSet<Path> =
         linkedSetOf<Path>().apply {
             for (file in listOf(".idea/workspace.xml", ".idea/cmake.xml")) {
                 val document = context.xml(context.root.resolve(file)) ?: continue
                 for (profile in document.getElementsByTagName("configuration").elements().take(32)) {
-                    if (profile.getAttribute("ENABLED").equals("false", ignoreCase = true)) {
+                    if (!includeDisabled && profile.getAttribute("ENABLED").equals("false", ignoreCase = true)) {
                         continue
                     }
 
@@ -197,11 +197,17 @@ internal class CmakeDiscoveryAdapter : DiscoveryAdapter() {
         }
     }
 
-    private companion object {
-        val cacheLineBreak = Regex("\\R")
-        val environmentMacro = Regex("""\$(p?env)\{([^}]+)}""")
+    companion object {
+        fun configuredBuildDirectories(workspace: Path): Set<Path> {
+            val context = DiscoveryContext(workspace, System.getenv())
+            CmakeDiscoveryAdapter().findBuildDirectories(context, PresetCatalog(context).visiblePresets(), includeDisabled = true)
+            return context.buildDirectories
+        }
 
-        fun JsonObject.overlay(source: JsonObject) {
+        private val cacheLineBreak = Regex("\\R")
+        private val environmentMacro = Regex("""\$(p?env)\{([^}]+)}""")
+
+        private fun JsonObject.overlay(source: JsonObject) {
             for ((key, value) in source.asMap()) {
                 val previous = this[key]
 

@@ -49,7 +49,10 @@ New projects have no predefined macros. Edit project macros under **General**.
 
 ### Development playground
 
-Select **Run Plugin (IJ)** (`./gradlew runPlugin`) or **Run Plugin (CLion)** (`./gradlew runPluginCLion`). Both read JetBrains Toolbox's local inventory and launch the newest installed build of the requested IDE in a separate sandbox with sample Slang files. Neither playground installs an IDE. Install the IDE in Toolbox if it isn't listed there.
+Select **Run Plugin (IJ)** (`./gradlew runPlugin`), **Run Plugin (CLion)** (`./gradlew runPluginCLion`),
+or, on Windows, **Run Plugin (Rider)** (`.\gradlew.bat runPluginRider`). These configurations open the
+newest installed build of the requested IDE from JetBrains Toolbox in a separate sandbox. None
+installs an IDE. The Rider configuration opens the staged MSBuild reflection solution.
 The CLion playground disables its bundled Python plugin to avoid a startup error in some CLion builds, use `-PplaygroundPython=true` to enable it in that sandbox.
 
 The plugin requires IntelliJ IDEA 2026.2.5 or a compatible IDE with JetBrains’ bundled LSP client. That client handles `slangd` startup, semantic colors, Structure view, Parameter Info, hover documentation, declaration/usage navigation, verified rename, and live unused-symbol warnings.
@@ -71,13 +74,23 @@ In the Project tool window, Slang files show an entry-point stage suffix. Stages
 
 #### Find C++ Usages in CLion (experimental)
 
-Right-click the Slang **struct declaration** and choose **Find C++ Usages**. This is one action on Windows, macOS, and Linux. It uses CLion’s type index and the IDE’s word index, including for `.inc` files. An absolute `#line` mapping can identify a generated declaration even when it was renamed. A matching name and ordered field names are offered for confirmation, not treated as proof. The search can also follow explicit reflection layout checks in C++.
+Right-click a Slang **struct declaration** and choose **Find C++ Usages** to open CLion’s Find tool window.
+If Ctrl-click (Cmd-click on macOS) opens the stock **Show Usages** popup instead, click **C++ View** above it
+to see native C++ results in place, without switching editor tabs.
 
-For CMake projects, the selected CLion run target/profile supplies the build directory and include paths. The action selects the matching profile's declaration automatically instead of asking you to choose between build copies; genuinely ambiguous declarations still require a choice. Profile changes invalidate cached choices. Generated reflection files are omitted from the resulting usage view, without changing global search settings.
+Both actions use only the [reflection metadata pack](docs/reflection-metadata-v1.md) for the selected CLion
+CMake target and configuration. They report missing, stale, and invalid or conflicting metadata separately.
+If the generator recorded several C++ types for one declaration, choose a type before searching. Neither
+action guesses from names or source maps, searches another build, or runs a build or generator.
 
-For a renamed struct without a source map, the action can run the **already-built native generator** in a trusted project. It discovers invocations from CMake/Ninja custom commands or a `compile_commands.json` **entry for the shader**. Ordinary compiler entries for `.cpp` files are not generator invocations. Replay needs identifiable shader input and output arguments (for example, `reflect shader.slang -o generated.inc`). It passes temporary paths directly to the executable, with a temporary working directory, after showing the command. This is not an OS sandbox. No project build, project copy, or Bubblewrap installation is needed.
+Use **C++ View → Add a header** to install the documented `jb-slanglsp-reflection-meta.hpp` helper in a
+project folder. Include it in your generator, then build the selected configuration to publish its pack.
+Commit the helper to share it with teammates; you can move it within indexed project folders without
+changing settings. See the [CLion playground](dev/playground-clion/README.md) and the experimental
+[Rider + MSBuild fixture](dev/playground-msbuild/README.md) for build and verification instructions.
 
-Replay runs a baseline and two layout probes, with a scalar fallback. A unique two-probe match and agreement with the live output are required before handing the declaration to CLion’s native Find Usages. Commands with shell pipelines or hardcoded destinations are unsupported. Cached probe matches are checked against the available declared inputs and live artifact.
+CLion/CMake and Windows Rider/MSBuild can [refresh metadata automatically after Rename](docs/reflection-metadata-v1.md#automatic-regeneration-after-rename)
+for every affected, already-built variant with a verified generation-only target.
 
 #### Slang tools for JetBrains Air and MCP
 

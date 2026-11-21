@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Checked|x64">
+      <Configuration>Checked</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Optimized|x64">
+      <Configuration>Optimized</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{95621783-A663-4829-A648-125F882BF3C7}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <PropertyGroup>
+    <FixtureRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '..'))</FixtureRoot>
+    <FixtureSources Condition="'$(FixtureSources)' == '' And Exists('$(FixtureRoot)reflection\GenerateBindings.cpp')">$(FixtureRoot)reflection</FixtureSources>
+    <FixtureSources Condition="'$(FixtureSources)' == ''">$(FixtureRoot)..\playground-clion\reflection</FixtureSources>
+    <ReflectionHelper Condition="'$(ReflectionHelper)' == ''">$(FixtureRoot)..\..\src\main\resources\reflection</ReflectionHelper>
+    <SlangSdk
+      Condition="'$(SlangSdk)' == '' And Exists('$(FixtureRoot)..\..\vcpkg_installed\x64-windows\include\slang.h')">$([MSBuild]::NormalizePath('$(FixtureRoot)', '..\..\vcpkg_installed\x64-windows'))</SlangSdk>
+    <IntDir>artifacts\intermediate\$(Configuration)\$(Platform)\</IntDir>
+    <OutDir>artifacts\bin\$(Configuration)\$(Platform)\</OutDir>
+    <ReflectionIntDir>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntDir)'))</ReflectionIntDir>
+    <Generator>$(FixtureRoot)tool\artifacts\bin\$(Configuration)\$(Platform)\ReflectionTool.exe</Generator>
+    <Shader>$(FixtureRoot)reflection.slang</Shader>
+    <SolutionFile>$(FixtureRoot)Reflection.sln</SolutionFile>
+    <ProjectIdentity>host/ReflectionHost.vcxproj</ProjectIdentity>
+    <JbSlangLspReflectionTarget>jb_slanglsp_reflection_bindings</JbSlangLspReflectionTarget>
+    <Generated>$(ReflectionIntDir)generated</Generated>
+    <CppType Condition="'$(Configuration)' == 'Checked'">CheckedMaterial</CppType>
+    <CppType Condition="'$(Configuration)' == 'Optimized'">OptimizedMaterial</CppType>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(Generated);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="$(Configuration)\main.cpp" />
+    <ClCompile Include="$(Configuration)\material.cpp" />
+    <None Include="..\reflection.slang" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="jb_slanglsp_reflection_bindings" BeforeTargets="ClCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+    <MSBuild Projects="$(FixtureRoot)tool\ReflectionTool.vcxproj" Targets="Build"
+      Properties="Configuration=$(Configuration);Platform=$(Platform);SlangSdk=$(SlangSdk);FixtureSources=$(FixtureSources);ReflectionHelper=$(ReflectionHelper)" />
+    <MakeDir Directories="$(ReflectionIntDir)" />
+    <Exec Command="set &quot;PATH=$(SlangSdk)\tools\shader-slang;$(SlangSdk)\bin;%PATH%&quot; &amp;&amp; &quot;$(Generator)&quot; &quot;$(FixtureRoot).&quot; &quot;$(ReflectionIntDir).&quot; msbuild &quot;$(ProjectIdentity)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot; &quot;$(Shader)&quot; &quot;$(Generated)\bindings.hpp&quot; &quot;$(CppType)&quot; &quot;$(SolutionFile)&quot; &quot;$(MSBuildProjectFullPath)&quot;" />
+    <Exec Command="powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(FixtureRoot)PublishAssociation.ps1&quot; -Workspace &quot;$(FixtureRoot).&quot; -SolutionFile &quot;$(SolutionFile)&quot; -ProjectFile &quot;$(MSBuildProjectFullPath)&quot; -ProjectIdentity &quot;$(ProjectIdentity)&quot; -Configuration &quot;$(Configuration)&quot; -Platform &quot;$(Platform)&quot; -IntDir &quot;$(ReflectionIntDir).&quot; -GenerationTarget &quot;$(JbSlangLspReflectionTarget)&quot; -MSBuildDirectory &quot;$(MSBuildBinPath)&quot;" />
+  </Target>
+</Project>

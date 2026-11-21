@@ -2,14 +2,21 @@ package slanglsp.editor.documentation
 
 import com.intellij.lang.documentation.AbstractDocumentationProvider
 import com.intellij.openapi.project.DumbService.Companion.isDumb
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiElement
 import java.time.Duration
 import slanglsp.analysis.AnalysisDeadline
+import slanglsp.editor.navigation.DeferredNavigationTarget
 import slanglsp.language.SlangLanguage
 
-/** Connects Ctrl+hover on Slang PSI to the same LSP hover used by Quick Documentation. */
+/** Legacy Quick Documentation bridge for Slang PSI. */
 class HoverDocumentationProvider : AbstractDocumentationProvider() {
     override fun getQuickNavigateInfo(element: PsiElement?, originalElement: PsiElement?): String? {
+        // IntelliJ computes this hint before painting the link. Rich docs belong to
+        // the separate asynchronous documentation provider, not this path.
+        if (element is DeferredNavigationTarget) {
+            return "<code>${StringUtil.escapeXmlEntities(element.text)}</code>"
+        }
         return documentation(element, originalElement)
     }
 

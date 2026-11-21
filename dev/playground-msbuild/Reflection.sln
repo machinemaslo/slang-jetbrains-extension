@@ -1,0 +1,18 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "ReflectionHost", "host\ReflectionHost.vcxproj", "{95621783-A663-4829-A648-125F882BF3C7}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Editor|Mixed Platforms = Editor|Mixed Platforms
+		Shipping|Mixed Platforms = Shipping|Mixed Platforms
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{95621783-A663-4829-A648-125F882BF3C7}.Editor|Mixed Platforms.ActiveCfg = Checked|x64
+		{95621783-A663-4829-A648-125F882BF3C7}.Editor|Mixed Platforms.Build.0 = Checked|x64
+		{95621783-A663-4829-A648-125F882BF3C7}.Shipping|Mixed Platforms.ActiveCfg = Optimized|x64
+		{95621783-A663-4829-A648-125F882BF3C7}.Shipping|Mixed Platforms.Build.0 = Optimized|x64
+	EndGlobalSection
+EndGlobal

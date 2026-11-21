@@ -6,6 +6,7 @@ import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.psi.PsiElement
 import com.intellij.psi.SmartPointerManager
 import com.intellij.psi.SmartPsiElementPointer
+import slanglsp.editor.navigation.cpp.CppViewButton
 
 /** Delegate declaration-to-usage navigation to the IDE's native Show Usages workflow. */
 internal class UsageNavigationTarget(element: PsiElement, private val editor: Editor?) :
@@ -19,8 +20,11 @@ internal class UsageNavigationTarget(element: PsiElement, private val editor: Ed
         }
 
         val target = declaration.getElement() ?: return
+        val sourceEditor = editor ?: return
+        val anchor = JBPopupFactory.getInstance().guessBestPopupLocation(sourceEditor)
 
-        ShowUsagesAction.startFindUsages(target, JBPopupFactory.getInstance().guessBestPopupLocation(editor!!), editor)
+        CppViewButton.watch(sourceEditor, target, anchor)
+        ShowUsagesAction.startFindUsages(target, anchor, sourceEditor)
     }
 
     override fun canNavigate(): Boolean {

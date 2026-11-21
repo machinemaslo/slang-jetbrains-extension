@@ -117,7 +117,6 @@
 
         <lang.parserDefinition language="Slang" implementationClass="slanglsp.language.SlangParserDefinition"/>
         <projectViewNodeDecorator implementation="slanglsp.projectview.EntryPointStageDecorator"/>
-        <usageViewElementsListener implementation="slanglsp.editor.navigation.cpp.ReflectedUsageViewListener"/>
         <fileBasedIndex implementation="slanglsp.editor.typing.GenericDeclarationsIndex"/>
         <lang.formatter language="Slang" implementationClass="slanglsp.formatting.native.NativeFormattingModelBuilder"/>
 
@@ -154,6 +153,7 @@
         <findUsagesHandlerFactory implementation="slanglsp.editor.navigation.IndexedFindUsagesHandlerFactory"
                                   order="first"/>
         <renameHandler implementation="slanglsp.editor.rename.VerifiedRenameHandler"/>
+        <refactoring.elementListenerProvider implementation="slanglsp.editor.rename.CppReflectionRenameListener"/>
 
         <!-- Keep the extension ID stable even when the implementation class is renamed. -->
         <gotoDeclarationHandler id="SlangGotoDeclarationHandler"

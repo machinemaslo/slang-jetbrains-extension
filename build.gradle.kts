@@ -139,11 +139,18 @@ fun registerPluginPlayground(
 ) {
     val installation = toolboxInventory.map { ToolboxInstallations.find(it, ideName, productCodes.toList()) }
     val playground = layout.buildDirectory.dir("playground$suffix")
+    val rider = suffix == "Rider"
     val preparePlayground =
         tasks.register<PreparePlayground>("preparePlayground$suffix") {
             group = "IntelliJ platform"
             description = "Refresh the $ideName playground templates and connect installed native tools."
-            templateDirectory.set(layout.projectDirectory.dir("dev/playground"))
+            templateDirectory.set(layout.projectDirectory.dir(if (rider) "dev/playground-msbuild" else "dev/playground"))
+            if (suffix == "CLion") {
+                cppTemplateDirectory.set(layout.projectDirectory.dir("dev/playground-clion"))
+            }
+            if (rider) {
+                reflectionSourcesDirectory.set(layout.projectDirectory.dir("dev/playground-clion/reflection"))
+            }
             playgroundDirectory.set(playground)
             slangdCandidate.set(testSlangd.asFile.absolutePath)
             clangFormatCandidate.set(testClangFormat.asFile.absolutePath)
@@ -179,7 +186,10 @@ fun registerPluginPlayground(
     tasks.named<RunIdeTask>(taskName) {
         description = "Launch Toolbox's installed $ideName with the Slang plugin and refreshed playground."
         dependsOn(preparePlayground, syncAppearance)
-        args(playground.get().asFile.absolutePath)
+        // The sandbox installs a local build, so it has no Marketplace update source.
+        systemProperty("platform.make.plugin.update.source.visible.in.ui", "false")
+        val projectToOpen = if (rider) playground.get().file("Reflection.sln").asFile else playground.get().asFile
+        args(projectToOpen.absolutePath)
     }
 
     syncAppearance.configure {
@@ -192,6 +202,10 @@ fun registerPluginPlayground(
 registerPluginPlayground("runPlugin", "IntelliJ IDEA", "", "IU", "IC")
 
 registerPluginPlayground("runPluginCLion", "CLion", "CLion", "CL")
+
+if (windowsHost) {
+    registerPluginPlayground("runPluginRider", "Rider", "Rider", "RD")
+}
 
 tasks.named<PatchPluginXmlTask>("patchPluginXml") {
     inputs.property("coreOnly", coreOnly)
@@ -241,6 +255,11 @@ tasks {
         inputs.file(layout.projectDirectory.file("vcpkg.json")).withPropertyName("vcpkgManifest")
         inputs.file(testSlangd).withPropertyName("nativeSlangd")
         inputs.file(testClangFormat).withPropertyName("nativeClangFormat")
+        inputs.dir(layout.projectDirectory.dir("dev/playground-clion")).withPropertyName("reflectionPlayground")
+        inputs.property("slangReflectionContractTests", providers.environmentVariable("SLANG_REFLECTION_CONTRACT_TESTS").orElse("0"))
+        inputs.dir(layout.projectDirectory.dir("dev/playground-msbuild")).withPropertyName("msbuildReflectionFixture")
+        inputs.property("slangMsbuildFixtureTests", providers.environmentVariable("SLANG_MSBUILD_FIXTURE_TESTS").orElse("0"))
+        inputs.property("slangReflectionBenchmark", providers.environmentVariable("SLANG_REFLECTION_BENCHMARK").orElse("0"))
         testLogging {
             events("passed", "skipped", "failed")
             exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL

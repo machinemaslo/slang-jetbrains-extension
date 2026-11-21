@@ -1,11 +1,20 @@
 package slanglsp.editor.navigation
 
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.ActionPlaces
+import com.intellij.openapi.actionSystem.ActionUiKind
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.actionSystem.IdeActions
+import com.intellij.openapi.actionSystem.ex.ActionUtil
+import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.event.CaretEvent
 import com.intellij.openapi.editor.event.CaretListener
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.ex.IdeDocumentHistory
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
@@ -165,11 +174,7 @@ internal class NavigationTest {
             runInEdtAndWait {
                 editor.caretModel.moveToOffset(localDeclaration)
                 editor.caretModel.addCaretListener(caretListener)
-                run {
-                    val local = files[0]!!.findElementAt(localDeclaration)
-                    Assertions.assertNotNull(local)
-                    UsageNavigationTarget(local!!, editor).navigate(true)
-                }
+                invokeGotoDeclaration(editor, files[0]!!)
             }
 
             try {
@@ -196,7 +201,7 @@ internal class NavigationTest {
                     builtin[0].text.contains("sin")
                 })
 
-            // Exercise the same rendering hook used by both LSP hover and Ctrl-hover.
+            // Quick Documentation still uses LSP after declaration navigation is deferred.
             val bufferDocs = runReadActionBlocking {
                 HoverDocumentationProvider()
                     .generateDoc(files[0]!!.findElementAt(code.indexOf("StructuredBuffer")), null)
@@ -210,9 +215,36 @@ internal class NavigationTest {
             Assertions.assertNotNull(sineDocs)
             Assertions.assertTrue(sineDocs!!.contains("The angle in radians"), sineDocs)
 
+            runReadActionBlocking {
+                val offset = code.indexOf("sin(")
+                val source = checkNotNull(files[0]!!.findElementAt(offset))
+                val targets = SymbolDeclarationHandler().getGotoDeclarationTargets(source, offset, editor)
+                val link = Assertions.assertInstanceOf(DeferredNavigationTarget::class.java, targets?.singleOrNull())
+                Assertions.assertTrue(link.canNavigate())
+                Assertions.assertEquals("sin", link.text, "The Ctrl-hover target must expose only the local token")
+            }
+
             val documented =
                 "```\nstruct StructuredBuffer<T>\n```\n\nServer-provided explanation.\n\nDefined in core(21016)\n"
             Assertions.assertEquals(documented, BuiltinHoverDocumentation.enrich(fixture.project, documented))
+
+            runInEdtAndWait {
+                editor.caretModel.moveToOffset(code.indexOf("sin("))
+                val history = IdeDocumentHistory.getInstance(fixture.project)
+                history.clearHistory()
+                invokeGotoDeclaration(editor, files[0]!!)
+                val editors = FileEditorManager.getInstance(fixture.project)
+                PlatformTestUtil.waitWithEventsDispatching(
+                    "Go to Declaration opens the resolved builtin rather than the link placeholder",
+                    { editors.selectedFiles.contains(file) },
+                    10,
+                )
+                Assertions.assertEquals(builtin[0].textOffset, editors.selectedTextEditor?.caretModel?.offset)
+                Assertions.assertTrue(history.isBackAvailable, "Deferred navigation must preserve the IDE's Back action")
+                history.back()
+                Assertions.assertEquals(files[0]!!.virtualFile, editors.selectedFiles.firstOrNull())
+                Assertions.assertEquals(code.indexOf("sin("), editors.selectedTextEditor?.caretModel?.offset)
+            }
         } finally {
             try {
                 NativeServerSupport.stop(fixture.project)
@@ -220,5 +252,16 @@ internal class NavigationTest {
                 runInEdtAndWait { fixture.tearDown() }
             }
         }
+    }
+
+    private fun invokeGotoDeclaration(editor: Editor, file: PsiFile) {
+        val action = ActionManager.getInstance().getAction(IdeActions.ACTION_GOTO_DECLARATION)
+        val context = SimpleDataContext.builder()
+            .add(CommonDataKeys.PROJECT, file.project)
+            .add(CommonDataKeys.EDITOR, editor)
+            .add(CommonDataKeys.PSI_FILE, file)
+            .build()
+        val event = AnActionEvent.createEvent(action, context, null, ActionPlaces.UNKNOWN, ActionUiKind.NONE, null)
+        Assertions.assertFalse(ActionUtil.performAction(action, event).isIgnored, "Go to Declaration must execute")
     }
 }

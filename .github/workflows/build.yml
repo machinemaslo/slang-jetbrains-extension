@@ -78,6 +78,15 @@ jobs:
       - name: Test and build
         shell: bash
         run: ./gradlew :buildSrc:test test buildPlugin --stacktrace --console=plain
+      - name: Locate Visual Studio MSBuild
+        if: runner.os == 'Windows'
+        uses: microsoft/setup-msbuild@v2
+      - name: Test Windows reflection solution
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          SLANG_MSBUILD_FIXTURE_TESTS: '1'
+        run: ./gradlew :test -x installTestDependencies --tests '*MsBuildReflectionTest' --stacktrace --console=plain
       - name: Test bundled MCP integration
         if: runner.os == 'Linux'
         shell: bash
